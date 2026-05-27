@@ -70,9 +70,6 @@ function HeroSection() {
                 transition={{ duration: 1 }}
                 className="text-center space-y-2 z-10 text-white"
             >
-                <p className="font-serif tracking-[0.25em] text-[10px] uppercase opacity-90">
-                    The Wedding Invitation
-                </p>
                 <h1 className="text-base font-light tracking-[0.2em]">
                     소중한 분들을 초대합니다
                 </h1>
@@ -91,7 +88,7 @@ function HeroSection() {
                     <span>김아영</span>
                 </div>
                 <div className="text-[11px] tracking-widest opacity-90 font-light space-y-1">
-                    <p>2026. 10. 18. SAT AM 11:00</p>
+                    <p>2026년 10월 18일 토요일 오전 11시</p>
                     <p>서울 용산 가족공원</p>
                 </div>
             </motion.div>
@@ -110,21 +107,20 @@ function GreetingSection() {
                 className="space-y-6 text-luxury-primary leading-loose tracking-wide text-sm font-light"
             >
                 <p>
-                    서로의 인생에
+                    각자 재미있게 잘 살던 저희 두 사람이 만나
                     <br />
-                    가장 따뜻한 계절이 되어주겠다는
+                    이제 매일을 복작복작 함께 지내보려 합니다.
                     <br />
-                    약속을 하려 합니다.
                 </p>
                 <p>
-                    오랜 시간 곁에서 저희의 성장을
+                    햇살 좋은 날, 저희의 새로운 출발을
                     <br />
-                    지켜봐 주신 소중한 분들을 모십니다.
+                    가까이서 축하해 주시면 참 좋겠습니다.
                 </p>
                 <p>
-                    함께하셔서 저희의 새로운 시작을
+                    부담 없이 걸음 하셔서
                     <br />
-                    축복해 주시면 감사하겠습니다.
+                    그저 즐거운 하루를 함께 채워주세요.
                 </p>
             </motion.div>
 
@@ -140,26 +136,22 @@ function GreetingSection() {
             >
                 <div className="flex justify-center items-center gap-2">
                     <span className="text-xs text-luxury-muted w-14 text-right">
-                        신랑 부모
+                        신랑 모
                     </span>
-                    <span className="font-normal text-neutral-700">
-                        이판서 · 김부인
-                    </span>
-                    <span className="text-xs text-luxury-muted">의 차남</span>
+                    <span className="font-normal text-neutral-700">김도윤</span>
+                    <span className="text-xs text-luxury-muted">의 장남</span>
                     <span className="font-normal text-luxury-primary ml-1">
-                        몽룡
+                        성근영
                     </span>
                 </div>
                 <div className="flex justify-center items-center gap-2">
                     <span className="text-xs text-luxury-muted w-14 text-right">
                         신부 부모
                     </span>
-                    <span className="font-normal text-neutral-700">
-                        성참판 · 월매녀
-                    </span>
-                    <span className="text-xs text-luxury-muted">의 장녀</span>
+                    <span className="font-normal text-neutral-700">이동희</span>
+                    <span className="text-xs text-luxury-muted">의 차녀</span>
                     <span className="font-normal text-luxury-primary ml-1">
-                        춘향
+                        김아영
                     </span>
                 </div>
             </motion.div>
@@ -172,9 +164,9 @@ function GreetingSection() {
    ========================================== */
 function LocationSection() {
     const weddingHall = {
-        name: "그랜드 하얏트 서울, 그랜드 볼룸",
-        address: "서울 용산구 소월로 322",
-        tel: "02-797-1234",
+        name: "서울 용산가족공원",
+        address: "서울 용산구 서빙고로 137",
+        tel: "02-792-5661",
         links: {
             naver: "https://map.naver.com/",
             kakao: "https://map.kakao.com/",
@@ -225,7 +217,7 @@ function LocationSection() {
                         }}
                     />
                     <div className="absolute bottom-3 right-3 bg-luxury-primary/80 backdrop-blur-xs text-white px-2 py-0.5 rounded-[2px] text-[10px] tracking-widest flex items-center gap-1 font-light">
-                        <MapPin size={10} /> 용산 가족공원 인근
+                        <MapPin size={10} /> 용산가족공원 인근
                     </div>
                 </motion.div>
 
@@ -268,11 +260,8 @@ function AccountSection() {
             <div className="max-w-sm mx-auto space-y-12 text-center">
                 <motion.div {...fadeInUp} className="space-y-3">
                     <p className="font-sans tracking-[0.3em] text-[11px] text-luxury-accent font-semibold">
-                        축복의 마음
-                    </p>
-                    <h2 className="text-xl font-light tracking-[0.15em] text-luxury-primary">
                         마음 전하실 곳
-                    </h2>
+                    </p>
 
                     <div className="text-xs text-luxury-muted max-w-[300px] mx-auto leading-loose font-light pt-3 space-y-3">
                         <p className="tracking-wide">
@@ -285,7 +274,8 @@ function AccountSection() {
                         </p>
                         <p className="text-[11px] text-luxury-accent/80 pt-2 tracking-wider">
                             따뜻한 마음을 전하고자 하시는 분들을 위해 <br />
-                            계좌 번호를 안내해 드오니 너른 양해를 부탁드립니다.
+                            계좌 번호를 안내해 드리오니 너른 양해를
+                            부탁드립니다.
                         </p>
                     </div>
                 </motion.div>
@@ -317,12 +307,6 @@ function AccountAccordion({
                       bank: "신한은행",
                       number: "110-123-456789",
                   },
-                  {
-                      role: "아버지",
-                      name: "성참판",
-                      bank: "국민은행",
-                      number: "123456-01-123456",
-                  },
               ]
             : [
                   {
@@ -330,12 +314,6 @@ function AccountAccordion({
                       name: "김아영",
                       bank: "우리은행",
                       number: "1002-123-456789",
-                  },
-                  {
-                      role: "아버지",
-                      name: "이판서",
-                      bank: "농협은행",
-                      number: "302-1234-5678-91",
                   },
               ];
 
