@@ -167,10 +167,15 @@ function LocationSection() {
         name: "서울 용산가족공원",
         address: "서울 용산구 서빙고로 137",
         tel: "02-792-5661",
-        links: {
-            naver: "https://map.naver.com/",
-            kakao: "https://map.kakao.com/",
-            tmap: "https://tmap.to/",
+        apps: {
+            // 용산가족공원 위도(37.52401) 및 경도(126.9805) 기준 라우팅 스키마 주입 완료
+            naver:
+                "nmap://route/car?dlat=37.52401&dlon=126.9805&dname=" +
+                encodeUrlComponent("용산가족공원"),
+            kakao: "kakaomap://route?ep=37.52401,126.9805&by=CAR",
+            tmap:
+                "tmap://route?goalx=126.9805&goaly=37.52401&goalname=" +
+                encodeUrlComponent("용산가족공원"),
         },
     };
 
@@ -658,4 +663,9 @@ function RsvpSection() {
             </div>
         </section>
     );
+}
+
+// 한글 쿼리용 인코딩 헬퍼 함수
+function encodeUrlComponent(str: string) {
+    return encodeURIComponent(str);
 }
