@@ -14,10 +14,13 @@ export default function DeliveryCalendar({
   selected,
   booked,
   onSelect,
+  selectedClass = "bg-sage-600 text-white font-medium",
 }: {
   selected: string | null;
   booked: Set<string>;
   onSelect: (ymd: string) => void;
+  /** 선택된 날짜 강조 스타일 (톤에 맞게 교체) */
+  selectedClass?: string;
 }) {
   const [month, setMonth] = useState(FIRST_MONTH);
 
@@ -83,7 +86,7 @@ export default function DeliveryCalendar({
                   onClick={() => onSelect(ymd)}
                   className={`aspect-square text-xs rounded-full flex items-center justify-center transition-colors ${
                     isSel
-                      ? "bg-sage-600 text-white font-medium"
+                      ? selectedClass
                       : isBooked
                       ? "text-neutral-300 line-through"
                       : disabled

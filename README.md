@@ -12,6 +12,9 @@ Next.js(App Router) · TypeScript · Tailwind CSS v4 · framer-motion 기반 모
 - 📍 **정보**: 오시는 길 → 마음 전하실 곳 → 참석 회신(RSVP)
 
 탭 전환 시 가로 슬라이드 애니메이션, 첫 진입은 💌 초대장 탭.
+🛵 받기 탭·플로팅 버튼·첫 진입 팝업은 모두 별도 배달 페이지(`/delivery`)로 이동합니다.
+
+배달 서비스(`/delivery`): **청첩장과 완전히 다른 밝은 배달앱 톤**(탠저린/민트, 패러디 카피)의 독립 페이지. 6단계 주문 폼 → 주문 완료(영수증) 화면. `src/app/delivery/`(전용 layout) + `src/components/delivery/`(DeliveryForm·StepIndicator·CompletePage).
 
 관리자(`/admin`): 배달 신청 목록(대기중·확정·완료) 관리, 확정 시 SMS 발송.
 

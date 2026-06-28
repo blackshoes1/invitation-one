@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import TabBar, { type TabKey } from "@/components/TabBar";
 import SnapView from "@/components/SnapView";
+import IntroPopup from "@/components/IntroPopup";
+import FloatingDeliveryButton from "@/components/FloatingDeliveryButton";
 import Hero from "@/components/sections/Hero";
 import Greeting from "@/components/sections/Greeting";
 import Dday from "@/components/sections/Dday";
 import Gallery from "@/components/sections/Gallery";
-import ReceiveTab from "@/components/sections/ReceiveTab";
 import Location from "@/components/sections/Location";
 import Account from "@/components/sections/Account";
 import Rsvp from "@/components/sections/Rsvp";
@@ -35,8 +37,6 @@ function TabContent({ tab }: { tab: TabKey }) {
           <Gallery />
         </SnapView>
       );
-    case "receive":
-      return <ReceiveTab />;
     case "info":
       return (
         <SnapView>
@@ -45,10 +45,14 @@ function TabContent({ tab }: { tab: TabKey }) {
           <Rsvp />
         </SnapView>
       );
+    case "receive":
+      // 받기 탭은 별도 /delivery 페이지로 이동하므로 렌더되지 않음
+      return null;
   }
 }
 
 export default function AppShell() {
+  const router = useRouter();
   const [{ tab, dir }, setState] = useState<{ tab: TabKey; dir: number }>({
     tab: "invite",
     dir: 0,
@@ -61,13 +65,16 @@ export default function AppShell() {
   };
 
   const change = (next: TabKey, index: number) => {
+    if (next === "receive") {
+      router.push("/delivery");
+      return;
+    }
     if (next === tab) return;
     setState({ tab: next, dir: index > indexOf[tab] ? 1 : -1 });
   };
 
   return (
     <div className="relative mx-auto w-full max-w-[480px] h-[100dvh] overflow-hidden bg-white shadow-sm">
-      {/* 탭 패널 (탭바 높이만큼 하단 여백) */}
       <div className="absolute inset-0 bottom-[64px] overflow-hidden">
         <AnimatePresence custom={dir} initial={false} mode="popLayout">
           <motion.div
@@ -85,7 +92,9 @@ export default function AppShell() {
         </AnimatePresence>
       </div>
 
+      <FloatingDeliveryButton />
       <TabBar active={tab} onChange={change} />
+      <IntroPopup />
     </div>
   );
 }
