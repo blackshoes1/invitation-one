@@ -2,25 +2,44 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #2b2a26;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* 폰트 — next/font 가 html 에 심은 변수에 연결 */
+  --font-sans: var(--font-noto-sans), "Apple SD Gothic Neo", sans-serif;
+  --font-serif: var(--font-noto-serif), serif;
+
+  /* === 따뜻한 베이지 · 세이지 웨딩 팔레트 === */
+  /* 세이지 그린 (포인트·제목) */
+  --color-sage-50: #f3f5f0;
+  --color-sage-100: #e6ebe0;
+  --color-sage-200: #cfd8c4;
+  --color-sage-300: #b2c0a1;
+  --color-sage-400: #94a67f;
+  --color-sage-500: #788c63;
+  --color-sage-600: #5f724f;
+  --color-sage-700: #4a5a3e;
+  --color-sage-800: #3a4631;
+
+  /* 웜 베이지 / 크림 (배경) */
+  --color-wedding-cream: #f6f2ea;
+  --color-wedding-beige: #ece4d6;
+
+  /* 샴페인 골드 (가는 라인·라벨) */
+  --color-wedding-gold: #b89b6e;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+}
+
+/* 부드러운 스크롤 */
+html {
+  scroll-behavior: smooth;
 }

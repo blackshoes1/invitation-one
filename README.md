@@ -1,36 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 모바일 청첩장 (성근영 ♥ 김아영)
 
-## Getting Started
+Next.js(App Router) · TypeScript · Tailwind CSS v4 · framer-motion 기반 모바일 청첩장.
 
-First, run the development server:
+## 구조
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+src/
+  app/
+    layout.tsx        # 폰트(Noto Serif/Sans KR) · 메타데이터
+    page.tsx          # 섹션 조합
+    globals.css       # 베이지·세이지 팔레트(@theme)
+  components/
+    FadeIn.tsx        # 공용 스크롤 등장 애니메이션
+    KakaoMap.tsx      # 카카오맵 임베드(+폴백)
+    sections/         # Hero · Dday · Greeting · Location · Account · Rsvp
+  lib/
+    wedding.ts        # 모든 청첩장 데이터 + 날짜/D-Day 헬퍼
+    supabase.ts       # Supabase 클라이언트
+db/rsvp.sql           # RSVP 테이블 스키마
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+> 내용 수정은 대부분 `src/lib/wedding.ts` 한 파일에서 끝납니다.
+> 요일·D-Day는 날짜에서 자동 계산되므로 따로 적지 않습니다.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 개발
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm install
+npm run dev      # http://localhost:3000
+```
 
-## Learn More
+## 환경변수 설정
 
-To learn more about Next.js, take a look at the following resources:
+`.env.local.example` 를 `.env.local` 로 복사 후 값을 채웁니다.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 1) Supabase — RSVP 저장
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. https://supabase.com 에서 프로젝트 생성
+2. **SQL Editor** 에 `db/rsvp.sql` 내용을 붙여넣고 실행
+3. **Project Settings → API** 에서 URL · anon key 복사 → `.env.local`
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=...
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+   ```
+4. 응답은 Supabase **Table Editor → rsvp** 에서 확인
 
-## Deploy on Vercel
+> 키가 없으면 폼은 "데모 모드"로 동작합니다(전송 성공 화면은 뜨지만 저장은 안 됨).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 2) 카카오맵
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. https://developers.kakao.com → 애플리케이션 추가
+2. **앱 키 → JavaScript 키** 복사 → `.env.local` 의 `NEXT_PUBLIC_KAKAO_MAP_KEY`
+3. **플랫폼 → Web** 에 도메인 등록 (예: `http://localhost:3000`, 배포 주소)
+
+> 키가 없으면 지도는 주소가 적힌 약도 플레이스홀더로 표시됩니다.
+
+## 배포
+
+Vercel 에 연결 후, 위 환경변수를 **Project Settings → Environment Variables** 에 동일하게 등록하세요.
