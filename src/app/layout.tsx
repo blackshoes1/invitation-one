@@ -47,7 +47,7 @@ export default function RootLayout({
       lang="ko"
       className={`${notoSans.variable} ${notoSerif.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="h-full overflow-hidden bg-wedding-cream">{children}</body>
     </html>
   );
 }

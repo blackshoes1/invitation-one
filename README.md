@@ -2,26 +2,44 @@
 
 Next.js(App Router) · TypeScript · Tailwind CSS v4 · framer-motion 기반 모바일 청첩장.
 
+## 페이지 구성
+
+홈(`/`)은 **하단 고정 탭바 4개 + 탭 안에서 세로 스와이프(풀스크린 스냅)** 구조입니다.
+
+- 💌 **초대장**: Hero → 인사말 → D-Day
+- 📸 **갤러리**: 커플 사진 슬라이드
+- 🛵 **받기**: 청첩장 배달 신청 (대화형 6단계 스텝 폼)
+- 📍 **정보**: 오시는 길 → 마음 전하실 곳 → 참석 회신(RSVP)
+
+탭 전환 시 가로 슬라이드 애니메이션, 첫 진입은 💌 초대장 탭.
+
+관리자(`/admin`): 배달 신청 목록(대기중·확정·완료) 관리, 확정 시 SMS 발송.
+
 ## 구조
 
 ```
 src/
   app/
-    layout.tsx        # 폰트(Noto Serif/Sans KR) · 메타데이터
-    page.tsx          # 섹션 조합
-    globals.css       # 베이지·세이지 팔레트(@theme)
+    layout.tsx                 # 폰트(Noto Serif/Sans KR) · 메타데이터
+    page.tsx                   # 섹션 조합
+    globals.css                # 베이지·세이지 팔레트(@theme)
+    admin/page.tsx             # 관리자 페이지(비밀번호 보호)
+    api/admin/deliveries/      # 어드민 API (service_role + 비밀번호)
   components/
-    FadeIn.tsx        # 공용 스크롤 등장 애니메이션
-    KakaoMap.tsx      # 카카오맵 임베드(+폴백)
-    sections/         # Hero · Dday · Greeting · Location · Account · Rsvp
+    FadeIn.tsx · KakaoMap.tsx
+    sections/                  # Hero · Gallery · Delivery · Dday · Greeting · Location · Account · Rsvp
   lib/
-    wedding.ts        # 모든 청첩장 데이터 + 날짜/D-Day 헬퍼
-    supabase.ts       # Supabase 클라이언트
-db/rsvp.sql           # RSVP 테이블 스키마
+    wedding.ts                 # 모든 콘텐츠 + 날짜/D-Day 헬퍼
+    supabase.ts                # 공개 클라이언트(anon)
+    supabaseAdmin.ts           # 서버 전용(service_role)
+    sms.ts                     # 솔라피 SMS
+    adminAuth.ts               # 관리자 비밀번호 검증
+db/
+  rsvp.sql · deliveries.sql    # 테이블 스키마
 ```
 
 > 내용 수정은 대부분 `src/lib/wedding.ts` 한 파일에서 끝납니다.
-> 요일·D-Day는 날짜에서 자동 계산되므로 따로 적지 않습니다.
+> 요일·D-Day는 날짜에서 자동 계산됩니다.
 
 ## 개발
 
@@ -30,31 +48,49 @@ npm install
 npm run dev      # http://localhost:3000
 ```
 
-## 환경변수 설정
+## 갤러리 사진
 
-`.env.local.example` 를 `.env.local` 로 복사 후 값을 채웁니다.
+`/public/pic/` 에 `gallery1.jpg`, `gallery2.jpg`, `gallery3.jpg` 를 넣으면 자동으로 슬라이드에 표시됩니다. (없으면 "사진 준비 중" 플레이스홀더) 장수·파일명은 `src/lib/wedding.ts` 의 `galleryImages` 에서 조정.
 
-### 1) Supabase — RSVP 저장
+## 환경변수
 
-1. https://supabase.com 에서 프로젝트 생성
-2. **SQL Editor** 에 `db/rsvp.sql` 내용을 붙여넣고 실행
-3. **Project Settings → API** 에서 URL · anon key 복사 → `.env.local`
+`.env.local.example` → `.env.local` 복사 후 채웁니다.
+
+### 1) Supabase (RSVP·배달 신청)
+
+1. https://supabase.com 프로젝트 생성
+2. **SQL Editor** 에서 `db/rsvp.sql` 과 `db/deliveries.sql` 실행
+3. **Project Settings → API** 에서 값 복사:
    ```
    NEXT_PUBLIC_SUPABASE_URL=...
    NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+   SUPABASE_SERVICE_ROLE_KEY=...   # 서버 전용, 공개 금지
    ```
-4. 응답은 Supabase **Table Editor → rsvp** 에서 확인
 
-> 키가 없으면 폼은 "데모 모드"로 동작합니다(전송 성공 화면은 뜨지만 저장은 안 됨).
+배달 신청은 **날짜당 1건**(DB unique)으로 제한되며, 이미 신청된 날짜는 달력에서 자동 비활성화됩니다(`get_booked_dates` 함수가 날짜만 노출).
 
-### 2) 카카오맵
+### 2) /admin 관리자
 
-1. https://developers.kakao.com → 애플리케이션 추가
-2. **앱 키 → JavaScript 키** 복사 → `.env.local` 의 `NEXT_PUBLIC_KAKAO_MAP_KEY`
-3. **플랫폼 → Web** 에 도메인 등록 (예: `http://localhost:3000`, 배포 주소)
+```
+ADMIN_PASSWORD=원하는비밀번호
+```
+`/admin` 접속 → 비밀번호 입력 → 신청 목록 확인 및 상태 변경(대기중 → 확정 → 완료).
 
-> 키가 없으면 지도는 주소가 적힌 약도 플레이스홀더로 표시됩니다.
+### 3) 솔라피 SMS (확정 시 문자)
+
+```
+SOLAPI_API_KEY=...
+SOLAPI_API_SECRET=...
+SOLAPI_SENDER=01000000000   # 솔라피에 사전 등록된 발신번호
+```
+키가 없으면 상태는 확정되지만 문자 발송은 자동으로 건너뜁니다.
+
+### 4) 카카오맵
+
+```
+NEXT_PUBLIC_KAKAO_MAP_KEY=...   # developers.kakao.com JavaScript 키, Web 도메인 등록
+```
 
 ## 배포
 
-Vercel 에 연결 후, 위 환경변수를 **Project Settings → Environment Variables** 에 동일하게 등록하세요.
+Vercel 연결 후 위 환경변수를 **Project Settings → Environment Variables** 에 동일하게 등록하세요. (`NEXT_PUBLIC_*` 는 공개, 나머지는 서버 전용)

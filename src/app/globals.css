@@ -36,10 +36,39 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans);
+  font-family: var(--font-serif);
 }
 
 /* 부드러운 스크롤 */
 html {
   scroll-behavior: smooth;
+}
+
+/* 스크롤바 숨김 (세로 스와이프 패널용) */
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* 대화형 스텝 폼 입력창 */
+.step-input {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid rgba(184, 155, 110, 0.35);
+  border-radius: 0;
+  padding: 0.6rem 0;
+  font-size: 1.125rem;
+  color: #4a5a3e;
+  outline: none;
+  font-family: var(--font-sans);
+}
+.step-input::placeholder {
+  color: #d4d4d4;
+}
+.step-input:focus {
+  border-color: #5f724f;
 }

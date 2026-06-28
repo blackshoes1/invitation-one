@@ -23,3 +23,19 @@ export interface RsvpPayload {
   eating: "yes" | "no" | "undecided";
   memo: string;
 }
+
+export type DeliveryStatus = "대기중" | "확정" | "완료";
+
+export interface Delivery {
+  id: string;
+  created_at: string;
+  name: string;
+  phone: string;
+  location: string;
+  date: string; // YYYY-MM-DD
+  time_slot: "오전" | "오후" | "저녁";
+  message: string | null;
+  status: DeliveryStatus;
+}
+
+export type DeliveryInsert = Omit<Delivery, "id" | "created_at" | "status">;

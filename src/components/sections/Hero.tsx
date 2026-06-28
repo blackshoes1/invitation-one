@@ -12,7 +12,7 @@ import {
 
 export default function Hero() {
   return (
-    <section className="relative w-full aspect-[3/4] max-w-[450px] mx-auto flex flex-col justify-between py-16 px-6 overflow-hidden bg-sage-50">
+    <section className="relative snap-start min-h-full w-full flex flex-col justify-between py-16 px-6 overflow-hidden bg-sage-50">
       <Image
         src="/pic/wedding_main.jpg"
         alt={`${groom.name} & ${bride.name} 웨딩 사진`}

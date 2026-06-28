@@ -64,6 +64,37 @@ export const brideAccounts: Account[] = [
   { role: "신부", name: "김아영", bank: "우리은행", number: "1002-123-456789" },
 ];
 
+/* ----------------------- 갤러리 ----------------------- */
+// /public/pic/ 에 아래 파일을 넣으면 자동으로 슬라이드에 표시됩니다.
+export const galleryImages: { src: string; alt: string }[] = [
+  { src: "/pic/gallery1.jpg", alt: "커플 사진 1" },
+  { src: "/pic/gallery2.jpg", alt: "커플 사진 2" },
+  { src: "/pic/gallery3.jpg", alt: "커플 사진 3" },
+];
+
+/* ------------------ 청첩장 받기(배달 신청) ------------------ */
+export type TimeSlot = "오전" | "오후" | "저녁";
+export const TIME_SLOTS: TimeSlot[] = ["오전", "오후", "저녁"];
+
+// 배달 신청 가능 기간 (YYYY-MM-DD)
+export const DELIVERY_START = "2026-07-06";
+export const DELIVERY_END = "2026-10-16";
+
+/** 'YYYY-MM-DD' 로 포맷 (로컬 기준, TZ 안전) */
+export function toYmd(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/** 'YYYY-MM-DD' → "10월 16일 (금)" */
+export function formatYmdKo(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  return `${m}월 ${d}일 (${WEEKDAYS_KO[date.getDay()]})`;
+}
+
 /* ------------------------------- 헬퍼 ------------------------------- */
 
 const WEEKDAYS_KO = ["일", "월", "화", "수", "목", "금", "토"];
