@@ -14,7 +14,7 @@ export default function Dday() {
       : `${groom.name}, ${bride.name}의 결혼식이 있었습니다.`;
 
   return (
-    <section className="snap-start min-h-full flex flex-col justify-center px-6 py-20 bg-wedding-cream text-center">
+    <section className="px-6 py-20 bg-wedding-cream text-center">
       <FadeIn className="max-w-sm mx-auto space-y-5">
         <p className="font-serif tracking-[0.3em] text-[11px] text-wedding-gold">
           {formatShortDate()}

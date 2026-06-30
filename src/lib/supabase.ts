@@ -24,18 +24,81 @@ export interface RsvpPayload {
   memo: string;
 }
 
-export type DeliveryStatus = "대기중" | "확정" | "완료";
+export type DeliveryStatus = "대기중" | "확정" | "완료" | "취소";
+export type TimeSlotValue = "오전" | "오후" | "저녁";
 
 export interface Delivery {
   id: string;
   created_at: string;
+  updated_at: string;
+  group_id: string | null;
   name: string;
   phone: string;
   location: string;
   date: string; // YYYY-MM-DD
-  time_slot: "오전" | "오후" | "저녁";
+  time_slot: TimeSlotValue;
+  party_size: number | null;
   message: string | null;
   status: DeliveryStatus;
 }
 
-export type DeliveryInsert = Omit<Delivery, "id" | "created_at" | "status">;
+export type DeliveryInsert = Pick<
+  Delivery,
+  "group_id" | "name" | "phone" | "location" | "date" | "time_slot" | "party_size" | "message"
+>;
+
+/** get_delivery RPC 반환 (취소/변경 페이지용) */
+export interface DeliveryDetail {
+  id: string;
+  group_id: string | null;
+  name: string;
+  location: string;
+  date: string;
+  time_slot: TimeSlotValue;
+  party_size: number | null;
+  status: DeliveryStatus;
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface GroupMember {
+  name: string;
+  date: string;
+  time_slot: "오전" | "오후" | "저녁";
+}
+
+/** 명단(로스터) + 신청 상태 */
+export interface GroupStatusMember {
+  name: string;
+  applied: boolean;
+  date: string | null;
+  time_slot: "오전" | "오후" | "저녁" | null;
+}
+
+/** 관리자용 명단 행 */
+export interface GroupMemberRow {
+  id: string;
+  group_id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface WaitingEntry {
+  id: string;
+  name: string;
+  phone: string;
+  created_at: string;
+}
+
+export interface Message {
+  id: string;
+  group_id: string | null;
+  name: string;
+  stamp: string | null;
+  message: string | null;
+  created_at: string;
+}

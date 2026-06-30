@@ -24,7 +24,7 @@ export default function Gallery() {
   const current = galleryImages[index];
 
   return (
-    <section className="snap-start min-h-full flex flex-col justify-center px-6 py-16 bg-white">
+    <section className="px-6 py-20 bg-white">
       <div className="max-w-sm mx-auto space-y-8 text-center">
         <FadeIn className="space-y-2">
           <p className="font-serif tracking-[0.3em] text-[11px] text-wedding-gold">

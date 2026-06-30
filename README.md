@@ -59,10 +59,14 @@ npm run dev      # http://localhost:3000
 
 `.env.local.example` → `.env.local` 복사 후 채웁니다.
 
-### 1) Supabase (RSVP·배달 신청)
+### 1) Supabase (RSVP·배달·그룹·대기자)
 
 1. https://supabase.com 프로젝트 생성
-2. **SQL Editor** 에서 `db/rsvp.sql` 과 `db/deliveries.sql` 실행
+2. **SQL Editor** 에서 순서대로 실행: `db/rsvp.sql` → `db/deliveries.sql` → `db/groups.sql` → `db/group_members.sql` → `db/v2_updates.sql` → `db/v3_create_delivery.sql`
+   - `v2_updates.sql`: 예상 인원·취소 상태·조건부 unique(취소된 날짜 재신청 가능)·취소/변경 RPC
+   - `v3_create_delivery.sql`: 신청 삽입 + 주문 ID 반환 RPC(연락처 비노출 위해 직접 insert 대신 사용)
+   - `v4_messages.sql`: 마음 배송/방명록 메시지 테이블
+   - `v5_rsvp.sql`: 참석 의사(RSVP) 연락처·자녀·유아식 컬럼 + (이름,연락처) 중복 시 수정 RPC
 3. **Project Settings → API** 에서 값 복사:
    ```
    NEXT_PUBLIC_SUPABASE_URL=...

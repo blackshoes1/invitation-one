@@ -98,3 +98,23 @@ html {
 .dform-input:focus {
   border-color: #ff6b35;
 }
+
+/* RSVP 언더라인 입력창 */
+.rsvp-input {
+  width: 100%;
+  padding-bottom: 0.5rem;
+  border: 0;
+  border-bottom: 1px solid rgba(184, 155, 110, 0.25);
+  background: transparent;
+  color: #4a5a3e;
+  border-radius: 0;
+  outline: none;
+  font-family: var(--font-sans);
+  letter-spacing: 0.02em;
+}
+.rsvp-input::placeholder {
+  color: #d4d4d4;
+}
+.rsvp-input:focus {
+  border-color: #5f724f;
+}

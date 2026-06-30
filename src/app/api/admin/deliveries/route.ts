@@ -15,12 +15,14 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status"); // 대기중 | 확정 | 완료 | null(전체)
+  const groupId = searchParams.get("group_id"); // 그룹 필터 | null(전체)
 
   let query = supabaseAdmin
     .from("deliveries")
     .select("*")
     .order("date", { ascending: true });
   if (status) query = query.eq("status", status);
+  if (groupId) query = query.eq("group_id", groupId);
 
   const { data, error } = await query;
   if (error) {

@@ -20,7 +20,7 @@ function ParentLine({ label, person }: { label: string; person: Person }) {
 
 export default function Greeting() {
   return (
-    <section className="snap-start min-h-full flex flex-col justify-center px-6 py-16 text-center max-w-sm mx-auto space-y-12">
+    <section className="px-6 py-24 text-center max-w-sm mx-auto space-y-12">
       <FadeIn className="space-y-6 text-neutral-600 leading-loose tracking-wide text-sm font-light">
         <p>
           각자 재미있게 잘 살던 저희 두 사람이 만나

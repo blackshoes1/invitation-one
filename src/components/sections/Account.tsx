@@ -6,7 +6,6 @@ import { ChevronDown } from "lucide-react";
 import { groomAccounts, brideAccounts, type Account as Acct } from "@/lib/wedding";
 import FadeIn from "@/components/FadeIn";
 
-/** clipboard API 실패 시 execCommand 폴백 */
 async function copyText(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard && window.isSecureContext) {
@@ -32,42 +31,81 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 function AccountRow({ acc }: { acc: Acct }) {
-  const [copied, setCopied] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const flash = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 1800);
+  };
 
   const handleCopy = async () => {
-    const ok = await copyText(acc.number);
-    if (ok) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+    if (await copyText(acc.number)) flash("복사됐어요!");
+  };
+
+  const handlePay = async (kind: "kakao" | "toss") => {
+    const url = kind === "kakao" ? acc.kakaoPayUrl : acc.tossUrl;
+    if (url) {
+      window.location.href = url;
+      return;
     }
+    if (await copyText(acc.number))
+      flash(`복사됐어요! ${kind === "kakao" ? "카카오페이" : "토스"}에서 붙여넣어 주세요`);
   };
 
   return (
-    <div className="flex justify-between items-center text-left py-1">
-      <div className="space-y-1">
-        <p className="text-[11px] text-wedding-gold font-medium tracking-wider">
-          {acc.role}
-          <span className="text-sage-700 font-light ml-1">{acc.name}</span>
-        </p>
-        <p className="text-sm font-light tracking-wide text-sage-700">
-          {acc.bank}
-          <span className="text-xs font-mono tracking-tighter text-neutral-500 ml-1">
-            {acc.number}
-          </span>
-        </p>
+    <div className="text-left py-1 space-y-2.5">
+      <div className="flex justify-between items-center">
+        <div className="space-y-1">
+          <p className="text-[11px] text-wedding-gold font-medium tracking-wider">
+            {acc.role}
+            <span className="text-sage-700 font-light ml-1">{acc.name}</span>
+          </p>
+          <p className="text-sm font-light tracking-wide text-sage-700">
+            {acc.bank}
+            <span className="text-xs font-mono tracking-tighter text-neutral-500 ml-1">
+              {acc.number}
+            </span>
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleCopy}
+          aria-label={`${acc.name} 계좌번호 복사`}
+          className="min-w-[64px] px-3 py-1.5 border border-wedding-gold/25 text-[11px] text-neutral-500 hover:text-wedding-gold hover:border-wedding-gold transition-all tracking-wide bg-white"
+        >
+          복사
+        </button>
       </div>
-      <button
-        type="button"
-        onClick={handleCopy}
-        aria-label={`${acc.name} 계좌번호 복사`}
-        className="flex items-center justify-center min-w-[64px] px-3 py-1.5 border border-wedding-gold/25 text-[11px] text-neutral-500 hover:text-wedding-gold hover:border-wedding-gold transition-all tracking-wide bg-white"
-      >
-        {copied ? (
-          <span className="text-sage-600 font-medium">완료</span>
-        ) : (
-          <span>복사</span>
+
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => handlePay("kakao")}
+          className="py-2 text-[11px] bg-[#FEE500] text-[#3C1E1E] font-medium tracking-wide rounded-sm"
+        >
+          카카오페이로 보내기
+        </button>
+        <button
+          type="button"
+          onClick={() => handlePay("toss")}
+          className="py-2 text-[11px] bg-[#3182F6] text-white font-medium tracking-wide rounded-sm"
+        >
+          토스로 보내기
+        </button>
+      </div>
+
+      <AnimatePresence>
+        {toast && (
+          <motion.p
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="text-[11px] text-sage-600 text-center"
+          >
+            {toast}
+          </motion.p>
         )}
-      </button>
+      </AnimatePresence>
     </div>
   );
 }
@@ -113,11 +151,11 @@ function AccountAccordion({ title, accounts }: { title: string; accounts: Acct[]
 
 export default function Account() {
   return (
-    <section className="snap-start min-h-full flex flex-col justify-center px-6 py-16 bg-wedding-cream">
+    <section className="px-6 py-24 bg-wedding-cream border-t border-wedding-gold/10">
       <div className="max-w-sm mx-auto space-y-10 text-center">
         <FadeIn className="space-y-3">
           <p className="font-serif tracking-[0.3em] text-[11px] text-wedding-gold">
-            마음 전하실 곳
+            마음 전하기
           </p>
           <div className="text-xs text-neutral-500 max-w-[300px] mx-auto leading-loose font-light pt-2 space-y-3">
             <p className="tracking-wide">
@@ -129,16 +167,16 @@ export default function Account() {
               </span>
             </p>
             <p className="text-[11px] text-neutral-400 pt-1 tracking-wider">
-              따뜻한 마음을 전하고자 하시는 분들을 위해
+              마음을 전하고자 하시는 분들을 위해
               <br />
-              계좌번호를 안내해 드리오니 너른 양해를 부탁드립니다.
+              아래에 계좌를 안내드립니다. 너른 양해 부탁드립니다.
             </p>
           </div>
         </FadeIn>
 
         <FadeIn className="space-y-3">
-          <AccountAccordion title="신랑측 계좌번호" accounts={groomAccounts} />
-          <AccountAccordion title="신부측 계좌번호" accounts={brideAccounts} />
+          <AccountAccordion title="신랑측 마음 전하기" accounts={groomAccounts} />
+          <AccountAccordion title="신부측 마음 전하기" accounts={brideAccounts} />
         </FadeIn>
       </div>
     </section>

@@ -18,6 +18,9 @@ export interface Account {
   name: string;
   bank: string;
   number: string;
+  /** 송금 딥링크 (정책상 가능할 때만 설정. 없으면 번호 복사+안내로 폴백) */
+  kakaoPayUrl?: string;
+  tossUrl?: string;
 }
 
 /** 예식 일시 (로컬 기준) */
@@ -79,6 +82,37 @@ export const TIME_SLOTS: TimeSlot[] = ["오전", "오후", "저녁"];
 // 배달 신청 가능 기간 (YYYY-MM-DD)
 export const DELIVERY_START = "2026-07-06";
 export const DELIVERY_END = "2026-10-16";
+
+// 총 정원 (7/6 ~ 10/16 = 103일, 날짜당 1건)
+export const DELIVERY_CAPACITY = 103;
+
+// 완료 화면 "특별한 영상 메시지" (유튜브 비공개 링크). 비어 있으면 '준비 중' 표시.
+export const VIDEO_URL = process.env.NEXT_PUBLIC_VIDEO_URL ?? "";
+
+// 마음 배송 전용 감사 영상 (직접 배달 영상과 별개). 비어 있으면 표시 안 함.
+export const HEART_VIDEO_URL = process.env.NEXT_PUBLIC_HEART_VIDEO_URL ?? "";
+
+// 예상 참석 인원 상한
+export const PARTY_MAX = 10;
+
+// 청첩장 공개 접근 키 (QR/링크의 ?key=). 비어 있으면 청첩장은 그냥 공개.
+export const INVITATION_KEY = process.env.NEXT_PUBLIC_INVITATION_KEY ?? "";
+
+// 마음 배송 축하 스탬프
+export const STAMPS = ["🎉", "💐", "🥂", "❤️", "🙏"] as const;
+
+/** 휴대폰 입력 자동 하이픈 포맷 (010-0000-0000) */
+export function formatPhone(v: string): string {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length < 4) return d;
+  if (d.length < 8) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+}
+
+/** 한국 휴대폰 형식 검증 */
+export function isValidPhone(v: string): boolean {
+  return /^01\d-\d{3,4}-\d{4}$/.test(v.trim());
+}
 
 /** 'YYYY-MM-DD' 로 포맷 (로컬 기준, TZ 안전) */
 export function toYmd(date: Date): string {

@@ -5,7 +5,7 @@ import { sendSms } from "@/lib/sms";
 import { formatYmdKo } from "@/lib/wedding";
 import type { DeliveryStatus } from "@/lib/supabase";
 
-const VALID: DeliveryStatus[] = ["대기중", "확정", "완료"];
+const VALID: DeliveryStatus[] = ["대기중", "확정", "완료", "취소"];
 
 export async function PATCH(
   req: Request,
@@ -39,12 +39,13 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // 확정 시 신청자에게 SMS (솔라피 키 없으면 자동 skip)
+  // 상태 변경 시 신청자에게 SMS (솔라피 키 없으면 자동 skip)
   let sms: unknown = null;
-  if (status === "확정" && data) {
-    const text = `[청첩장 배달] ${data.name}님, 신청하신 ${formatYmdKo(
-      data.date
-    )} ${data.time_slot} ${data.location} 일정이 확정되었습니다. 곧 찾아뵙겠습니다 :)`;
+  if (data && (status === "확정" || status === "취소")) {
+    const text =
+      status === "확정"
+        ? `[청첩장 배달] ${data.name}님, 신청하신 ${formatYmdKo(data.date)} ${data.time_slot} ${data.location} 일정이 확정되었습니다. 곧 찾아뵙겠습니다 :)`
+        : `[청첩장 배달] ${data.name}님, 부득이하게 ${formatYmdKo(data.date)} ${data.time_slot} 일정이 취소되었습니다. 자세한 안내는 곧 연락드리겠습니다. 양해 부탁드립니다.`;
     sms = await sendSms(data.phone, text);
   }
 
