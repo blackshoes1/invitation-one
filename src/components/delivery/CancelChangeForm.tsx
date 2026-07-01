@@ -9,6 +9,7 @@ import {
 } from "@/lib/supabase";
 import { type TimeSlot, formatYmdKo } from "@/lib/wedding";
 import DeliveryCalendar from "@/components/DeliveryCalendar";
+import TrackingView from "@/components/delivery/TrackingView";
 
 const SLOTS: TimeSlot[] = ["오전", "오후", "저녁"];
 
@@ -21,6 +22,11 @@ export default function CancelChangeForm({ deliveryId }: { deliveryId: string })
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<"changed" | "cancelled" | null>(null);
+  // 리뷰
+  const [rating, setRating] = useState(0);
+  const [reviewText, setReviewText] = useState("");
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewDone, setReviewDone] = useState(false);
 
   const load = async () => {
     if (!isSupabaseConfigured || !supabase) {
@@ -78,6 +84,28 @@ export default function CancelChangeForm({ deliveryId }: { deliveryId: string })
       setBusy(false);
     }
     setResult("cancelled");
+  };
+
+  const doReview = async () => {
+    if (rating < 1) return setError("별점을 선택해주세요 ⭐");
+    setReviewBusy(true);
+    setError(null);
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase.rpc("submit_review", {
+        p_id: deliveryId,
+        p_rating: rating,
+        p_text: reviewText.trim() || null,
+      });
+      setReviewBusy(false);
+      if (error) return setError("리뷰 등록에 실패했어요. 다시 시도해주세요.");
+      if (data === "not_ready")
+        return setError("아직 배송 완료 전이라 리뷰를 남길 수 없어요.");
+      if (data === "rating") return setError("별점을 다시 선택해주세요 ⭐");
+    } else {
+      await new Promise((r) => setTimeout(r, 400));
+      setReviewBusy(false);
+    }
+    setReviewDone(true);
   };
 
   if (detail === undefined)
@@ -145,7 +173,27 @@ export default function CancelChangeForm({ deliveryId }: { deliveryId: string })
         </span>
       </div>
 
-      {mode === "view" ? (
+      {/* 실시간 배송 현황 */}
+      <div className="bg-delivery/5 rounded-2xl py-5 px-4">
+        <TrackingView stage={detail.tracking_stage} />
+      </div>
+
+      {/* 배송 완료 → 리뷰 */}
+      {detail.status === "완료" && (
+        <ReviewBlock
+          already={detail.review_rating}
+          alreadyText={detail.review_text}
+          rating={rating}
+          setRating={setRating}
+          reviewText={reviewText}
+          setReviewText={setReviewText}
+          busy={reviewBusy}
+          done={reviewDone}
+          onSubmit={doReview}
+        />
+      )}
+
+      {detail.status === "완료" ? null : mode === "view" ? (
         <div className="space-y-3">
           <button
             onClick={() => setMode("change")}
@@ -210,6 +258,100 @@ export default function CancelChangeForm({ deliveryId }: { deliveryId: string })
       {error && mode === "view" && (
         <p className="text-sm text-delivery-dark text-center">{error}</p>
       )}
+    </div>
+  );
+}
+
+function ReviewBlock({
+  already,
+  alreadyText,
+  rating,
+  setRating,
+  reviewText,
+  setReviewText,
+  busy,
+  done,
+  onSubmit,
+}: {
+  already: number | null;
+  alreadyText: string | null;
+  rating: number;
+  setRating: (n: number) => void;
+  reviewText: string;
+  setReviewText: (s: string) => void;
+  busy: boolean;
+  done: boolean;
+  onSubmit: () => void;
+}) {
+  // 이미 등록된 리뷰가 있거나 방금 등록 완료한 경우
+  if (done || already) {
+    const stars = "⭐".repeat(done ? rating : already ?? 0);
+    return (
+      <div className="bg-white border-2 border-delivery/15 rounded-2xl p-5 text-center space-y-2">
+        <p className="text-sm font-extrabold text-delivery">
+          리뷰 감사합니다! 🙏
+        </p>
+        <p className="text-lg tracking-wide">{stars}</p>
+        {(done ? reviewText : alreadyText) && (
+          <p className="text-xs text-neutral-500 leading-relaxed">
+            “{done ? reviewText : alreadyText}”
+          </p>
+        )}
+        <p className="text-[11px] text-neutral-400">
+          남겨주신 후기는 청첩장에 소개돼요 💝
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white border-2 border-delivery/15 rounded-2xl p-5 space-y-4">
+      <div className="text-center space-y-1">
+        <p className="text-sm font-extrabold text-neutral-800">
+          청첩장은 만족스러우셨나요?
+        </p>
+        <p className="text-[11px] text-neutral-400">
+          별점을 남겨주시면 큰 힘이 돼요
+        </p>
+      </div>
+
+      <div className="flex justify-center gap-1.5">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => setRating(n)}
+            aria-label={`${n}점`}
+            className={`text-3xl transition-transform active:scale-90 ${
+              n <= rating ? "grayscale-0 scale-110" : "grayscale opacity-40"
+            }`}
+          >
+            ⭐
+          </button>
+        ))}
+      </div>
+
+      <div>
+        <textarea
+          value={reviewText}
+          onChange={(e) => setReviewText(e.target.value.slice(0, 100))}
+          placeholder="한줄 후기 (선택) 예) 신랑 친절해요 / 청첩장 예뻐요"
+          rows={2}
+          className="w-full rounded-xl border border-delivery/20 px-3 py-2.5 text-sm resize-none focus:outline-none focus:border-delivery"
+        />
+        <p className="text-right text-[10px] text-neutral-300">
+          {reviewText.length}/100
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={onSubmit}
+        disabled={busy}
+        className="w-full py-3.5 rounded-full bg-delivery text-white font-bold active:scale-95 transition-transform disabled:opacity-60"
+      >
+        {busy ? "등록 중…" : "리뷰 등록하기"}
+      </button>
     </div>
   );
 }

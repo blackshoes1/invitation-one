@@ -89,7 +89,7 @@ export default function CompletePage({
 
       {/* 배송 현황 (콘셉트 재미) */}
       <div className="mt-7 w-full max-w-xs">
-        <TrackingView status="대기중" />
+        <TrackingView stage="주문접수" />
       </div>
 
       <p className="mt-5 text-xs text-neutral-400 leading-relaxed">

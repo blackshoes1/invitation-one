@@ -12,13 +12,17 @@ import { INVITATION_KEY } from "@/lib/wedding";
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ key?: string }>;
+  searchParams: Promise<{ key?: string; from?: string }>;
 }) {
   const sp = await searchParams;
   // 접근 키가 설정돼 있고 키가 맞지 않으면 잠금 화면
   if (INVITATION_KEY && sp?.key !== INVITATION_KEY) {
     return <LockedGate />;
   }
+
+  // 종이 청첩장 QR(?from=qr)로 들어온 하객에게만 본인 확인/뱃지 노출.
+  // (어르신·키 직접 전달 그룹은 배달 데이터가 없어 헷갈리므로 숨김)
+  const qrEntry = sp?.from === "qr";
 
   return (
     <main className="relative mx-auto max-w-[480px] min-h-screen bg-white text-neutral-800 antialiased shadow-sm">
@@ -28,7 +32,7 @@ export default async function Home({
       <Dday />
       <Location />
       <Account />
-      <Guestbook />
+      <Guestbook qrEntry={qrEntry} />
       <Rsvp />
     </main>
   );

@@ -27,6 +27,15 @@ export interface RsvpPayload {
 export type DeliveryStatus = "대기중" | "확정" | "완료" | "취소";
 export type TimeSlotValue = "오전" | "오후" | "저녁";
 
+/** 배송 추적 4단계 (status 와 별개로 Admin 이 수동 전환) */
+export type TrackingStage = "주문접수" | "준비중" | "배송출발" | "배송완료";
+export const TRACKING_STAGES: TrackingStage[] = [
+  "주문접수",
+  "준비중",
+  "배송출발",
+  "배송완료",
+];
+
 export interface Delivery {
   id: string;
   created_at: string;
@@ -40,6 +49,9 @@ export interface Delivery {
   party_size: number | null;
   message: string | null;
   status: DeliveryStatus;
+  tracking_stage: TrackingStage;
+  review_rating: number | null;
+  review_text: string | null;
 }
 
 export type DeliveryInsert = Pick<
@@ -47,7 +59,7 @@ export type DeliveryInsert = Pick<
   "group_id" | "name" | "phone" | "location" | "date" | "time_slot" | "party_size" | "message"
 >;
 
-/** get_delivery RPC 반환 (취소/변경 페이지용) */
+/** get_delivery RPC 반환 (취소/변경·추적·리뷰 페이지용) */
 export interface DeliveryDetail {
   id: string;
   group_id: string | null;
@@ -57,6 +69,36 @@ export interface DeliveryDetail {
   time_slot: TimeSlotValue;
   party_size: number | null;
   status: DeliveryStatus;
+  tracking_stage: TrackingStage;
+  review_rating: number | null;
+  review_text: string | null;
+}
+
+/** get_public_reviews RPC 반환 (직접 배달 공개 리뷰) */
+export interface PublicReview {
+  name: string;
+  review_rating: number;
+  review_text: string | null;
+  created_at: string;
+}
+
+/** get_journey_pins RPC 반환 (배송 완료 지도 핀) */
+export interface JourneyPin {
+  name: string;
+  date: string;
+  area: string;
+  created_at: string;
+}
+
+/** verify_guest RPC 반환 (본인 확인) */
+export interface VerifyResult {
+  name: string;
+  date: string;
+  time_slot: TimeSlotValue;
+  status: DeliveryStatus;
+  tracking_stage: TrackingStage;
+  review_rating: number | null;
+  guest_no: number | null;
 }
 
 export interface Group {

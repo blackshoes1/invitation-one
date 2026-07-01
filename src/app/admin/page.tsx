@@ -4,11 +4,13 @@ import { useMemo, useState } from "react";
 import type {
   Delivery,
   DeliveryStatus,
+  TrackingStage,
   Group,
   GroupMemberRow,
   WaitingEntry,
   Message,
 } from "@/lib/supabase";
+import { TRACKING_STAGES } from "@/lib/supabase";
 import { formatYmdKo, toYmd } from "@/lib/wedding";
 
 /** 이번 주(일~토) 범위의 YMD */
@@ -198,6 +200,23 @@ export default function AdminPage() {
     loadOrders();
   };
 
+  const changeStage = async (id: string, stage: TrackingStage) => {
+    setNotice(null);
+    // 낙관적 업데이트
+    setRows((rs) =>
+      rs.map((r) => (r.id === id ? { ...r, tracking_stage: stage } : r))
+    );
+    const res = await api(`/api/admin/deliveries/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ tracking_stage: stage }),
+    });
+    if (!res.ok) {
+      const j = await res.json();
+      setError(j.error ?? "단계 변경 실패");
+      loadOrders();
+    }
+  };
+
   const createGroup = async () => {
     if (!newGroup.trim()) return;
     const res = await api("/api/admin/groups", {
@@ -258,6 +277,24 @@ export default function AdminPage() {
   const deleteWaiting = async (id: string) => {
     const res = await api(`/api/admin/waiting/${id}`, { method: "DELETE" });
     if (res.ok) setWaiting((w) => w.filter((x) => x.id !== id));
+  };
+
+  const notifyWaiting = async (id?: string) => {
+    setNotice(null);
+    setError(null);
+    const who = id ? "선택한 대기자" : `대기자 ${waiting.length}명`;
+    if (!confirm(`${who}에게 빈자리 안내 SMS를 보낼까요?`)) return;
+    const res = await api("/api/admin/waiting/notify", {
+      method: "POST",
+      body: JSON.stringify(id ? { id } : {}),
+    });
+    const j = await res.json();
+    if (!res.ok) return setError(j.error ?? "알림 발송 실패");
+    setNotice(
+      j.skipped
+        ? `${j.count}명 대상 — SMS는 솔라피 키 미설정으로 미발송(로그만).`
+        : `${j.sent}/${j.count}명에게 빈자리 안내 SMS 발송 완료.`
+    );
   };
 
   const filteredRows = useMemo(() => {
@@ -442,6 +479,46 @@ export default function AdminPage() {
                         {r.status}
                       </span>
                     </div>
+
+                    {/* 리뷰 (배송 완료 후) */}
+                    {r.review_rating != null && (
+                      <div className="bg-amber-50 border border-amber-200 px-3 py-2 rounded-sm">
+                        <p className="text-xs text-amber-600">
+                          {"⭐".repeat(r.review_rating)}
+                          {r.review_text && (
+                            <span className="text-neutral-500">
+                              {" "}
+                              “{r.review_text}”
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* 배송 추적 단계 (재미 트래킹, 하객 화면 실시간 반영) */}
+                    {r.status !== "취소" && (
+                      <div className="border-t border-wedding-gold/10 pt-2">
+                        <p className="text-[10px] text-neutral-400 mb-1">
+                          배송 현황 (하객에게 실시간 표시)
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {TRACKING_STAGES.map((s) => (
+                            <button
+                              key={s}
+                              onClick={() => changeStage(r.id, s)}
+                              className={`px-2.5 py-1 text-[11px] border rounded-sm ${
+                                r.tracking_stage === s
+                                  ? "bg-delivery text-white border-delivery"
+                                  : "bg-white text-neutral-500 border-neutral-200"
+                              }`}
+                            >
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {(nextAction || cancelable) && (
                       <div className="flex justify-end gap-2">
                         {cancelable && (
@@ -665,6 +742,14 @@ export default function AdminPage() {
                 대기자가 없습니다.
               </p>
             )}
+            {waiting.length > 0 && (
+              <button
+                onClick={() => notifyWaiting()}
+                className="w-full py-2.5 text-xs tracking-wider bg-delivery text-white rounded-sm"
+              >
+                📣 대기자 전체에게 빈자리 안내 SMS
+              </button>
+            )}
             <div className="space-y-2">
               {waiting.map((w, i) => (
                 <div
@@ -678,6 +763,12 @@ export default function AdminPage() {
                   <span className="text-xs text-neutral-400 ml-auto">
                     {w.phone}
                   </span>
+                  <button
+                    onClick={() => notifyWaiting(w.id)}
+                    className="text-xs text-delivery"
+                  >
+                    알림
+                  </button>
                   <button
                     onClick={() => deleteWaiting(w.id)}
                     className="text-xs text-red-400"
