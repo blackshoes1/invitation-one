@@ -1,20 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Minus, Plus } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import {
-  type TimeSlot,
-  formatYmdKo,
-  formatPhone,
-  isValidPhone,
-  groom,
-  PARTY_MAX,
-} from "@/lib/wedding";
+import { type TimeSlot, formatYmdKo, groom } from "@/lib/wedding";
 import DeliveryCalendar from "@/components/DeliveryCalendar";
 import StepIndicator from "@/components/delivery/StepIndicator";
-import OrderSummary from "@/components/delivery/OrderSummary";
 import CompletePage from "@/components/delivery/CompletePage";
 
 const SLOTS: { value: TimeSlot; emoji: string }[] = [
@@ -23,17 +15,7 @@ const SLOTS: { value: TimeSlot; emoji: string }[] = [
   { value: "저녁", emoji: "🌙" },
 ];
 
-const TOTAL = 6; // 입력 스텝 수 (요약 제외)
-
-interface Draft {
-  name: string;
-  phone: string;
-  location: string;
-  date: string | null;
-  slot: TimeSlot | null;
-  party: number;
-  message: string;
-}
+const TOTAL = 6;
 
 export default function DeliveryForm({
   group = null,
@@ -42,18 +24,14 @@ export default function DeliveryForm({
   group?: { id: string; name: string } | null;
   onSubmitted?: () => void;
 }) {
-  const storageKey = `delivery-draft${group ? `-${group.id}` : ""}`;
-
   const [step, setStep] = useState(0);
   const [dir, setDir] = useState(1);
-  const [summary, setSummary] = useState(false);
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [location, setLocation] = useState("");
   const [date, setDate] = useState<string | null>(null);
   const [slot, setSlot] = useState<TimeSlot | null>(null);
-  const [party, setParty] = useState(1);
   const [message, setMessage] = useState("");
 
   const [booked, setBooked] = useState<Set<string>>(new Set());
@@ -61,11 +39,7 @@ export default function DeliveryForm({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [orderNo, setOrderNo] = useState("001");
-  const [deliveryId, setDeliveryId] = useState<string | null>(null);
 
-  const restored = useRef(false);
-
-  // 예약일 로드
   const loadBooked = async () => {
     if (!isSupabaseConfigured || !supabase) return;
     const { data } = await supabase.rpc("get_booked_dates");
@@ -73,40 +47,10 @@ export default function DeliveryForm({
       setBooked(new Set(data.map((d: string) => String(d).slice(0, 10))));
     }
   };
-
-  // 입력값 보존: 마운트 시 복원
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadBooked();
-    try {
-      const raw = sessionStorage.getItem(storageKey);
-      if (raw) {
-        const d = JSON.parse(raw) as Draft;
-        setName(d.name ?? "");
-        setPhone(d.phone ?? "");
-        setLocation(d.location ?? "");
-        setDate(d.date ?? null);
-        setSlot(d.slot ?? null);
-        setParty(d.party ?? 1);
-        setMessage(d.message ?? "");
-      }
-    } catch {
-      /* ignore */
-    }
-    restored.current = true;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // 입력값 보존: 변경 시 저장
-  useEffect(() => {
-    if (!restored.current) return;
-    const draft: Draft = { name, phone, location, date, slot, party, message };
-    try {
-      sessionStorage.setItem(storageKey, JSON.stringify(draft));
-    } catch {
-      /* ignore */
-    }
-  }, [name, phone, location, date, slot, party, message, storageKey]);
 
   const go = (delta: number) => {
     setError(null);
@@ -115,20 +59,11 @@ export default function DeliveryForm({
   };
 
   const next = () => {
-    if (step === 0) {
-      if (name.trim().length < 2) return setError("앗, 성함은 2자 이상 알려주셔야 해요! 🙏");
-      if (!isValidPhone(phone)) return setError("연락처를 010-0000-0000 형식으로 입력해주세요 📞");
-    }
-    if (step === 1 && location.trim().length < 2)
-      return setError("배송지를 정확히 입력해주세요 📍");
-    if (step === 2 && !date) return setError("배송 희망일을 골라주세요 📅");
-    if (step === 3 && !slot) return setError("시간대를 골라주세요 ⏰");
-    if (step === 5) {
-      // 마지막 입력 단계 → 요약으로
-      setError(null);
-      setSummary(true);
-      return;
-    }
+    if (step === 0 && !name.trim()) return setError("성함을 입력해주세요 🙏");
+    if (step === 1 && !phone.trim()) return setError("연락처를 입력해주세요 📞");
+    if (step === 2 && !location.trim()) return setError("배송지를 입력해주세요 📍");
+    if (step === 3 && !date) return setError("배송 희망일을 골라주세요 📅");
+    if (step === 4 && !slot) return setError("시간대를 골라주세요 ⏰");
     go(1);
   };
 
@@ -139,41 +74,31 @@ export default function DeliveryForm({
     setOrderNo(String(booked.size + 1).padStart(3, "0"));
 
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.rpc("create_delivery", {
-        p_group_id: group?.id ?? null,
-        p_name: name.trim(),
-        p_phone: phone.trim(),
-        p_location: location.trim(),
-        p_date: date,
-        p_time: slot,
-        p_party: party,
-        p_message: message.trim() || null,
+      const { error } = await supabase.from("deliveries").insert({
+        group_id: group?.id ?? null,
+        name: name.trim(),
+        phone: phone.trim(),
+        location: location.trim(),
+        date,
+        time_slot: slot,
+        message: message.trim() || null,
       });
       if (error) {
         setSending(false);
-        console.error("[delivery insert error]", error);
-        const taken =
-          error.code === "23505" || /date_taken|duplicate/i.test(error.message ?? "");
-        if (taken) {
-          setError("방금 다른 분이 먼저 신청하셨어요 😢 다른 날짜를 선택해주세요.");
+        if (error.code === "23505") {
+          setError("앗, 이 날짜는 이미 마감됐어요! 다른 날짜를 골라주세요 🙏");
           setDate(null);
-          setSummary(false);
           setDir(-1);
-          setStep(2);
+          setStep(3);
           loadBooked();
         } else {
-          setError(`주문 실패: ${error.message ?? "알 수 없는 오류"} 🛠️`);
+          setError("주문에 실패했어요. 잠시 후 다시 시도해주세요 🛠️");
         }
         return;
       }
-      setDeliveryId(typeof data === "string" ? data : null);
     } else {
+      console.info("[delivery demo]", { group, name, phone, location, date, slot, message });
       await new Promise((r) => setTimeout(r, 500));
-    }
-    try {
-      sessionStorage.removeItem(storageKey);
-    } catch {
-      /* ignore */
     }
     setSending(false);
     setDone(true);
@@ -187,26 +112,7 @@ export default function DeliveryForm({
         date={date}
         slot={slot}
         location={location}
-        orderNo={orderNo}
-        partySize={party}
-        deliveryId={deliveryId}
-      />
-    );
-  }
-
-  if (summary && date && slot) {
-    return (
-      <OrderSummary
-        name={name}
-        phone={phone}
-        location={location}
-        date={date}
-        slot={slot}
-        party={party}
-        sending={sending}
-        onEdit={() => setSummary(false)}
-        onConfirm={submit}
-      />
+        orderNo={orderNo} partySize={0} deliveryId={null}      />
     );
   }
 
@@ -214,30 +120,34 @@ export default function DeliveryForm({
     switch (step) {
       case 0:
         return (
-          <Q title="받는 분 정보를 알려주세요 📋">
-            <div className="space-y-4">
-              <input
-                autoFocus
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="성함"
-                className="dform-input"
-              />
-              <input
-                type="tel"
-                inputMode="numeric"
-                value={phone}
-                onChange={(e) => setPhone(formatPhone(e.target.value))}
-                onKeyDown={(e) => e.key === "Enter" && next()}
-                placeholder="배송 완료 후 연락드릴 번호 📞"
-                className="dform-input"
-              />
-            </div>
+          <Q title="주문하시는 분의 이름을 알려주세요 📋">
+            <input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && next()}
+              placeholder="성함"
+              className="dform-input"
+            />
           </Q>
         );
       case 1:
         return (
-          <Q title="배송지를 입력해주세요 📍" sub="전국 어디든 직접 배달합니다 🛵 정확할수록 빨리 찾아가요">
+          <Q title="배송 완료 후 연락드릴 번호요! 📞">
+            <input
+              autoFocus
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && next()}
+              placeholder="010-0000-0000"
+              className="dform-input"
+            />
+          </Q>
+        );
+      case 2:
+        return (
+          <Q title="배송지를 입력해주세요 📍" sub="전국 어디든 직접 배달합니다 🛵">
             <input
               autoFocus
               value={location}
@@ -248,7 +158,7 @@ export default function DeliveryForm({
             />
           </Q>
         );
-      case 2:
+      case 3:
         return (
           <Q title="배송 희망일을 선택해주세요 📅" sub="● 마감   ○ 배송 가능">
             <DeliveryCalendar
@@ -264,7 +174,7 @@ export default function DeliveryForm({
             )}
           </Q>
         );
-      case 3:
+      case 4:
         return (
           <Q title={`${date ? formatYmdKo(date) : ""} 배송 희망 시간대를 골라주세요 ⏰`}>
             <div className="grid grid-cols-3 gap-3">
@@ -287,47 +197,19 @@ export default function DeliveryForm({
             </div>
           </Q>
         );
-      case 4:
-        return (
-          <Q title="당일 예상 참석 인원이 몇 분이세요? 👥" sub="그룹으로 오시는 경우를 위한 인원 파악용이에요">
-            <div className="flex items-center justify-center gap-6 py-3">
-              <button
-                type="button"
-                aria-label="인원 감소"
-                onClick={() => setParty((p) => Math.max(1, p - 1))}
-                disabled={party <= 1}
-                className="w-12 h-12 rounded-full border-2 border-delivery/25 text-delivery flex items-center justify-center disabled:opacity-30"
-              >
-                <Minus size={18} />
-              </button>
-              <span className="text-3xl font-extrabold text-neutral-800 w-16 text-center">
-                {party}명
-              </span>
-              <button
-                type="button"
-                aria-label="인원 증가"
-                onClick={() => setParty((p) => Math.min(PARTY_MAX, p + 1))}
-                disabled={party >= PARTY_MAX}
-                className="w-12 h-12 rounded-full border-2 border-delivery/25 text-delivery flex items-center justify-center disabled:opacity-30"
-              >
-                <Plus size={18} />
-              </button>
-            </div>
-            <p className="text-center text-xs text-neutral-400">최대 {PARTY_MAX}명까지 가능해요</p>
-          </Q>
-        );
       case 5:
         return (
-          <Q title={`배송기사(${groom.name})에게 요청사항이 있으신가요? 💬`} sub="예: 신부도 같이 와주세요 (선택)">
+          <Q
+            title={`배송기사(${groom.name})에게 요청사항이 있으신가요? 💬`}
+            sub="예: 신부도 같이 와주세요 (선택)"
+          >
             <textarea
               autoFocus
               value={message}
-              maxLength={500}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="요청사항을 적어주세요"
               className="w-full p-4 rounded-2xl border-2 border-delivery/20 bg-white focus:outline-none focus:border-delivery resize-none h-28 text-sm"
             />
-            <p className="text-right text-[11px] text-neutral-400">{message.length}/500</p>
           </Q>
         );
     }
@@ -353,7 +235,9 @@ export default function DeliveryForm({
           >
             {content()}
             {error && (
-              <p className="mt-4 text-sm text-delivery-dark font-medium text-center">{error}</p>
+              <p className="mt-4 text-sm text-delivery-dark font-medium text-center">
+                {error}
+              </p>
             )}
           </motion.div>
         </AnimatePresence>
@@ -369,13 +253,24 @@ export default function DeliveryForm({
             <ArrowLeft size={16} /> 이전
           </button>
         )}
-        <button
-          type="button"
-          onClick={next}
-          className="flex-1 flex items-center justify-center gap-1 py-4 rounded-full bg-delivery text-white text-sm font-bold shadow-sm active:scale-95 transition-transform"
-        >
-          {step === TOTAL - 1 ? "확인하기" : "다음"} <ArrowRight size={16} />
-        </button>
+        {step < TOTAL - 1 ? (
+          <button
+            type="button"
+            onClick={next}
+            className="flex-1 flex items-center justify-center gap-1 py-4 rounded-full bg-delivery text-white text-sm font-bold shadow-sm active:scale-95 transition-transform"
+          >
+            다음 <ArrowRight size={16} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={submit}
+            disabled={sending}
+            className="flex-1 py-4 rounded-full bg-delivery text-white text-sm font-bold shadow-sm active:scale-95 transition-transform disabled:opacity-60"
+          >
+            {sending ? "주문 접수 중… 🛵" : "주문하기 🛵"}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -393,7 +288,9 @@ function Q({
   return (
     <div className="space-y-5">
       <div className="space-y-1.5">
-        <h2 className="text-xl font-extrabold text-neutral-800 leading-snug">{title}</h2>
+        <h2 className="text-xl font-extrabold text-neutral-800 leading-snug">
+          {title}
+        </h2>
         {sub && <p className="text-sm text-neutral-400">{sub}</p>}
       </div>
       {children}

@@ -1,38 +1,18 @@
 import Hero from "@/components/sections/Hero";
-import Greeting from "@/components/sections/Greeting";
-import Gallery from "@/components/sections/Gallery";
 import Dday from "@/components/sections/Dday";
+import Greeting from "@/components/sections/Greeting";
 import Location from "@/components/sections/Location";
 import Account from "@/components/sections/Account";
-import Guestbook from "@/components/sections/Guestbook";
 import Rsvp from "@/components/sections/Rsvp";
-import LockedGate from "@/components/LockedGate";
-import { INVITATION_KEY } from "@/lib/wedding";
 
-export default async function Home({
-  searchParams,
-}: {
-  searchParams: Promise<{ key?: string; from?: string }>;
-}) {
-  const sp = await searchParams;
-  // 접근 키가 설정돼 있고 키가 맞지 않으면 잠금 화면
-  if (INVITATION_KEY && sp?.key !== INVITATION_KEY) {
-    return <LockedGate />;
-  }
-
-  // 종이 청첩장 QR(?from=qr)로 들어온 하객에게만 본인 확인/뱃지 노출.
-  // (어르신·키 직접 전달 그룹은 배달 데이터가 없어 헷갈리므로 숨김)
-  const qrEntry = sp?.from === "qr";
-
+export default function Home() {
   return (
-    <main className="relative mx-auto max-w-[480px] min-h-screen bg-white text-neutral-800 antialiased shadow-sm">
+    <main className="w-full min-h-screen bg-white text-neutral-800 antialiased">
       <Hero />
-      <Greeting />
-      <Gallery />
       <Dday />
+      <Greeting />
       <Location />
       <Account />
-      <Guestbook qrEntry={qrEntry} />
       <Rsvp />
     </main>
   );
