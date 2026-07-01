@@ -81,7 +81,9 @@ export default function DeliveryPage() {
             </div>
           )}
           {mode === "delivery" && <DeliveryForm />}
-          {mode === "heart" && <HeartForm />}
+          {mode === "heart" && (
+            <HeartForm onSwitchToDelivery={() => setMode("delivery")} />
+          )}
         </section>
       )}
 

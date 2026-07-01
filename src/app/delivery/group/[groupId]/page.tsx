@@ -131,7 +131,10 @@ export default function GroupPage() {
             />
           )}
           {mode === "heart" && (
-            <HeartForm group={{ id: group.id, name: group.name }} />
+            <HeartForm
+              group={{ id: group.id, name: group.name }}
+              onSwitchToDelivery={() => setMode("delivery")}
+            />
           )}
         </section>
       )}

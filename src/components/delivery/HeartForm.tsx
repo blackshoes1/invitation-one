@@ -11,8 +11,11 @@ const invitationHref = INVITATION_KEY ? `/?key=${INVITATION_KEY}` : "/";
 
 export default function HeartForm({
   group = null,
+  onSwitchToDelivery,
 }: {
   group?: { id: string; name: string } | null;
+  /** "역시 직접 만나고 싶어요" — 같은 페이지에서 직접 배달 폼으로 전환 */
+  onSwitchToDelivery?: () => void;
 }) {
   const [stamp, setStamp] = useState<string>(STAMPS[0]);
   const [name, setName] = useState("");
@@ -80,6 +83,19 @@ export default function HeartForm({
         >
           💌 모바일 청첩장 보기
         </Link>
+
+        {/* 마음 → 직접 배달 전환 (거절이 아니라 마음이 바뀔 여지) */}
+        {onSwitchToDelivery && (
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={onSwitchToDelivery}
+              className="text-sm text-delivery underline underline-offset-2"
+            >
+              역시 직접 만나서 받고 싶어요 🛵
+            </button>
+          </div>
+        )}
       </motion.div>
     );
   }

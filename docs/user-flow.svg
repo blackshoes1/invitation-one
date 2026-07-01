@@ -1,0 +1,115 @@
+<svg viewBox="0 0 920 1100" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, -apple-system, sans-serif" role="img">
+  <title>웨딩 청첩장 배달 서비스 유저 플로우</title>
+  <desc>배달 링크가 시작점이고, 직접 배달과 마음 배송 두 갈래를 거쳐 모바일 청첩장 공개로 수렴하는 흐름</desc>
+  <rect x="0" y="0" width="920" height="1100" fill="#ffffff"/>
+
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <text x="65" y="26" font-size="16" font-weight="700" fill="#1f2937">웨딩 청첩장 배달 서비스 — 유저 플로우</text>
+
+  <g font-size="12">
+    <rect x="595" y="118" width="14" height="14" rx="3" fill="#fff1ea" stroke="#ff6b35" stroke-width="1.4"/>
+    <text x="615" y="129" fill="#6b7280">배달 서비스</text>
+    <rect x="700" y="118" width="14" height="14" rx="3" fill="#eef2e8" stroke="#5f724f" stroke-width="1.4"/>
+    <text x="720" y="129" fill="#6b7280">모바일 청첩장</text>
+  </g>
+
+  <g>
+    <rect x="65" y="40" width="360" height="56" rx="12" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.4"/>
+    <text x="245" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#334155">친구·동료 그룹</text>
+    <text x="245" y="82" text-anchor="middle" font-size="12" fill="#64748b">그룹 단톡방에 배달 링크 공유 (청첩장 링크 X)</text>
+  </g>
+  <g>
+    <rect x="545" y="40" width="310" height="56" rx="12" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.4"/>
+    <text x="700" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#334155">어르신·친척 그룹</text>
+    <text x="700" y="82" text-anchor="middle" font-size="12" fill="#64748b">접근키 링크 ?key= 바로 전달</text>
+  </g>
+
+  <line x1="245" y1="96" x2="245" y2="146" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
+
+  <rect x="65" y="148" width="360" height="60" rx="12" fill="#fff1ea" stroke="#ff6b35" stroke-width="1.6"/>
+  <text x="245" y="174" text-anchor="middle" font-size="14" font-weight="700" fill="#b5431a">🛵 배달 페이지</text>
+  <text x="245" y="193" text-anchor="middle" font-size="12" fill="#9a5a3a">인트로 애니 → 메뉴 두 갈래 선택</text>
+
+  <line x1="240" y1="208" x2="150" y2="250" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
+  <line x1="250" y1="208" x2="340" y2="250" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
+
+  <g font-size="13" font-weight="600">
+    <rect x="65" y="252" width="170" height="56" rx="11" fill="#ffe3d3" stroke="#ff6b35" stroke-width="1.5"/>
+    <text x="150" y="285" text-anchor="middle" fill="#b5431a">직접 배달 받기 🛵</text>
+
+    <rect x="65" y="338" width="170" height="56" rx="11" fill="#fff1ea" stroke="#ff6b35" stroke-width="1.4"/>
+    <text x="150" y="364" text-anchor="middle" fill="#b5431a" font-size="12.5">스텝폼</text>
+    <text x="150" y="381" text-anchor="middle" fill="#9a5a3a" font-weight="400" font-size="11">날짜·시간·배송지·인원</text>
+
+    <rect x="65" y="424" width="170" height="56" rx="11" fill="#fff1ea" stroke="#ff6b35" stroke-width="1.4"/>
+    <text x="150" y="457" text-anchor="middle" fill="#b5431a">주문 완료 #001</text>
+
+    <rect x="65" y="510" width="170" height="56" rx="11" fill="#fff1ea" stroke="#ff6b35" stroke-width="1.4"/>
+    <text x="150" y="536" text-anchor="middle" fill="#b5431a" font-size="12.5">배송 추적 4단계</text>
+    <text x="150" y="553" text-anchor="middle" fill="#9a5a3a" font-weight="400" font-size="11">준비→출발→완료 (실시간)</text>
+
+    <rect x="65" y="596" width="170" height="56" rx="11" fill="#fff1ea" stroke="#ff6b35" stroke-width="1.4"/>
+    <text x="150" y="629" text-anchor="middle" fill="#b5431a" font-size="12.5">만남 · 종이 QR 전달</text>
+
+    <rect x="65" y="682" width="170" height="56" rx="11" fill="#fff1ea" stroke="#ff6b35" stroke-width="1.4"/>
+    <text x="150" y="708" text-anchor="middle" fill="#b5431a" font-size="12">배송완료 후 리뷰 ⭐</text>
+    <text x="150" y="725" text-anchor="middle" fill="#9a5a3a" font-weight="400" font-size="11">별점 + 한줄</text>
+
+    <rect x="65" y="768" width="170" height="56" rx="11" fill="#ffe3d3" stroke="#ff6b35" stroke-width="1.5"/>
+    <text x="150" y="794" text-anchor="middle" fill="#b5431a" font-size="12.5">QR 스캔 ?from=qr</text>
+    <text x="150" y="811" text-anchor="middle" fill="#9a5a3a" font-weight="400" font-size="11">청첩장 공개 🎉 + 뱃지</text>
+  </g>
+
+  <g stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)">
+    <line x1="150" y1="308" x2="150" y2="336"/>
+    <line x1="150" y1="394" x2="150" y2="422"/>
+    <line x1="150" y1="480" x2="150" y2="508"/>
+    <line x1="150" y1="566" x2="150" y2="594"/>
+    <line x1="150" y1="652" x2="150" y2="680"/>
+    <line x1="150" y1="738" x2="150" y2="766"/>
+  </g>
+
+  <g font-size="13" font-weight="600">
+    <rect x="255" y="252" width="170" height="56" rx="11" fill="#ffe3d3" stroke="#ff6b35" stroke-width="1.5"/>
+    <text x="340" y="285" text-anchor="middle" fill="#b5431a">마음 배송 💌</text>
+
+    <rect x="255" y="338" width="170" height="56" rx="11" fill="#fff1ea" stroke="#ff6b35" stroke-width="1.4"/>
+    <text x="340" y="371" text-anchor="middle" fill="#b5431a" font-size="12.5">스탬프 + 축하 메시지</text>
+
+    <rect x="255" y="424" width="170" height="56" rx="11" fill="#fff1ea" stroke="#ff6b35" stroke-width="1.4"/>
+    <text x="340" y="457" text-anchor="middle" fill="#b5431a">감사 영상 💌</text>
+
+    <rect x="255" y="510" width="170" height="56" rx="11" fill="#ffe3d3" stroke="#ff6b35" stroke-width="1.5"/>
+    <text x="340" y="536" text-anchor="middle" fill="#b5431a" font-size="12.5">청첩장 바로 공개</text>
+    <text x="340" y="553" text-anchor="middle" fill="#9a5a3a" font-weight="400" font-size="11">→ 방명록에 표시</text>
+  </g>
+
+  <g stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)">
+    <line x1="340" y1="308" x2="340" y2="336"/>
+    <line x1="340" y1="394" x2="340" y2="422"/>
+    <line x1="340" y1="480" x2="340" y2="508"/>
+  </g>
+
+  <path d="M150 824 L150 850 L360 850 L360 870" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
+  <path d="M340 566 L340 838 L440 838 L440 870" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
+  <path d="M700 96 L700 850 L620 850 L620 870" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+
+  <rect x="150" y="872" width="620" height="58" rx="13" fill="#e2ebd8" stroke="#5f724f" stroke-width="1.8"/>
+  <text x="460" y="897" text-anchor="middle" font-size="15" font-weight="700" fill="#3f4d33">📱 모바일 청첩장 공개</text>
+  <text x="460" y="917" text-anchor="middle" font-size="11.5" fill="#5f724f">Hero · 인사 · 갤러리 · D-Day · 오시는 길</text>
+
+  <line x1="460" y1="930" x2="460" y2="954" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
+
+  <rect x="150" y="956" width="620" height="52" rx="12" fill="#eef2e8" stroke="#5f724f" stroke-width="1.4"/>
+  <text x="460" y="978" text-anchor="middle" font-size="12.5" font-weight="600" fill="#3f4d33">💝 축하해준 사람들 (지도 / 메시지 · 리뷰 · 뱃지) · 마음 전하기(계좌) · 참석 의사</text>
+  <text x="460" y="996" text-anchor="middle" font-size="11" fill="#5f724f">직접배달 리뷰 ⭐ + 마음배송 메시지 💌 가 시간순으로 여기 모여요</text>
+
+  <rect x="65" y="1030" width="790" height="52" rx="12" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.4" stroke-dasharray="6 4"/>
+  <text x="460" y="1052" text-anchor="middle" font-size="12.5" font-weight="700" fill="#334155">🛠️ Admin (신랑신부 운영)</text>
+  <text x="460" y="1070" text-anchor="middle" font-size="11" fill="#64748b">그룹·링크 생성 · 주문 확정(SMS) · 배송 추적 단계 전환 · 리뷰 확인 · 대기자 빈자리 SMS</text>
+</svg>
