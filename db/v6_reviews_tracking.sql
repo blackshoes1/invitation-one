@@ -25,7 +25,9 @@ alter table public.deliveries
 
 /* ------------------------------------------------------------------ *
  * 2) get_delivery 확장 — 취소/변경·추적·리뷰 페이지가 한 번에 사용
+ *   기존(v2)과 반환 컬럼이 달라 create or replace 불가 → 먼저 DROP.
  * ------------------------------------------------------------------ */
+drop function if exists public.get_delivery(uuid);
 create or replace function public.get_delivery(p_id uuid)
   returns table (
     id uuid, group_id uuid, name text, location text,
