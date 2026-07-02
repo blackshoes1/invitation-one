@@ -1,40 +1,24 @@
 "use client";
 
-import type { Message, PublicReview } from "@/lib/supabase";
+import type { Celebration } from "@/lib/supabase";
 
-/** 방명록(마음 배송) + 리뷰(직접 배달)를 시간순으로 섞은 한 줄기 피드 */
-export type FeedItem =
-  | { kind: "message"; key: string; name: string; stamp: string | null; text: string | null; at: string }
-  | { kind: "review"; key: string; name: string; rating: number; text: string | null; at: string };
-
-export function buildFeed(messages: Message[], reviews: PublicReview[]): FeedItem[] {
-  const items: FeedItem[] = [
-    ...messages.map<FeedItem>((m) => ({
-      kind: "message",
-      key: `m-${m.id}`,
-      name: m.name,
-      stamp: m.stamp,
-      text: m.message,
-      at: m.created_at,
-    })),
-    ...reviews.map<FeedItem>((r, i) => ({
-      kind: "review",
-      key: `r-${r.created_at}-${i}`,
-      name: r.name,
-      rating: r.review_rating,
-      text: r.review_text,
-      at: r.created_at,
-    })),
-  ];
-  return items.sort((a, b) => (a.at < b.at ? 1 : -1)); // 최신순
+/**
+ * 방명록(마음 배송) + 리뷰(직접 배달)를 한 줄기로 섞은 피드
+ * - 마음배송: 신청 즉시 노출 (스탬프 + 한마디 + 지역)
+ * - 직접배달: 배송 완료 + 리뷰가 있을 때 노출 (별점 + 한줄)
+ */
+export function buildFeed(celebrations: Celebration[]): Celebration[] {
+  return celebrations
+    .filter((c) => c.kind === "마음배송" || c.rating != null)
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1)); // 최신순
 }
 
 export default function MessageFeed({
   items,
-  highlightName,
+  highlightId,
 }: {
-  items: FeedItem[];
-  highlightName?: string | null;
+  items: Celebration[];
+  highlightId?: string | null;
 }) {
   if (items.length === 0) {
     return (
@@ -47,10 +31,11 @@ export default function MessageFeed({
   return (
     <ul className="space-y-3 text-left">
       {items.map((it) => {
-        const mine = highlightName && it.name === highlightName;
+        const mine = highlightId != null && it.id === highlightId;
+        const isReview = it.kind === "직접배달";
         return (
           <li
-            key={it.key}
+            key={it.id}
             className={`bg-white border p-4 flex gap-3 rounded-sm ${
               mine
                 ? "border-wedding-gold/60 ring-1 ring-wedding-gold/30"
@@ -58,12 +43,12 @@ export default function MessageFeed({
             }`}
           >
             <span className="text-xl shrink-0 leading-none pt-0.5">
-              {it.kind === "review" ? "🛵" : it.stamp ?? "💌"}
+              {isReview ? "🛵" : it.stamp ?? "💌"}
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <p className="text-sm font-medium text-sage-700">{it.name}</p>
-                {it.kind === "review" ? (
+                {isReview ? (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-delivery/10 text-delivery font-bold">
                     🛵✅ 직접 받음
                   </span>
@@ -72,20 +57,23 @@ export default function MessageFeed({
                     💌 마음 배송
                   </span>
                 )}
+                {!isReview && it.area && (
+                  <span className="text-[10px] text-neutral-400">({it.area})</span>
+                )}
                 {mine && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sage-600 text-white">
                     내 축하
                   </span>
                 )}
               </div>
-              {it.kind === "review" && (
+              {isReview && it.rating != null && (
                 <p className="text-xs text-amber-500 mt-0.5">
                   {"⭐".repeat(it.rating)}
                 </p>
               )}
-              {it.text && (
+              {(isReview ? it.review : it.message) && (
                 <p className="text-xs text-neutral-500 leading-relaxed mt-0.5 break-words">
-                  {it.text}
+                  {isReview ? it.review : it.message}
                 </p>
               )}
             </div>

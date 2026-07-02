@@ -13,23 +13,31 @@ export default function CompletePage({
   slot,
   location,
   orderNo,
-  partySize,
-  deliveryId,
+  memberCount,
+  participantId,
+  joined = false,
+  groupSlug = null,
 }: {
   name: string;
   date: string;
   slot: TimeSlot;
-  location: string;
+  location?: string | null;
   orderNo: string;
-  partySize: number;
-  deliveryId: string | null;
+  /** 함께 받는 참여자 수 (자동 집계) */
+  memberCount: number;
+  participantId: string | null;
+  /** 합류로 들어온 경우 (새 주문 아님) */
+  joined?: boolean;
+  groupSlug?: string | null;
 }) {
   const [captureHint, setCaptureHint] = useState(false);
   const [shareMsg, setShareMsg] = useState<string | null>(null);
 
   const share = async () => {
-    const url = `${window.location.origin}/delivery`;
-    const text = "나 청첩장 배송 신청했다 🛵";
+    const url = groupSlug
+      ? `${window.location.origin}/delivery/group/${groupSlug}`
+      : `${window.location.origin}/delivery`;
+    const text = "나 청첩장 배송 신청했다 🛵 같이 받을 사람?";
     try {
       if (navigator.share) {
         await navigator.share({ title: text, text, url });
@@ -59,10 +67,12 @@ export default function CompletePage({
       </motion.div>
 
       <h1 className="text-2xl font-extrabold text-delivery">
-        주문이 접수되었습니다!
+        {joined ? "합류 완료!" : "주문이 접수되었습니다!"}
       </h1>
       <p className="mt-2 text-sm text-neutral-500">
-        {name}님, 주문해주셔서 감사해요 🛵
+        {joined && memberCount > 1
+          ? `${name}님, 다른 ${memberCount - 1}명과 함께 받아요 🎉`
+          : `${name}님, 주문해주셔서 감사해요 🛵`}
       </p>
 
       <motion.div
@@ -78,10 +88,10 @@ export default function CompletePage({
           </span>
         </div>
         <div className="px-5 py-4 space-y-2.5 text-sm">
-          <Row label="상품" value={`${groom.name}·${bride.name} 청첩장 1매`} />
-          <Row label="배송지" value={location} />
+          <Row label="상품" value={`${groom.name}·${bride.name} 청첩장`} />
+          {location && <Row label="배송지" value={location} />}
           <Row label="배송 예정" value={`${formatYmdKo(date)} ${slot}`} />
-          <Row label="예상 인원" value={`${partySize}명`} />
+          <Row label="함께 받는 분" value={`${memberCount}명`} />
           <div className="border-t border-dashed border-neutral-200 my-2" />
           <Row label="배송기사" value={`${groom.name} (신랑)`} highlight />
         </div>
@@ -119,12 +129,12 @@ export default function CompletePage({
           “나 청첩장 배송 신청했다 🛵” 단톡방에 공유
         </button>
         {shareMsg && <p className="text-[11px] text-neutral-400">{shareMsg}</p>}
-        {deliveryId && (
+        {participantId && (
           <Link
-            href={`/delivery/manage/${deliveryId}`}
+            href={`/delivery/manage/${participantId}`}
             className="text-sm text-neutral-500 underline underline-offset-2"
           >
-            신청 취소 / 날짜 변경하기
+            신청 취소 / 변경 / 배송 현황 보기
           </Link>
         )}
       </div>

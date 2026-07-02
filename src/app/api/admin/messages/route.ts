@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { checkAdmin } from "@/lib/adminAuth";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
 
+/** 마음 배송 목록 — participants(type=마음배송) 기준 (v7 참여 시스템) */
 export async function GET(req: Request) {
   if (!checkAdmin(req))
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -12,8 +13,9 @@ export async function GET(req: Request) {
     );
 
   const { data, error } = await supabaseAdmin
-    .from("messages")
+    .from("participants")
     .select("*")
+    .eq("type", "마음배송")
     .order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ messages: data });

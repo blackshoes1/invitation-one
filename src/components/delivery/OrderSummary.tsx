@@ -9,20 +9,20 @@ export default function OrderSummary({
   location,
   date,
   slot,
-  party,
   onEdit,
   onConfirm,
   sending,
+  error,
 }: {
   name: string;
   phone: string;
   location: string;
   date: string;
   slot: TimeSlot;
-  party: number;
   onEdit: () => void;
   onConfirm: () => void;
   sending: boolean;
+  error?: string | null;
 }) {
   return (
     <div className="max-w-md mx-auto px-5 py-6 space-y-5">
@@ -35,8 +35,12 @@ export default function OrderSummary({
         <Row label="받는 분" value={`${name} · ${phone}`} />
         <Row label="배송지" value={location} />
         <Row label="배송 예정" value={`${formatYmdKo(date)} ${slot}`} />
-        <Row label="예상 인원" value={`${party}명`} />
+        <Row label="함께 받는 인원" value="참여자 수로 자동 집계돼요 👥" />
       </div>
+
+      {error && (
+        <p className="text-sm text-delivery-dark font-medium text-center">{error}</p>
+      )}
 
       <div className="flex gap-3">
         <button

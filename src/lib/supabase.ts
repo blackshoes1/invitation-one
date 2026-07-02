@@ -101,6 +101,90 @@ export interface VerifyResult {
   guest_no: number | null;
 }
 
+/* ==================== 참여 시스템 (v7) ==================== */
+
+export type ParticipantType = "직접배달" | "마음배송";
+
+/** participants 테이블 행 (Admin 조회용) */
+export interface Participant {
+  id: string;
+  delivery_id: string | null;
+  group_id: string | null;
+  type: ParticipantType;
+  name: string;
+  phone: string | null;
+  region: string | null;
+  is_owner: boolean;
+  stamp: string | null;
+  message: string | null;
+  review_rating: number | null;
+  review_text: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** get_group_orders RPC — 그룹 페이지 주문 현황 */
+export interface GroupOrder {
+  id: string;
+  date: string;
+  time_slot: TimeSlotValue;
+  status: DeliveryStatus;
+  tracking_stage: TrackingStage;
+  member_names: string[];
+}
+
+/** get_participant RPC — manage 페이지 */
+export interface ParticipantDetail {
+  id: string;
+  type: ParticipantType;
+  name: string;
+  region: string | null;
+  stamp: string | null;
+  message: string | null;
+  is_owner: boolean;
+  review_rating: number | null;
+  review_text: string | null;
+  delivery_id: string | null;
+  group_slug: string | null;
+  location: string | null;
+  date: string | null;
+  time_slot: TimeSlotValue | null;
+  status: DeliveryStatus | null;
+  tracking_stage: TrackingStage | null;
+  member_count: number | null;
+  member_names: string[] | null;
+}
+
+/** get_celebrations RPC — 축하 피드 + 지도 핀 통합 */
+export interface Celebration {
+  id: string;
+  kind: ParticipantType;
+  name: string;
+  area: string | null;
+  date: string | null;
+  stamp: string | null;
+  message: string | null;
+  rating: number | null;
+  review: string | null;
+  created_at: string;
+}
+
+/** verify_guest_v2 RPC — 본인 확인 (두 타입) */
+export interface VerifyResultV2 {
+  participant_id: string;
+  name: string;
+  type: ParticipantType;
+  date: string | null;
+  time_slot: TimeSlotValue | null;
+  status: DeliveryStatus | null;
+  tracking_stage: TrackingStage | null;
+  review_rating: number | null;
+  region: string | null;
+  guest_no: number | null;
+}
+
+/* ========================================================= */
+
 export interface Group {
   id: string;
   name: string;

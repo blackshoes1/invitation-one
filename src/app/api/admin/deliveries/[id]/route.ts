@@ -63,14 +63,31 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // 상태 변경 시 신청자에게 SMS (솔라피 키 없으면 자동 skip)
+  // 상태 변경 시 참여자 전원에게 SMS (참여 시스템 — 연락처 보유자 대상, 키 없으면 자동 skip)
   let sms: unknown = null;
   if (data && (patch.status === "확정" || patch.status === "취소")) {
-    const text =
-      patch.status === "확정"
-        ? `[청첩장 배달] ${data.name}님, 신청하신 ${formatYmdKo(data.date)} ${data.time_slot} ${data.location} 일정이 확정되었습니다. 곧 찾아뵙겠습니다 :)`
-        : `[청첩장 배달] ${data.name}님, 부득이하게 ${formatYmdKo(data.date)} ${data.time_slot} 일정이 취소되었습니다. 자세한 안내는 곧 연락드리겠습니다. 양해 부탁드립니다.`;
-    sms = await sendSms(data.phone, text);
+    const { data: parts } = await supabaseAdmin
+      .from("participants")
+      .select("name, phone")
+      .eq("delivery_id", id)
+      .not("phone", "is", null);
+
+    const targets = (parts ?? []) as { name: string; phone: string }[];
+    const results = await Promise.all(
+      targets.map((p) => {
+        const text =
+          patch.status === "확정"
+            ? `[청첩장 배달] ${p.name}님, 신청하신 ${formatYmdKo(data.date)} ${data.time_slot} ${data.location} 일정이 확정되었습니다. 곧 찾아뵙겠습니다 :)`
+            : `[청첩장 배달] ${p.name}님, 부득이하게 ${formatYmdKo(data.date)} ${data.time_slot} 일정이 취소되었습니다. 자세한 안내는 곧 연락드리겠습니다. 양해 부탁드립니다.`;
+        return sendSms(p.phone, text).then((r) => ({ name: p.name, ...r }));
+      })
+    );
+    sms = {
+      count: targets.length,
+      sent: results.filter((r) => r.ok && !r.skipped).length,
+      skipped: results.some((r) => r.skipped),
+      results,
+    };
   }
 
   return NextResponse.json({ delivery: data, sms });

@@ -2,7 +2,7 @@
 
 import { Check } from "lucide-react";
 
-const LABELS = ["받는분", "장소", "날짜", "시간", "인원", "요청"];
+const LABELS = ["받는분", "장소", "날짜", "시간", "요청"];
 
 export default function StepIndicator({
   current,

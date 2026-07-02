@@ -6,7 +6,7 @@ import { groom, bride } from "@/lib/wedding";
 import CancelChangeForm from "@/components/delivery/CancelChangeForm";
 
 export default function ManagePage() {
-  const params = useParams<{ deliveryId: string }>();
+  const params = useParams<{ participantId: string }>();
 
   return (
     <div>
@@ -18,7 +18,7 @@ export default function ManagePage() {
           💌 청첩장
         </Link>
       </header>
-      <CancelChangeForm deliveryId={params.deliveryId} />
+      <CancelChangeForm participantId={params.participantId} />
     </div>
   );
 }

@@ -1,27 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  supabase,
-  isSupabaseConfigured,
-  type Message,
-  type PublicReview,
-  type JourneyPin,
-} from "@/lib/supabase";
+import { supabase, isSupabaseConfigured, type Celebration } from "@/lib/supabase";
 import FadeIn from "@/components/FadeIn";
-import MessageFeed, { buildFeed, type FeedItem } from "@/components/sections/MessageFeed";
+import MessageFeed, { buildFeed } from "@/components/sections/MessageFeed";
 import JourneyMap from "@/components/sections/JourneyMap";
 import VerifyBadge from "@/components/sections/VerifyBadge";
 
 type ViewMode = "map" | "messages";
 
+/**
+ * 💝 우리를 축하해준 사람들 — 지도(🛵/💌 핀) / 메시지(방명록+리뷰) 통합
+ * 데이터: participants 기반 get_celebrations RPC 하나로 조회
+ */
 export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
-  const [feed, setFeed] = useState<FeedItem[]>([]);
-  const [pins, setPins] = useState<JourneyPin[]>([]);
-  const [count, setCount] = useState(0);
+  const [celebrations, setCelebrations] = useState<Celebration[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [mode, setMode] = useState<ViewMode>("messages");
-  const [mine, setMine] = useState<string | null>(null);
+  const [mineId, setMineId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) {
@@ -31,23 +27,9 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
     }
     let alive = true;
     (async () => {
-      const [msgRes, revRes, pinRes] = await Promise.all([
-        supabase!
-          .from("messages")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(100),
-        supabase!.rpc("get_public_reviews"),
-        supabase!.rpc("get_journey_pins"),
-      ]);
+      const { data } = await supabase!.rpc("get_celebrations");
       if (!alive) return;
-      const messages = (Array.isArray(msgRes.data) ? msgRes.data : []) as Message[];
-      const reviews = (Array.isArray(revRes.data) ? revRes.data : []) as PublicReview[];
-      const journeyPins = (Array.isArray(pinRes.data) ? pinRes.data : []) as JourneyPin[];
-      setFeed(buildFeed(messages, reviews));
-      setPins(journeyPins);
-      // 함께해준 사람 수 = 마음 배송 + 직접 배달 완료
-      setCount(messages.length + journeyPins.length);
+      setCelebrations(Array.isArray(data) ? (data as Celebration[]) : []);
       setLoaded(true);
     })();
     return () => {
@@ -55,7 +37,9 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
     };
   }, []);
 
+  const count = celebrations.length;
   const empty = loaded && count === 0;
+  const feed = buildFeed(celebrations);
 
   return (
     <section className="px-6 py-24 bg-wedding-cream border-t border-wedding-gold/10">
@@ -108,9 +92,9 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
 
             <FadeIn>
               {mode === "map" ? (
-                <JourneyMap pins={pins} highlightName={mine} />
+                <JourneyMap celebrations={celebrations} highlightId={mineId} />
               ) : (
-                <MessageFeed items={feed} highlightName={mine} />
+                <MessageFeed items={feed} highlightId={mineId} />
               )}
             </FadeIn>
           </>
@@ -119,7 +103,7 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
         {/* 본인 확인 + 뱃지 — 종이 QR 진입자에게만 노출 */}
         {qrEntry && (
           <FadeIn className="pt-2">
-            <VerifyBadge onVerified={setMine} />
+            <VerifyBadge onVerified={(id) => setMineId(id)} />
           </FadeIn>
         )}
       </div>

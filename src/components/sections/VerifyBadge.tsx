@@ -1,13 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { supabase, isSupabaseConfigured, type VerifyResult } from "@/lib/supabase";
+import { supabase, isSupabaseConfigured, type VerifyResultV2 } from "@/lib/supabase";
 import { formatYmdKo } from "@/lib/wedding";
 
+/**
+ * 본인 확인 + 뱃지 (QR 진입자에게만 노출)
+ * - participants에서 (이름 + 전화 끝4)로 조회
+ * - 직접배달 → "직접 만나 받은 특별한 분 🛵✅" / 마음배송 → "마음으로 함께한 분 💌"
+ */
 export default function VerifyBadge({
   onVerified,
 }: {
-  onVerified?: (name: string) => void;
+  onVerified?: (participantId: string, name: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -16,7 +21,7 @@ export default function VerifyBadge({
   const [needYmd, setNeedYmd] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<VerifyResult | null>(null);
+  const [result, setResult] = useState<VerifyResultV2 | null>(null);
 
   const verify = async () => {
     if (name.trim().length < 2) return setError("성함을 입력해주세요.");
@@ -30,20 +35,24 @@ export default function VerifyBadge({
     if (!isSupabaseConfigured || !supabase) {
       // 데모 모드
       setBusy(false);
-      setResult({
+      const demo: VerifyResultV2 = {
+        participant_id: "demo",
         name: name.trim(),
+        type: "직접배달",
         date: "2026-08-15",
         time_slot: "오후",
         status: "완료",
         tracking_stage: "배송완료",
         review_rating: null,
+        region: null,
         guest_no: 3,
-      });
-      onVerified?.(name.trim());
+      };
+      setResult(demo);
+      onVerified?.(demo.participant_id, demo.name);
       return;
     }
 
-    const { data, error: err } = await supabase.rpc("verify_guest", {
+    const { data, error: err } = await supabase.rpc("verify_guest_v2", {
       p_name: name.trim(),
       p_last4: last4,
       p_ymd: needYmd ? ymd : null,
@@ -51,7 +60,7 @@ export default function VerifyBadge({
     setBusy(false);
 
     if (err) return setError("확인 중 문제가 생겼어요. 다시 시도해주세요.");
-    const rows = (data ?? []) as VerifyResult[];
+    const rows = (data ?? []) as VerifyResultV2[];
 
     if (rows.length === 0) {
       setError(
@@ -68,27 +77,45 @@ export default function VerifyBadge({
       return;
     }
     setResult(rows[0]);
-    onVerified?.(rows[0].name);
+    onVerified?.(rows[0].participant_id, rows[0].name);
   };
 
   if (result) {
+    const isHeart = result.type === "마음배송";
     const done = result.status === "완료";
     return (
       <div className="bg-white border-2 border-wedding-gold/30 rounded-2xl p-5 text-center space-y-2">
-        <p className="text-sm text-sage-700">
-          <span className="font-extrabold">{result.name}</span>님,
-          <br />
-          {formatYmdKo(result.date)} {result.time_slot}에 만나서 반가웠어요! 🎉
-        </p>
-        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-delivery/10 text-delivery text-xs font-bold">
-          🛵✅ 직접 만나 받은 특별한 분
+        {isHeart ? (
+          <p className="text-sm text-sage-700">
+            <span className="font-extrabold">{result.name}</span>님,
+            <br />
+            {result.region ? `${result.region}에서 ` : ""}보내주신 마음, 잘 받았어요! 🥰
+          </p>
+        ) : (
+          <p className="text-sm text-sage-700">
+            <span className="font-extrabold">{result.name}</span>님,
+            <br />
+            {result.date ? `${formatYmdKo(result.date)} ${result.time_slot ?? ""}에 ` : ""}
+            {done ? "만나서 반가웠어요! 🎉" : "곧 만나요! 🛵"}
+          </p>
+        )}
+
+        <div
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${
+            isHeart
+              ? "bg-wedding-gold/10 text-wedding-gold"
+              : "bg-delivery/10 text-delivery"
+          }`}
+        >
+          {isHeart ? "💌 마음으로 함께한 분" : "🛵✅ 직접 만나 받은 특별한 분"}
         </div>
-        {done && result.guest_no != null && (
+
+        {result.guest_no != null && (isHeart || done) && (
           <p className="text-xs text-wedding-gold font-bold">
             당신은 {result.guest_no}번째 손님이었어요 💛
           </p>
         )}
-        {!done && (
+        {!isHeart && !done && (
           <p className="text-[11px] text-neutral-400">
             아직 배송 준비 중이에요 — 곧 만나요 🛵
           </p>
@@ -104,7 +131,7 @@ export default function VerifyBadge({
         onClick={() => setOpen(true)}
         className="text-xs text-sage-600 underline underline-offset-2"
       >
-        혹시 청첩장을 직접 받으셨나요? 본인 확인하기 →
+        혹시 청첩장을 받으셨거나 마음을 보내셨나요? 본인 확인하기 →
       </button>
     );
   }
@@ -112,7 +139,7 @@ export default function VerifyBadge({
   return (
     <div className="bg-white border border-wedding-gold/20 rounded-2xl p-5 space-y-3 text-left">
       <p className="text-xs text-neutral-500 text-center">
-        받으실 때 알려주신 성함과 번호로 확인해요
+        신청하실 때 알려주신 성함과 번호로 확인해요
       </p>
       <input
         value={name}

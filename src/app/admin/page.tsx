@@ -8,10 +8,19 @@ import type {
   Group,
   GroupMemberRow,
   WaitingEntry,
-  Message,
+  Participant,
 } from "@/lib/supabase";
 import { TRACKING_STAGES } from "@/lib/supabase";
 import { formatYmdKo, toYmd } from "@/lib/wedding";
+
+/** 참여 시스템: 주문 + 참여자 목록 */
+type AdminDelivery = Delivery & { participants: Participant[] };
+
+const ownerName = (r: AdminDelivery) =>
+  r.participants?.find((p) => p.is_owner)?.name ??
+  r.participants?.[0]?.name ??
+  r.name ??
+  "—";
 
 /** 이번 주(일~토) 범위의 YMD */
 function thisWeekRange(): [string, string] {
@@ -25,7 +34,7 @@ function thisWeekRange(): [string, string] {
 }
 
 /** 활성 배달들을 .ics 캘린더 문자열로 */
-function buildIcs(rows: Delivery[]): string {
+function buildIcs(rows: AdminDelivery[]): string {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -34,12 +43,13 @@ function buildIcs(rows: Delivery[]): string {
   for (const r of rows) {
     if (r.status === "취소") continue;
     const d = r.date.replace(/-/g, "");
+    const count = r.participants?.length ?? 1;
     lines.push(
       "BEGIN:VEVENT",
       `UID:${r.id}@cheong`,
       `DTSTART;VALUE=DATE:${d}`,
-      `SUMMARY:청첩장배달 - ${r.name} (${r.time_slot})`,
-      `DESCRIPTION:${r.location} / ${r.party_size ?? 1}명 / ${r.status}`,
+      `SUMMARY:청첩장배달 - ${ownerName(r)} 외 ${Math.max(0, count - 1)}명 (${r.time_slot})`,
+      `DESCRIPTION:${r.location} / ${count}명 / ${r.status}`,
       "END:VEVENT"
     );
   }
@@ -68,11 +78,11 @@ export default function AdminPage() {
   const [tab, setTab] = useState<DeliveryStatus>("대기중");
   const [groupFilter, setGroupFilter] = useState("");
   const [search, setSearch] = useState("");
-  const [rows, setRows] = useState<Delivery[]>([]);
-  const [allRows, setAllRows] = useState<Delivery[]>([]);
+  const [rows, setRows] = useState<AdminDelivery[]>([]);
+  const [allRows, setAllRows] = useState<AdminDelivery[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [waiting, setWaiting] = useState<WaitingEntry[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Participant[]>([]);
   const [newGroup, setNewGroup] = useState("");
 
   const [openGroup, setOpenGroup] = useState<string | null>(null);
@@ -187,14 +197,16 @@ export default function AdminPage() {
     const j = await res.json();
     if (!res.ok) return setError(j.error ?? "변경 실패");
     if (status === "확정" || status === "취소") {
-      const sms = j.sms;
+      const sms = j.sms as
+        | { count: number; sent: number; skipped: boolean }
+        | null;
       const label = status === "확정" ? "확정" : "취소";
       setNotice(
-        sms?.skipped
-          ? `${label} 처리됨 — SMS는 솔라피 키 미설정으로 미발송.`
-          : sms?.ok
-          ? `${label} 처리 및 SMS 발송 완료.`
-          : `${label} 처리됨 — SMS 실패: ${sms?.error ?? ""}`
+        !sms || sms.count === 0
+          ? `${label} 처리됨 — 연락처 보유 참여자가 없어 SMS 미발송.`
+          : sms.skipped
+          ? `${label} 처리됨 — SMS는 솔라피 키 미설정으로 미발송 (${sms.count}명 대상).`
+          : `${label} 처리 및 참여자 ${sms.sent}/${sms.count}명에게 SMS 발송 완료.`
       );
     }
     loadOrders();
@@ -300,15 +312,18 @@ export default function AdminPage() {
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return rows;
-    return rows.filter(
-      (r) =>
-        r.name.toLowerCase().includes(q) || r.phone.toLowerCase().includes(q)
+    return rows.filter((r) =>
+      (r.participants ?? []).some(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          (p.phone ?? "").toLowerCase().includes(q)
+      )
     );
   }, [rows, search]);
 
   // 캘린더용: 날짜 → 활성(취소 제외) 신청
   const byDate = useMemo(() => {
-    const m: Record<string, Delivery> = {};
+    const m: Record<string, AdminDelivery> = {};
     for (const r of allRows) if (r.status !== "취소") m[r.date] = r;
     return m;
   }, [allRows]);
@@ -458,16 +473,19 @@ export default function AdminPage() {
                     <div className="flex justify-between items-start">
                       <div className="space-y-0.5">
                         <p className="font-medium text-sage-700">
-                          {r.name}{" "}
-                          <span className="text-xs text-neutral-400 font-normal">
-                            {r.phone}
-                          </span>
+                          {ownerName(r)}
+                          {(r.participants?.length ?? 0) > 1 && (
+                            <span className="text-xs text-neutral-500 font-normal">
+                              {" "}
+                              외 {(r.participants?.length ?? 1) - 1}명
+                            </span>
+                          )}
                         </p>
                         <p className="text-xs text-neutral-500">
                           {formatYmdKo(r.date)} · {r.time_slot} · {r.location}
                         </p>
                         <p className="text-[11px] text-neutral-400">
-                          👥 {r.party_size ?? 1}명 · 📦 {groupName(r.group_id)}
+                          👥 {r.participants?.length ?? 0}명 · 📦 {groupName(r.group_id)}
                         </p>
                         {r.message && (
                           <p className="text-xs text-neutral-400 pt-1">
@@ -480,19 +498,32 @@ export default function AdminPage() {
                       </span>
                     </div>
 
-                    {/* 리뷰 (배송 완료 후) */}
-                    {r.review_rating != null && (
-                      <div className="bg-amber-50 border border-amber-200 px-3 py-2 rounded-sm">
-                        <p className="text-xs text-amber-600">
-                          {"⭐".repeat(r.review_rating)}
-                          {r.review_text && (
-                            <span className="text-neutral-500">
-                              {" "}
-                              “{r.review_text}”
+                    {/* 참여자 명단 (참여 시스템) */}
+                    {(r.participants?.length ?? 0) > 0 && (
+                      <ul className="border-t border-wedding-gold/10 pt-2 space-y-1">
+                        {r.participants.map((p) => (
+                          <li
+                            key={p.id}
+                            className="flex items-center gap-2 text-xs text-neutral-600"
+                          >
+                            <span>
+                              {p.is_owner ? "👑" : "👤"} {p.name}
                             </span>
-                          )}
-                        </p>
-                      </div>
+                            <span className="text-neutral-400">{p.phone}</span>
+                            {p.review_rating != null && (
+                              <span className="ml-auto text-amber-500">
+                                {"⭐".repeat(p.review_rating)}
+                                {p.review_text && (
+                                  <span className="text-neutral-400">
+                                    {" "}
+                                    “{p.review_text}”
+                                  </span>
+                                )}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
                     )}
 
                     {/* 배송 추적 단계 (재미 트래킹, 하객 화면 실시간 반영) */}
@@ -573,7 +604,8 @@ export default function AdminPage() {
                     <ul className="space-y-1">
                       {week.map((r) => (
                         <li key={r.id} className="text-xs text-neutral-600">
-                          {formatYmdKo(r.date)} · {r.time_slot} · {r.name} ({r.status})
+                          {formatYmdKo(r.date)} · {r.time_slot} · {ownerName(r)} 👥
+                          {r.participants?.length ?? 0}명 ({r.status})
                         </li>
                       ))}
                     </ul>
@@ -620,7 +652,7 @@ export default function AdminPage() {
                           return (
                             <div
                               key={ymd}
-                              title={r ? `${r.name} · ${r.time_slot} · ${r.status}` : ""}
+                              title={r ? `${ownerName(r)} 외 ${Math.max(0, (r.participants?.length ?? 1) - 1)}명 · ${r.time_slot} · ${r.status}` : ""}
                               className={`aspect-square rounded-md text-[11px] flex items-center justify-center ${color}`}
                             >
                               {Number(ymd.slice(-2))}
@@ -801,6 +833,8 @@ export default function AdminPage() {
                       {m.name}{" "}
                       <span className="text-[11px] text-neutral-400 font-normal">
                         {groupName(m.group_id)}
+                        {m.region ? ` · 📍 ${m.region}` : ""}
+                        {m.phone ? ` · ${m.phone}` : ""}
                       </span>
                     </p>
                     {m.message && (

@@ -17,9 +17,10 @@ export async function GET(req: Request) {
   const status = searchParams.get("status"); // 대기중 | 확정 | 완료 | null(전체)
   const groupId = searchParams.get("group_id"); // 그룹 필터 | null(전체)
 
+  // 참여 시스템: 주문 + 참여자 목록을 함께 조회
   let query = supabaseAdmin
     .from("deliveries")
-    .select("*")
+    .select("*, participants(*)")
     .order("date", { ascending: true });
   if (status) query = query.eq("status", status);
   if (groupId) query = query.eq("group_id", groupId);

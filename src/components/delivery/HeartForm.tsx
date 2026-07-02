@@ -4,8 +4,16 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { STAMPS, INVITATION_KEY, HEART_VIDEO_URL } from "@/lib/wedding";
+import {
+  STAMPS,
+  INVITATION_KEY,
+  HEART_VIDEO_URL,
+  formatPhone,
+  isValidPhone,
+} from "@/lib/wedding";
+import { OVERSEAS, joinRegion } from "@/lib/regions";
 import StampPicker from "@/components/delivery/StampPicker";
+import RegionPicker from "@/components/delivery/RegionPicker";
 
 const invitationHref = INVITATION_KEY ? `/?key=${INVITATION_KEY}` : "/";
 
@@ -19,21 +27,35 @@ export default function HeartForm({
 }) {
   const [stamp, setStamp] = useState<string>(STAMPS[0]);
   const [name, setName] = useState("");
+  const [sido, setSido] = useState("");
+  const [sub, setSub] = useState("");
   const [message, setMessage] = useState("");
+  const [phone, setPhone] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
   const submit = async () => {
     if (name.trim().length < 2) return setError("앗, 성함은 꼭 알려주셔야 해요! 🙏");
+    if (!sido || !sub.trim())
+      return setError(
+        sido === OVERSEAS
+          ? "어느 나라에서 보내시는지 알려주세요 🌍"
+          : "어디서 마음을 보내시는지 알려주세요 📍"
+      );
+    if (phone.trim() && !isValidPhone(phone))
+      return setError("연락처 형식을 확인해주세요 (010-0000-0000) 📞");
     setError(null);
     setSending(true);
+
     if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from("messages").insert({
-        group_id: group?.id ?? null,
-        name: name.trim(),
-        stamp,
-        message: message.trim() || null,
+      const { error } = await supabase.rpc("send_heart", {
+        p_group_id: group?.id ?? null,
+        p_name: name.trim(),
+        p_region: joinRegion(sido, sub.trim()),
+        p_stamp: stamp,
+        p_message: message.trim() || null,
+        p_phone: phone.trim() || null,
       });
       if (error) {
         setSending(false);
@@ -56,6 +78,14 @@ export default function HeartForm({
         <div className="text-5xl">{stamp}</div>
         <p className="text-lg font-extrabold text-neutral-800">
           따뜻한 마음 잘 받았어요 🥰
+        </p>
+        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-wedding-gold/10 text-wedding-gold text-xs font-bold">
+          💌 마음으로 함께한 분
+        </div>
+        <p className="text-xs text-neutral-400">
+          {joinRegion(sido, sub)}에서 보내주신 마음이
+          <br />
+          저희 청첩장 지도에 예쁘게 찍혔어요 📍
         </p>
 
         {HEART_VIDEO_URL && (
@@ -120,6 +150,24 @@ export default function HeartForm({
         placeholder="이름"
         className="dform-input"
       />
+
+      <div className="space-y-1.5">
+        <p className="text-xs font-bold text-neutral-500">
+          어디서 마음을 보내시나요? 📍
+        </p>
+        <RegionPicker
+          sido={sido}
+          sub={sub}
+          onChange={(s, g) => {
+            setSido(s);
+            setSub(g);
+          }}
+        />
+        <p className="text-[11px] text-neutral-400">
+          보내주신 지역은 청첩장 지도에 💌 핀으로 찍혀요 (구 단위까지만)
+        </p>
+      </div>
+
       <textarea
         value={message}
         maxLength={500}
@@ -127,6 +175,20 @@ export default function HeartForm({
         placeholder="한마디 (선택)"
         className="w-full p-4 rounded-2xl border-2 border-delivery/20 bg-white focus:outline-none focus:border-delivery resize-none h-24 text-sm"
       />
+
+      <div className="space-y-1.5">
+        <input
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(formatPhone(e.target.value))}
+          placeholder="연락처 (선택)"
+          className="dform-input"
+        />
+        <p className="text-[11px] text-neutral-400">
+          남겨주시면 다음에 청첩장에서 다시 오셨을 때 알아볼 수 있어요 💌
+        </p>
+      </div>
+
       {error && <p className="text-sm text-delivery-dark text-center">{error}</p>}
       <button
         type="button"
