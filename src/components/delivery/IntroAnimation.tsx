@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 /**
- * 배달 메인 첫 진입 인트로 (세션 1회)
- * - 신랑신부가 준비한 인트로 영상(/intro.mp4) 재생 → 끝나면 자동으로 메인 등장
+ * 배달 메인 첫 진입 인트로 — 들어올 때마다 재생
+ * - 신랑신부 인트로 영상(/intro.mp4): 스쿠터가 화면 끝까지 달려 나가면 메인 등장
  * - 자동재생을 위해 음소거 재생 (모바일 정책)
  * - 영상 로드 실패 시 기존 🛵 + "배송 출발!" 도장 애니메이션으로 폴백
  */
@@ -13,13 +13,7 @@ export default function IntroAnimation() {
   const [show, setShow] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
 
-  const close = () => {
-    sessionStorage.setItem("delivery-intro-seen", "1");
-    setShow(false);
-  };
-
   useEffect(() => {
-    if (sessionStorage.getItem("delivery-intro-seen")) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setShow(true);
   }, []);
@@ -27,12 +21,11 @@ export default function IntroAnimation() {
   // 폴백(이모지 애니메이션)일 때만 타이머로 자동 종료
   useEffect(() => {
     if (!show || !videoFailed) return;
-    const t = setTimeout(() => {
-      sessionStorage.setItem("delivery-intro-seen", "1");
-      setShow(false);
-    }, 2000);
+    const t = setTimeout(() => setShow(false), 2000);
     return () => clearTimeout(t);
   }, [show, videoFailed]);
+
+  const close = () => setShow(false);
 
   return (
     <AnimatePresence>
