@@ -159,7 +159,7 @@ export default function AdminPage() {
     });
   };
 
-  /** 선택한 날짜들 일괄 차단/해제 */
+  /** 선택한 날짜들 일괄 마감/해제 (주문 있는 날짜도 마감 가능 — 신규 신청만 차단) */
   const applyBlock = async (block: boolean) => {
     if (selected.size === 0) return;
     setError(null);
@@ -169,24 +169,20 @@ export default function AdminPage() {
       body: JSON.stringify({ dates: [...selected], block }),
     });
     const j = await res.json();
-    if (!res.ok) return setError(j.error ?? "차단 처리 실패");
+    if (!res.ok) return setError(j.error ?? "마감 처리 실패");
     setBlocked((prev) => {
       const next = new Set(prev);
       for (const d of selected) {
-        if (block && !(j.skipped ?? []).includes(d)) next.add(d);
-        if (!block) next.delete(d);
+        if (block) next.add(d);
+        else next.delete(d);
       }
       return next;
     });
     setSelected(new Set());
     setNotice(
       block
-        ? `${j.done}개 날짜를 차단했어요 🚫${
-            (j.skipped ?? []).length > 0
-              ? ` (주문 있는 ${j.skipped.length}개는 건너뜀)`
-              : ""
-          }`
-        : `${j.done}개 날짜 차단을 해제했어요 ✅`
+        ? `${j.done}개 날짜를 마감했어요 🚫 (기존 주문은 유지돼요)`
+        : `${j.done}개 날짜 마감을 해제했어요 ✅`
     );
   };
 
@@ -383,10 +379,11 @@ export default function AdminPage() {
     );
   }, [rows, search]);
 
-  // 캘린더용: 날짜 → 활성(취소 제외) 신청
+  // 캘린더용: 날짜 → 활성(취소 제외) 주문 목록 (같은 날 여러 팀 가능)
   const byDate = useMemo(() => {
-    const m: Record<string, AdminDelivery> = {};
-    for (const r of allRows) if (r.status !== "취소") m[r.date] = r;
+    const m: Record<string, AdminDelivery[]> = {};
+    for (const r of allRows)
+      if (r.status !== "취소") m[r.date] = [...(m[r.date] ?? []), r];
     return m;
   }, [allRows]);
 
@@ -678,13 +675,12 @@ export default function AdminPage() {
             })()}
 
             <div className="flex justify-center gap-3 text-[11px] text-neutral-500 flex-wrap">
-              <Legend color="bg-amber-300" label="대기중" />
-              <Legend color="bg-sage-500" label="확정" />
-              <Legend color="bg-neutral-300" label="완료" />
-              <Legend color="bg-neutral-700" label="차단됨 🚫" />
+              <Legend color="bg-sage-500" label="주문 있음 (숫자=팀 수)" />
+              <Legend color="bg-neutral-700" label="마감됨 🚫" />
             </div>
             <p className="text-[11px] text-neutral-400 text-center">
-              날짜를 눌러 여러 개 선택한 뒤 아래 버튼으로 한 번에 차단/해제하세요
+              날짜를 눌러 여러 개 선택한 뒤 한 번에 마감/해제 — 주문이 있는 날도 마감할 수
+              있어요 (기존 주문 유지, 신규 신청만 차단)
             </p>
 
             {selected.size > 0 && (
@@ -696,7 +692,7 @@ export default function AdminPage() {
                   onClick={() => applyBlock(true)}
                   className="px-3 py-1.5 text-xs bg-neutral-700 text-white rounded-full"
                 >
-                  차단 🚫
+                  마감 🚫
                 </button>
                 <button
                   onClick={() => applyBlock(false)}
@@ -734,38 +730,41 @@ export default function AdminPage() {
                         <div key={`b${i}`} />
                       ) : (
                         (() => {
-                          const r = byDate[ymd];
+                          const list = byDate[ymd] ?? [];
                           const isBlocked = blocked.has(ymd);
                           const isSelected = selected.has(ymd);
-                          const color = r
-                            ? r.status === "대기중"
-                              ? "bg-amber-300 text-white"
-                              : r.status === "확정"
-                              ? "bg-sage-500 text-white"
-                              : "bg-neutral-300 text-white"
-                            : isBlocked
+                          const color = isBlocked
                             ? "bg-neutral-700 text-white"
+                            : list.length > 0
+                            ? "bg-sage-500 text-white"
                             : "bg-transparent text-neutral-300 hover:bg-neutral-100";
+                          const title = [
+                            ...list.map(
+                              (r) =>
+                                `${ownerName(r)} 외 ${Math.max(0, (r.participants?.length ?? 1) - 1)}명 · ${r.time_slot} · ${r.status}`
+                            ),
+                            isBlocked ? "마감됨 🚫" : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" / ");
                           return (
                             <button
                               key={ymd}
                               type="button"
-                              disabled={!!r}
                               onClick={() => toggleSelect(ymd)}
-                              title={
-                                r
-                                  ? `${ownerName(r)} 외 ${Math.max(0, (r.participants?.length ?? 1) - 1)}명 · ${r.time_slot} · ${r.status}`
-                                  : isBlocked
-                                  ? "차단됨 — 선택 후 해제"
-                                  : "선택 후 차단"
-                              }
-                              className={`aspect-square rounded-md text-[11px] flex items-center justify-center ${color} ${
+                              title={title || "선택 후 마감"}
+                              className={`relative aspect-square rounded-md text-[11px] flex items-center justify-center ${color} ${
                                 isSelected
                                   ? "ring-2 ring-delivery ring-offset-1 font-bold"
                                   : ""
                               }`}
                             >
                               {Number(ymd.slice(-2))}
+                              {list.length > 0 && (
+                                <span className="absolute -top-1 -right-1 min-w-3.5 h-3.5 px-0.5 rounded-full bg-delivery text-white text-[8px] font-bold flex items-center justify-center">
+                                  {list.length}
+                                </span>
+                              )}
                             </button>
                           );
                         })()

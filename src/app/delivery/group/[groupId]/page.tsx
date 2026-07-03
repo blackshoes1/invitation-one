@@ -17,6 +17,7 @@ import JoinForm from "@/components/delivery/JoinForm";
 import OrderList from "@/components/delivery/OrderList";
 import HeartForm from "@/components/delivery/HeartForm";
 import ReviewStrip from "@/components/delivery/ReviewStrip";
+import FindOrder from "@/components/delivery/FindOrder";
 import DeliveryClosed from "@/components/delivery/DeliveryClosed";
 import Faq from "@/components/delivery/Faq";
 
@@ -142,6 +143,7 @@ function GroupPageInner() {
                   setView(mode === "delivery" ? { kind: "new" } : { kind: "heart" })
                 }
               />
+              <FindOrder />
             </>
           )}
 

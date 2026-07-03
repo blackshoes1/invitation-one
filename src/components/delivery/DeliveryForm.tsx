@@ -149,7 +149,7 @@ export default function DeliveryForm({
         setSending(false);
         setSummary(false);
         if (error.code === "23505" || error.message.includes("date_taken")) {
-          setError("방금 다른 분이 먼저 신청하셨어요 😢 다른 날짜를 골라주세요");
+          setError("앗, 이 날짜는 마감됐어요 😢 다른 날짜를 골라주세요");
           setDate(null);
           setDir(-1);
           setStep(2);

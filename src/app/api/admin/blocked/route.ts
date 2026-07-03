@@ -29,10 +29,9 @@ export async function GET(req: Request) {
 }
 
 /**
- * 날짜 차단/해제 (다중 선택 지원)
+ * 날짜 마감/해제 (다중 선택 지원)
  * body: { dates: 'YYYY-MM-DD'[], block: boolean }
- * - block=true: 주문 있는 날짜는 건너뛰고(skipped) 나머지 차단
- * - block=false: 선택한 날짜의 차단 해제
+ * - 주문이 있는 날짜도 마감 가능 (신규 신청만 막힘, 기존 주문은 유지)
  */
 export async function POST(req: Request) {
   const bad = guard(req);
@@ -52,25 +51,12 @@ export async function POST(req: Request) {
       .delete()
       .in("date", valid);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ done: valid.length, skipped: [] });
+    return NextResponse.json({ done: valid.length });
   }
 
-  // 이미 주문이 있는 날짜는 차단 불가 (주문 취소로 처리해야 함)
-  const { data: existing } = await supabaseAdmin!
-    .from("deliveries")
-    .select("date")
-    .in("date", valid)
-    .neq("status", "취소");
-  const skipped = new Set(
-    ((existing ?? []) as { date: string }[]).map((r) => r.date)
-  );
-  const targets = valid.filter((d) => !skipped.has(d));
-
-  if (targets.length > 0) {
-    const { error } = await supabaseAdmin!
-      .from("blocked_dates")
-      .upsert(targets.map((date) => ({ date })));
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-  return NextResponse.json({ done: targets.length, skipped: [...skipped] });
+  const { error } = await supabaseAdmin!
+    .from("blocked_dates")
+    .upsert(valid.map((date) => ({ date })));
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ done: valid.length });
 }

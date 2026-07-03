@@ -11,6 +11,7 @@ import MenuSelect, { type DeliveryMode } from "@/components/delivery/MenuSelect"
 import DeliveryForm from "@/components/delivery/DeliveryForm";
 import HeartForm from "@/components/delivery/HeartForm";
 import ReviewStrip from "@/components/delivery/ReviewStrip";
+import FindOrder from "@/components/delivery/FindOrder";
 import DeliveryClosed from "@/components/delivery/DeliveryClosed";
 import Faq from "@/components/delivery/Faq";
 
@@ -79,6 +80,7 @@ function DeliveryPageInner() {
             <>
               <ReviewStrip />
               <MenuSelect onPick={setMode} />
+              <FindOrder />
             </>
           )}
 
