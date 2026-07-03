@@ -83,6 +83,7 @@ export default function AdminPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [waiting, setWaiting] = useState<WaitingEntry[]>([]);
   const [messages, setMessages] = useState<Participant[]>([]);
+  const [blocked, setBlocked] = useState<Set<string>>(new Set());
   const [newGroup, setNewGroup] = useState("");
 
   const [openGroup, setOpenGroup] = useState<string | null>(null);
@@ -137,9 +138,41 @@ export default function AdminPage() {
 
   const loadCalendar = async () => {
     setLoading(true);
-    const res = await api("/api/admin/deliveries");
+    const [res, blockedRes] = await Promise.all([
+      api("/api/admin/deliveries"),
+      api("/api/admin/blocked"),
+    ]);
     if (res.ok) setAllRows((await res.json()).deliveries ?? []);
+    if (blockedRes.ok)
+      setBlocked(new Set(((await blockedRes.json()).dates ?? []) as string[]));
     setLoading(false);
+  };
+
+  /** 날짜 차단 토글 (일정 가능 on/off) */
+  const toggleBlock = async (ymd: string) => {
+    const isBlocked = blocked.has(ymd);
+    if (
+      !confirm(
+        isBlocked
+          ? `${formatYmdKo(ymd)} 차단을 해제할까요? (신청 가능해져요)`
+          : `${formatYmdKo(ymd)}을 차단할까요? (하객이 신청할 수 없어요)`
+      )
+    )
+      return;
+    setError(null);
+    const res = await api("/api/admin/blocked", {
+      method: "POST",
+      body: JSON.stringify({ date: ymd }),
+    });
+    const j = await res.json();
+    if (!res.ok) return setError(j.error ?? "차단 처리 실패");
+    setBlocked((prev) => {
+      const next = new Set(prev);
+      if (j.blocked) next.add(ymd);
+      else next.delete(ymd);
+      return next;
+    });
+    setNotice(j.blocked ? "차단했어요 🚫" : "차단을 해제했어요 ✅");
   };
 
   const loadWaiting = async () => {
@@ -238,6 +271,20 @@ export default function AdminPage() {
     const j = await res.json();
     if (!res.ok) return setError(j.error ?? "그룹 생성 실패");
     setNewGroup("");
+    loadGroups();
+  };
+
+  /** 그룹명 수정 */
+  const renameGroup = async (gid: string, current: string) => {
+    const name = prompt("새 그룹명을 입력해주세요", current);
+    if (!name?.trim() || name.trim() === current) return;
+    const res = await api(`/api/admin/groups/${gid}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name: name.trim() }),
+    });
+    const j = await res.json();
+    if (!res.ok) return setError(j.error ?? "그룹명 수정 실패");
+    setNotice("그룹명을 수정했어요 ✏️");
     loadGroups();
   };
 
@@ -342,12 +389,13 @@ export default function AdminPage() {
           <h1 className="font-serif text-lg text-sage-700 text-center tracking-widest">
             배달 관리자
           </h1>
+          {/* text-base(16px) — 모바일에서 포커스 시 화면 확대(iOS 자동 줌) 방지 */}
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="관리자 비밀번호"
-            className="w-full p-3 border border-wedding-gold/25 bg-transparent focus:outline-none focus:border-sage-600 text-sm text-sage-700 rounded-none"
+            className="w-full p-3 border border-wedding-gold/25 bg-transparent focus:outline-none focus:border-sage-600 text-base text-sage-700 rounded-none"
           />
           {error && <p className="text-xs text-red-500 text-center">{error}</p>}
           <button
@@ -614,11 +662,15 @@ export default function AdminPage() {
               );
             })()}
 
-            <div className="flex justify-center gap-3 text-[11px] text-neutral-500">
+            <div className="flex justify-center gap-3 text-[11px] text-neutral-500 flex-wrap">
               <Legend color="bg-amber-300" label="대기중" />
               <Legend color="bg-sage-500" label="확정" />
               <Legend color="bg-neutral-300" label="완료" />
+              <Legend color="bg-neutral-700" label="차단됨 🚫" />
             </div>
+            <p className="text-[11px] text-neutral-400 text-center">
+              빈 날짜를 누르면 차단, 차단된 날짜를 누르면 해제돼요
+            </p>
             {CAL_MONTHS.map((month) => {
               const offset = new Date(CAL_YEAR, month, 1).getDay();
               const days = new Date(CAL_YEAR, month + 1, 0).getDate();
@@ -642,21 +694,33 @@ export default function AdminPage() {
                       ) : (
                         (() => {
                           const r = byDate[ymd];
-                          const color = !r
-                            ? "bg-transparent text-neutral-300"
-                            : r.status === "대기중"
-                            ? "bg-amber-300 text-white"
-                            : r.status === "확정"
-                            ? "bg-sage-500 text-white"
-                            : "bg-neutral-300 text-white";
+                          const isBlocked = blocked.has(ymd);
+                          const color = r
+                            ? r.status === "대기중"
+                              ? "bg-amber-300 text-white"
+                              : r.status === "확정"
+                              ? "bg-sage-500 text-white"
+                              : "bg-neutral-300 text-white"
+                            : isBlocked
+                            ? "bg-neutral-700 text-white"
+                            : "bg-transparent text-neutral-300 hover:bg-neutral-100";
                           return (
-                            <div
+                            <button
                               key={ymd}
-                              title={r ? `${ownerName(r)} 외 ${Math.max(0, (r.participants?.length ?? 1) - 1)}명 · ${r.time_slot} · ${r.status}` : ""}
+                              type="button"
+                              disabled={!!r}
+                              onClick={() => toggleBlock(ymd)}
+                              title={
+                                r
+                                  ? `${ownerName(r)} 외 ${Math.max(0, (r.participants?.length ?? 1) - 1)}명 · ${r.time_slot} · ${r.status}`
+                                  : isBlocked
+                                  ? "차단됨 — 누르면 해제"
+                                  : "누르면 차단"
+                              }
                               className={`aspect-square rounded-md text-[11px] flex items-center justify-center ${color}`}
                             >
                               {Number(ymd.slice(-2))}
-                            </div>
+                            </button>
                           );
                         })()
                       )
@@ -706,6 +770,13 @@ export default function AdminPage() {
                       </p>
                     </div>
                     <div className="flex gap-2 whitespace-nowrap">
+                      <button
+                        onClick={() => renameGroup(g.id, g.name)}
+                        className="px-3 py-1.5 text-xs border border-wedding-gold/30 text-neutral-500"
+                        title="그룹명 수정"
+                      >
+                        ✏️
+                      </button>
                       <button
                         onClick={() => toggleMembers(g.id)}
                         className="px-3 py-1.5 text-xs border border-wedding-gold/30 text-neutral-500"

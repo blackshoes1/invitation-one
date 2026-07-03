@@ -11,6 +11,7 @@ import {
 } from "@/lib/supabase";
 import { groom, bride, DELIVERY_CAPACITY } from "@/lib/wedding";
 import MenuSelect, { type DeliveryMode } from "@/components/delivery/MenuSelect";
+import BikeIcon from "@/components/delivery/BikeIcon";
 import DeliveryForm from "@/components/delivery/DeliveryForm";
 import JoinForm from "@/components/delivery/JoinForm";
 import OrderList from "@/components/delivery/OrderList";
@@ -99,8 +100,9 @@ function GroupPageInner() {
   return (
     <div>
       <header className="sticky top-0 z-20 bg-delivery text-white px-5 py-3 flex items-center justify-between shadow-sm">
-        <span className="font-serif font-bold tracking-tight">
-          🛵 {groom.name}·{bride.name} 스토어
+        <span className="font-serif font-bold tracking-tight flex items-center gap-2">
+          <BikeIcon className="w-6 h-6 text-white" />
+          {groom.name}·{bride.name} 스토어
         </span>
         <Link href="/" className="text-xs bg-white/20 px-3 py-1.5 rounded-full font-medium">
           💌 청첩장

@@ -32,12 +32,12 @@
   /* 샴페인 골드 (가는 라인·라벨) */
   --color-wedding-gold: #b89b6e;
 
-  /* === 배달앱(/delivery) 밝은 팔레트 === */
-  --color-delivery: #ff6b35;       /* 탠저린 (메인 CTA) */
-  --color-delivery-dark: #e8551d;
-  --color-delivery-mint: #19c3b1;  /* 민트 (포인트) */
+  /* === 배달앱(/delivery) 팔레트 — 배달의민족 민트 톤 === */
+  --color-delivery: #2ac1bc;       /* 배민 민트 (메인 CTA·헤더) */
+  --color-delivery-dark: #17918c;  /* 진한 민트 (강조 텍스트) */
+  --color-delivery-mint: #05a49e;  /* 딥 틸 (보조 버튼) */
   --color-delivery-yellow: #ffd23f;
-  --color-delivery-bg: #fff7ed;    /* 크림 오렌지 배경 */
+  --color-delivery-bg: #f4f7f7;    /* 밝은 회색 배경 (배민 앱 느낌) */
 }
 
 body {
@@ -84,7 +84,7 @@ html {
 .dform-input {
   width: 100%;
   background: #fff;
-  border: 2px solid rgba(255, 107, 53, 0.2);
+  border: 2px solid rgba(42, 193, 188, 0.25);
   border-radius: 1rem;
   padding: 0.9rem 1rem;
   font-size: 1.05rem;
@@ -96,7 +96,26 @@ html {
   color: #cbcbcb;
 }
 .dform-input:focus {
-  border-color: #ff6b35;
+  border-color: #2ac1bc;
+}
+
+/* 배달 페이지 스크롤바 — 민트 톤 얇은 스크롤바 */
+.delivery-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(42, 193, 188, 0.6) transparent;
+}
+.delivery-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+.delivery-scroll::-webkit-scrollbar-thumb {
+  background: rgba(42, 193, 188, 0.55);
+  border-radius: 9999px;
+}
+.delivery-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(42, 193, 188, 0.85);
+}
+.delivery-scroll::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 /* RSVP 언더라인 입력창 */

@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { groom, bride, DELIVERY_CAPACITY } from "@/lib/wedding";
 import IntroAnimation from "@/components/delivery/IntroAnimation";
+import BikeIcon from "@/components/delivery/BikeIcon";
 import MenuSelect, { type DeliveryMode } from "@/components/delivery/MenuSelect";
 import DeliveryForm from "@/components/delivery/DeliveryForm";
 import HeartForm from "@/components/delivery/HeartForm";
@@ -39,8 +40,9 @@ function DeliveryPageInner() {
     <div>
       <IntroAnimation />
       <header className="sticky top-0 z-20 bg-delivery text-white px-5 py-3 flex items-center justify-between shadow-sm">
-        <span className="font-serif font-bold tracking-tight">
-          🛵 {groom.name}·{bride.name} 스토어
+        <span className="font-serif font-bold tracking-tight flex items-center gap-2">
+          <BikeIcon className="w-6 h-6 text-white" />
+          {groom.name}·{bride.name} 스토어
         </span>
         <Link href="/" className="text-xs bg-white/20 px-3 py-1.5 rounded-full font-medium">
           💌 청첩장
@@ -52,9 +54,9 @@ function DeliveryPageInner() {
           initial={{ scale: 0.6, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 160, damping: 12 }}
-          className="text-6xl"
+          className="flex justify-center"
         >
-          🛵
+          <BikeIcon className="w-20 h-20 text-delivery" />
         </motion.div>
         <p className="mt-3 text-sm text-neutral-500">
           <span className="font-serif text-wedding-gold font-medium">

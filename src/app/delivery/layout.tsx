@@ -17,7 +17,7 @@ export default function DeliveryLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="h-[100dvh] overflow-y-auto bg-delivery-bg text-neutral-800 font-sans">
+    <div className="delivery-scroll h-[100dvh] overflow-y-auto bg-delivery-bg text-neutral-800 font-sans">
       {children}
     </div>
   );

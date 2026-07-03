@@ -1,5 +1,7 @@
 "use client";
 
+import BikeIcon from "@/components/delivery/BikeIcon";
+
 export type DeliveryMode = "delivery" | "heart";
 
 export default function MenuSelect({
@@ -10,7 +12,7 @@ export default function MenuSelect({
   return (
     <div className="max-w-sm mx-auto px-6 space-y-4">
       <p className="text-center text-sm font-bold text-neutral-700">
-        🛵 메뉴를 골라주세요
+        메뉴를 골라주세요
       </p>
 
       <button
@@ -18,7 +20,7 @@ export default function MenuSelect({
         onClick={() => onPick("delivery")}
         className="w-full p-5 rounded-2xl bg-delivery text-white text-left shadow-sm active:scale-95 transition-transform flex items-center gap-3"
       >
-        <span className="text-3xl">🛵</span>
+        <BikeIcon className="w-9 h-9 text-white shrink-0" />
         <span>
           <span className="block font-extrabold">직접 배달 받기</span>
           <span className="block text-xs text-white/80">만나서 청첩장 받기</span>
