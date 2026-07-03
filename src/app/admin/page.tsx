@@ -85,6 +85,7 @@ export default function AdminPage() {
   const [messages, setMessages] = useState<Participant[]>([]);
   const [blocked, setBlocked] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [mergeSource, setMergeSource] = useState<string | null>(null);
   const [newGroup, setNewGroup] = useState("");
 
   const [openGroup, setOpenGroup] = useState<string | null>(null);
@@ -283,6 +284,39 @@ export default function AdminPage() {
     if (!res.ok) return setError(j.error ?? "그룹 생성 실패");
     setNewGroup("");
     loadGroups();
+  };
+
+  /** 합석 가능 문의 SMS — 병합 전 주문자 동의 확인 */
+  const askMerge = async (id: string) => {
+    if (!confirm("이 주문의 참여자에게 합석 가능 여부를 묻는 SMS를 보낼까요?")) return;
+    setNotice(null);
+    setError(null);
+    const res = await api(`/api/admin/deliveries/${id}/ask`, { method: "POST" });
+    const j = await res.json();
+    if (!res.ok) return setError(j.error ?? "문의 발송 실패");
+    setNotice(
+      j.skipped
+        ? `합석 문의 대상 ${j.count}명 — SMS는 솔라피 키 미설정으로 미발송.`
+        : `합석 문의 SMS를 ${j.sent}/${j.count}명에게 보냈어요 💬`
+    );
+  };
+
+  /** 주문 합치기 — mergeSource 의 참여자를 target 으로 이동 */
+  const doMerge = async (targetId: string) => {
+    if (!mergeSource) return;
+    if (!confirm("선택한 주문의 참여자를 이 주문으로 옮기고, 원래 주문은 취소할까요?"))
+      return;
+    setNotice(null);
+    setError(null);
+    const res = await api("/api/admin/merge", {
+      method: "POST",
+      body: JSON.stringify({ source_id: mergeSource, target_id: targetId }),
+    });
+    const j = await res.json();
+    setMergeSource(null);
+    if (!res.ok) return setError(j.error ?? "합치기 실패");
+    setNotice(`참여자 ${j.moved}명을 옮기고 주문을 합쳤어요 🔗`);
+    loadOrders();
   };
 
   /** 그룹명 수정 */
@@ -515,6 +549,18 @@ export default function AdminPage() {
               className="w-full p-2.5 text-sm border border-wedding-gold/20 bg-white rounded-none focus:outline-none focus:border-sage-600"
             />
 
+            {mergeSource && (
+              <p className="text-xs text-center text-delivery bg-delivery/5 border border-delivery/20 py-2">
+                🔗 합칠 대상 주문의 [여기로 합치기] 버튼을 눌러주세요
+                <button
+                  onClick={() => setMergeSource(null)}
+                  className="ml-2 underline text-neutral-400"
+                >
+                  취소
+                </button>
+              </p>
+            )}
+
             {!loading && filteredRows.length === 0 && (
               <p className="text-sm text-neutral-400 text-center py-10">
                 해당 조건의 신청이 없습니다.
@@ -607,6 +653,40 @@ export default function AdminPage() {
                             </button>
                           ))}
                         </div>
+                      </div>
+                    )}
+
+                    {/* 합석 문의 + 주문 합치기 (활성 주문만) */}
+                    {r.status !== "취소" && r.status !== "완료" && (
+                      <div className="flex justify-end gap-2 flex-wrap">
+                        <button
+                          onClick={() => askMerge(r.id)}
+                          className="px-3 py-1.5 text-xs border border-delivery/30 text-delivery"
+                        >
+                          합석 문의 💬
+                        </button>
+                        {mergeSource === null ? (
+                          <button
+                            onClick={() => setMergeSource(r.id)}
+                            className="px-3 py-1.5 text-xs border border-neutral-300 text-neutral-500"
+                          >
+                            이 주문을 다른 주문과 합치기 🔗
+                          </button>
+                        ) : mergeSource === r.id ? (
+                          <button
+                            onClick={() => setMergeSource(null)}
+                            className="px-3 py-1.5 text-xs border border-neutral-300 text-neutral-400"
+                          >
+                            합치기 취소
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => doMerge(r.id)}
+                            className="px-3 py-1.5 text-xs bg-delivery text-white font-bold"
+                          >
+                            여기로 합치기 ⤵
+                          </button>
+                        )}
                       </div>
                     )}
 

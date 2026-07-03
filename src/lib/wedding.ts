@@ -81,6 +81,13 @@ export const galleryImages: { src: string; alt: string }[] = [
 export type TimeSlot = "오전" | "오후" | "저녁";
 export const TIME_SLOTS: TimeSlot[] = ["오전", "오후", "저녁"];
 
+/** 요일별 배송 가능 시간대 — 평일은 저녁만, 주말은 전체 */
+export function slotsForDate(ymd: string): TimeSlot[] {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const day = new Date(y, m - 1, d).getDay();
+  return day === 0 || day === 6 ? TIME_SLOTS : ["저녁"];
+}
+
 // 배달 신청 가능 기간 (YYYY-MM-DD)
 export const DELIVERY_START = "2026-07-06";
 export const DELIVERY_END = "2026-10-16";

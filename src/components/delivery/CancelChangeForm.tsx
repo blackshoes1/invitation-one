@@ -8,7 +8,13 @@ import {
   type ParticipantDetail,
   type GroupOrder,
 } from "@/lib/supabase";
-import { type TimeSlot, formatYmdKo, STAMPS, INVITATION_KEY } from "@/lib/wedding";
+import {
+  type TimeSlot,
+  formatYmdKo,
+  slotsForDate,
+  STAMPS,
+  INVITATION_KEY,
+} from "@/lib/wedding";
 import { OVERSEAS, joinRegion } from "@/lib/regions";
 import DeliveryCalendar from "@/components/DeliveryCalendar";
 import TrackingView from "@/components/delivery/TrackingView";
@@ -453,11 +459,25 @@ export default function CancelChangeForm({ participantId }: { participantId: str
           <DeliveryCalendar
             selected={newDate}
             booked={booked}
-            onSelect={setNewDate}
+            onSelect={(d) => {
+              setNewDate(d);
+              if (newSlot && !slotsForDate(d).includes(newSlot)) setNewSlot(null);
+            }}
             selectedClass="bg-delivery text-white font-bold"
           />
-          <div className="grid grid-cols-3 gap-3">
-            {SLOTS.map((s) => (
+          {newDate && slotsForDate(newDate).length === 1 && (
+            <p className="text-[11px] text-neutral-400 text-center">
+              평일은 저녁 배달만 가능해요 🌙
+            </p>
+          )}
+          <div
+            className={`grid gap-3 ${
+              newDate && slotsForDate(newDate).length === 1
+                ? "grid-cols-1"
+                : "grid-cols-3"
+            }`}
+          >
+            {(newDate ? slotsForDate(newDate) : SLOTS).map((s) => (
               <button
                 key={s}
                 onClick={() => setNewSlot(s)}

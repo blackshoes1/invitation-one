@@ -9,6 +9,7 @@ import {
   formatYmdKo,
   formatPhone,
   isValidPhone,
+  slotsForDate,
   groom,
 } from "@/lib/wedding";
 import DeliveryCalendar from "@/components/DeliveryCalendar";
@@ -249,7 +250,11 @@ export default function DeliveryForm({
             <DeliveryCalendar
               selected={date}
               booked={booked}
-              onSelect={setDate}
+              onSelect={(d) => {
+                setDate(d);
+                // 평일은 저녁만 가능 — 이미 고른 시간대가 안 맞으면 초기화
+                if (slot && !slotsForDate(d).includes(slot)) setSlot(null);
+              }}
               selectedClass="bg-delivery text-white font-bold"
             />
             {date && (
@@ -259,11 +264,20 @@ export default function DeliveryForm({
             )}
           </Q>
         );
-      case 3:
+      case 3: {
+        const avail = date ? slotsForDate(date) : [];
+        const visible = SLOTS.filter((s) => avail.includes(s.value));
         return (
-          <Q title={`${date ? formatYmdKo(date) : ""} 배송 희망 시간대를 골라주세요 ⏰`}>
-            <div className="grid grid-cols-3 gap-3">
-              {SLOTS.map((s) => (
+          <Q
+            title={`${date ? formatYmdKo(date) : ""} 배송 희망 시간대를 골라주세요 ⏰`}
+            sub={visible.length === 1 ? "평일은 저녁 배달만 가능해요 🌙" : undefined}
+          >
+            <div
+              className={`grid gap-3 ${
+                visible.length === 1 ? "grid-cols-1" : "grid-cols-3"
+              }`}
+            >
+              {visible.map((s) => (
                 <button
                   key={s.value}
                   type="button"
@@ -282,6 +296,7 @@ export default function DeliveryForm({
             </div>
           </Q>
         );
+      }
       case 4:
         return (
           <Q
