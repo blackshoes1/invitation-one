@@ -160,12 +160,12 @@ export default function CompletePage({
         )}
       </div>
 
-      <Link
-        href="/"
-        className="mt-7 inline-block text-sm text-neutral-400 underline underline-offset-2"
-      >
-        💌 청첩장으로 돌아가기
-      </Link>
+      {/* 청첩장은 만남 이후의 보상 — 링크 대신 티저 문구 */}
+      <p className="mt-7 text-xs text-neutral-400 leading-relaxed">
+        💌 모바일 청첩장은 만나서 받는
+        <br />
+        종이 청첩장 속 QR로 열려요 🤫
+      </p>
     </div>
   );
 }

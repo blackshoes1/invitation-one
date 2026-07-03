@@ -8,7 +8,7 @@ import {
   type ParticipantDetail,
   type GroupOrder,
 } from "@/lib/supabase";
-import { type TimeSlot, formatYmdKo, STAMPS } from "@/lib/wedding";
+import { type TimeSlot, formatYmdKo, STAMPS, INVITATION_KEY } from "@/lib/wedding";
 import { OVERSEAS, joinRegion } from "@/lib/regions";
 import DeliveryCalendar from "@/components/DeliveryCalendar";
 import TrackingView from "@/components/delivery/TrackingView";
@@ -16,6 +16,9 @@ import RegionPicker from "@/components/delivery/RegionPicker";
 import StampPicker from "@/components/delivery/StampPicker";
 
 const SLOTS: TimeSlot[] = ["오전", "오후", "저녁"];
+
+/** 마음 배송은 즉시 공개 — 키 포함 청첩장 링크 */
+const invitationHref = INVITATION_KEY ? `/?key=${INVITATION_KEY}` : "/";
 
 type Mode = "view" | "reschedule" | "switch" | "toHeart";
 
@@ -227,9 +230,22 @@ export default function CancelChangeForm({ participantId }: { participantId: str
         <div className="text-5xl">{msg[0]}</div>
         <p className="font-extrabold text-lg text-neutral-800">{msg[1]}</p>
         <p className="text-sm text-neutral-500">{msg[2]}</p>
-        <Link href="/" className="mt-2 text-sm text-neutral-400 underline underline-offset-2">
-          💌 청첩장으로 돌아가기
-        </Link>
+        {result === "heart" ? (
+          // 마음 배송 전환 = 즉시 공개 (키 포함 링크)
+          <Link
+            href={invitationHref}
+            className="mt-2 px-6 py-3 rounded-full bg-delivery text-white text-sm font-extrabold"
+          >
+            💌 모바일 청첩장 보기
+          </Link>
+        ) : (
+          <Link
+            href="/delivery"
+            className="mt-2 text-sm text-neutral-400 underline underline-offset-2"
+          >
+            🛵 배달 메인으로
+          </Link>
+        )}
       </div>
     );
   }
@@ -256,16 +272,24 @@ export default function CancelChangeForm({ participantId }: { participantId: str
         <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-wedding-gold/10 text-wedding-gold text-xs font-bold">
           💌 마음으로 함께한 분
         </div>
-        <div className="pt-3">
+        <div className="pt-3 space-y-3">
           <Link
-            href={convertHref}
-            className="inline-block px-6 py-3.5 rounded-full bg-delivery text-white font-extrabold active:scale-95 transition-transform"
+            href={invitationHref}
+            className="block mx-auto w-fit px-6 py-3.5 rounded-full bg-delivery text-white font-extrabold active:scale-95 transition-transform"
           >
-            역시 직접 만나서 받고 싶어요 🛵
+            💌 모바일 청첩장 보기
           </Link>
-          <p className="mt-2 text-[11px] text-neutral-400">
-            언제든 마음이 바뀌면 직접 배달로 전환할 수 있어요
-          </p>
+          <div>
+            <Link
+              href={convertHref}
+              className="text-sm text-delivery underline underline-offset-2"
+            >
+              역시 직접 만나서 받고 싶어요 🛵
+            </Link>
+            <p className="mt-1.5 text-[11px] text-neutral-400">
+              언제든 마음이 바뀌면 직접 배달로 전환할 수 있어요
+            </p>
+          </div>
         </div>
       </div>
     );
