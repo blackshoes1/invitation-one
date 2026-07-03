@@ -181,6 +181,8 @@ export default function HeartForm({
           type="tel"
           value={phone}
           onChange={(e) => setPhone(formatPhone(e.target.value))}
+          onKeyDown={(e) => e.key === "Enter" && submit()}
+          enterKeyHint="done"
           placeholder="연락처 (선택)"
           className="dform-input"
         />

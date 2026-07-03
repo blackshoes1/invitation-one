@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
@@ -61,6 +61,7 @@ export default function DeliveryForm({
   const [message, setMessage] = useState("");
 
   const [booked, setBooked] = useState<Set<string>>(new Set());
+  const phoneRef = useRef<HTMLInputElement>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -217,14 +218,23 @@ export default function DeliveryForm({
                 autoFocus
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    phoneRef.current?.focus(); // 완료 → 연락처로 이동
+                  }
+                }}
+                enterKeyHint="next"
                 placeholder="성함"
                 className="dform-input"
               />
               <input
+                ref={phoneRef}
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(formatPhone(e.target.value))}
                 onKeyDown={(e) => e.key === "Enter" && next()}
+                enterKeyHint="done"
                 placeholder="배송 완료 후 연락드릴 번호 📞"
                 className="dform-input"
               />
@@ -239,6 +249,7 @@ export default function DeliveryForm({
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && next()}
+              enterKeyHint="done"
               placeholder="예: 강남역 2번 출구, 회사 앞"
               className="dform-input"
             />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { formatYmdKo } from "@/lib/wedding";
@@ -36,6 +36,7 @@ export default function FindOrder() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<Found[] | null>(null);
+  const last4Ref = useRef<HTMLInputElement>(null);
 
   const search = async () => {
     if (name.trim().length < 2) return setError("성함을 입력해주세요 🙏");
@@ -86,13 +87,23 @@ export default function FindOrder() {
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              last4Ref.current?.focus();
+            }
+          }}
+          enterKeyHint="next"
           placeholder="성함"
           className="dform-input"
         />
         <input
+          ref={last4Ref}
           inputMode="numeric"
           value={last4}
           onChange={(e) => setLast4(e.target.value.replace(/\D/g, "").slice(0, 4))}
+          onKeyDown={(e) => e.key === "Enter" && search()}
+          enterKeyHint="done"
           placeholder="연락처 끝 4자리"
           className="dform-input"
         />

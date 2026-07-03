@@ -864,8 +864,10 @@ export default function AdminPage() {
               <input
                 value={newGroup}
                 onChange={(e) => setNewGroup(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && createGroup()}
+                enterKeyHint="done"
                 placeholder="새 그룹명 (예: 대학 친구들)"
-                className="flex-1 p-3 border border-wedding-gold/25 bg-white text-sm rounded-none focus:outline-none focus:border-sage-600"
+                className="flex-1 p-3 border border-wedding-gold/25 bg-white text-base rounded-none focus:outline-none focus:border-sage-600"
               />
               <button
                 onClick={createGroup}
@@ -923,6 +925,8 @@ export default function AdminPage() {
                         <input
                           value={newMember}
                           onChange={(e) => setNewMember(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && addMember(g.id)}
+                          enterKeyHint="done"
                           placeholder="멤버 이름 추가"
                           className="flex-1 p-2 text-sm border border-wedding-gold/20 bg-white rounded-none focus:outline-none focus:border-sage-600"
                         />

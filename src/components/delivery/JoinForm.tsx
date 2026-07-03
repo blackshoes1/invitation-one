@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { supabase, isSupabaseConfigured, type GroupOrder } from "@/lib/supabase";
 import { formatYmdKo, formatPhone, isValidPhone } from "@/lib/wedding";
@@ -30,6 +30,7 @@ export default function JoinForm({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [participantId, setParticipantId] = useState<string | null>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
 
   const owner = order.member_names[0] ?? "";
   const others = order.member_names.length;
@@ -102,14 +103,23 @@ export default function JoinForm({
           autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              phoneRef.current?.focus();
+            }
+          }}
+          enterKeyHint="next"
           placeholder="성함 📋"
           className="dform-input"
         />
         <input
+          ref={phoneRef}
           type="tel"
           value={phone}
           onChange={(e) => setPhone(formatPhone(e.target.value))}
           onKeyDown={(e) => e.key === "Enter" && submit()}
+          enterKeyHint="done"
           placeholder="연락처 📞 010-0000-0000"
           className="dform-input"
         />
