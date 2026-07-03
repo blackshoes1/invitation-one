@@ -286,22 +286,8 @@ export default function AdminPage() {
     loadGroups();
   };
 
-  /** 합석 가능 문의 SMS — 병합 전 주문자 동의 확인 */
-  const askMerge = async (id: string) => {
-    if (!confirm("이 주문의 참여자에게 합석 가능 여부를 묻는 SMS를 보낼까요?")) return;
-    setNotice(null);
-    setError(null);
-    const res = await api(`/api/admin/deliveries/${id}/ask`, { method: "POST" });
-    const j = await res.json();
-    if (!res.ok) return setError(j.error ?? "문의 발송 실패");
-    setNotice(
-      j.skipped
-        ? `합석 문의 대상 ${j.count}명 — SMS는 솔라피 키 미설정으로 미발송.`
-        : `합석 문의 SMS를 ${j.sent}/${j.count}명에게 보냈어요 💬`
-    );
-  };
-
-  /** 주문 합치기 — mergeSource 의 참여자를 target 으로 이동 */
+  /** 주문 합치기 — mergeSource 의 참여자를 target 으로 이동
+   *  (합석 의사는 신청 시점에 하객이 페이지에서 직접 확인 — 합석 제안 UI) */
   const doMerge = async (targetId: string) => {
     if (!mergeSource) return;
     if (!confirm("선택한 주문의 참여자를 이 주문으로 옮기고, 원래 주문은 취소할까요?"))
@@ -656,15 +642,9 @@ export default function AdminPage() {
                       </div>
                     )}
 
-                    {/* 합석 문의 + 주문 합치기 (활성 주문만) */}
+                    {/* 주문 합치기 (활성 주문만) */}
                     {r.status !== "취소" && r.status !== "완료" && (
                       <div className="flex justify-end gap-2 flex-wrap">
-                        <button
-                          onClick={() => askMerge(r.id)}
-                          className="px-3 py-1.5 text-xs border border-delivery/30 text-delivery"
-                        >
-                          합석 문의 💬
-                        </button>
                         {mergeSource === null ? (
                           <button
                             onClick={() => setMergeSource(r.id)}

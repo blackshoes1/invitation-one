@@ -36,6 +36,14 @@ interface Draft {
   message: string;
 }
 
+/** get_orders_on_date RPC — 같은 날 기존 주문 (이름은 서버에서 마스킹) */
+interface DateOrder {
+  id: string;
+  time_slot: TimeSlot;
+  member_count: number;
+  owner_masked: string | null;
+}
+
 export default function DeliveryForm({
   group = null,
   groupSlug = null,
@@ -67,6 +75,13 @@ export default function DeliveryForm({
   const [done, setDone] = useState(false);
   const [orderNo, setOrderNo] = useState("001");
   const [participantId, setParticipantId] = useState<string | null>(null);
+
+  // 합석 제안 — 같은 날 기존 주문이 있을 때
+  const [joinOffer, setJoinOffer] = useState<DateOrder[] | null>(null);
+  const [joinedInfo, setJoinedInfo] = useState<{
+    slot: TimeSlot;
+    count: number;
+  } | null>(null);
 
   const loadBooked = async () => {
     if (!isSupabaseConfigured || !supabase) return;
@@ -112,7 +127,7 @@ export default function DeliveryForm({
     setStep((s) => Math.min(TOTAL - 1, Math.max(0, s + delta)));
   };
 
-  const next = () => {
+  const next = async () => {
     if (step === 0) {
       if (name.trim().length < 2) return setError("성함을 입력해주세요 🙏");
       if (!isValidPhone(phone))
@@ -120,7 +135,21 @@ export default function DeliveryForm({
     }
     if (step === 1 && location.trim().length < 2)
       return setError("배송지를 입력해주세요 📍");
-    if (step === 2 && !date) return setError("배송 희망일을 골라주세요 📅");
+    if (step === 2) {
+      if (!date) return setError("배송 희망일을 골라주세요 📅");
+      // 같은 날 먼저 신청한 주문이 있으면 합석 제안
+      if (isSupabaseConfigured && supabase) {
+        const { data } = await supabase.rpc("get_orders_on_date", {
+          p_date: date,
+        });
+        const orders = Array.isArray(data) ? (data as DateOrder[]) : [];
+        if (orders.length > 0) {
+          setError(null);
+          setJoinOffer(orders);
+          return;
+        }
+      }
+    }
     if (step === 3 && !slot) return setError("시간대를 골라주세요 ⏰");
     if (step === TOTAL - 1) {
       setError(null);
@@ -128,6 +157,40 @@ export default function DeliveryForm({
       return;
     }
     go(1);
+  };
+
+  /** 합석 수락 — 기존 주문에 바로 합류 */
+  const acceptJoin = async (order: DateOrder) => {
+    setSending(true);
+    setError(null);
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase.rpc("join_delivery", {
+        p_delivery: order.id,
+        p_name: name.trim(),
+        p_phone: phone.trim(),
+        p_convert: convertId,
+      });
+      setSending(false);
+      if (error) return setError("합석 처리에 실패했어요. 다시 시도해주세요 🛠️");
+      const row = Array.isArray(data) ? data[0] : data;
+      if (row?.result === "dup")
+        return setError("이미 이 주문에 함께하고 계세요 😊");
+      if (row?.result === "closed") {
+        setJoinOffer(null);
+        return setError("방금 그 주문이 마감됐어요 😢 새로 신청해주세요");
+      }
+      setParticipantId((row?.participant_id as string) ?? null);
+    } else {
+      await new Promise((r) => setTimeout(r, 400));
+      setSending(false);
+    }
+    try {
+      sessionStorage.removeItem(DRAFT_KEY);
+    } catch {
+      /* ignore */
+    }
+    setJoinedInfo({ slot: order.time_slot, count: order.member_count + 1 });
+    onSubmitted?.();
   };
 
   const submit = async () => {
@@ -177,6 +240,22 @@ export default function DeliveryForm({
     onSubmitted?.();
   };
 
+  // 합석 완료
+  if (joinedInfo && date) {
+    return (
+      <CompletePage
+        name={name}
+        date={date}
+        slot={joinedInfo.slot}
+        orderNo="합석"
+        memberCount={joinedInfo.count}
+        participantId={participantId}
+        joined
+        groupSlug={groupSlug}
+      />
+    );
+  }
+
   if (done && date && slot) {
     return (
       <CompletePage
@@ -189,6 +268,74 @@ export default function DeliveryForm({
         participantId={participantId}
         groupSlug={groupSlug}
       />
+    );
+  }
+
+  // 합석 제안 — 같은 날 먼저 신청한 분이 있을 때
+  if (joinOffer && date) {
+    return (
+      <div className="max-w-md mx-auto px-5 pt-6 pb-10 space-y-5">
+        <div className="text-center space-y-2">
+          <div className="text-4xl">🤝</div>
+          <h2 className="text-xl font-extrabold text-neutral-800 leading-snug">
+            {formatYmdKo(date)}에
+            <br />
+            먼저 신청하신 분이 있어요!
+          </h2>
+          <p className="text-sm text-neutral-400">
+            같은 자리에서 함께 받으시면 좋아요. 합석하시겠어요?
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {joinOffer.map((o) => (
+            <div
+              key={o.id}
+              className="bg-white rounded-2xl border border-delivery/10 p-4 space-y-2.5"
+            >
+              <p className="text-sm font-bold text-neutral-700">
+                🛵 {o.owner_masked ?? "먼저 신청하신 분"}님
+                {o.member_count > 1 ? ` 외 ${o.member_count - 1}명` : ""} ·{" "}
+                {o.time_slot}
+              </p>
+              <button
+                type="button"
+                onClick={() => acceptJoin(o)}
+                disabled={sending}
+                className="w-full py-3 rounded-full bg-delivery text-white text-sm font-extrabold active:scale-95 transition-transform disabled:opacity-60"
+              >
+                {sending ? "합석 중… 🛵" : "네, 합석할게요 🤝"}
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {error && (
+          <p className="text-sm text-delivery-dark font-medium text-center">{error}</p>
+        )}
+
+        <button
+          type="button"
+          onClick={() => {
+            setJoinOffer(null);
+            setError(null);
+            go(1); // 따로 받기 → 시간대 선택으로 진행
+          }}
+          className="w-full py-3.5 rounded-full bg-white border-2 border-delivery/20 text-neutral-500 text-sm font-bold"
+        >
+          아니요, 따로 받을게요
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setJoinOffer(null);
+            setError(null);
+          }}
+          className="w-full text-xs text-neutral-400 underline underline-offset-2"
+        >
+          ← 날짜 다시 고르기
+        </button>
+      </div>
     );
   }
 
