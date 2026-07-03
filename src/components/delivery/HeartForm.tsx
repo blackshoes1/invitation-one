@@ -14,6 +14,7 @@ import {
 import { OVERSEAS, joinRegion } from "@/lib/regions";
 import StampPicker from "@/components/delivery/StampPicker";
 import RegionPicker from "@/components/delivery/RegionPicker";
+import { notifyAdmin } from "@/lib/notify";
 
 const invitationHref = INVITATION_KEY ? `/?key=${INVITATION_KEY}` : "/";
 
@@ -49,7 +50,7 @@ export default function HeartForm({
     setSending(true);
 
     if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.rpc("send_heart", {
+      const { data, error } = await supabase.rpc("send_heart", {
         p_group_id: group?.id ?? null,
         p_name: name.trim(),
         p_region: joinRegion(sido, sub.trim()),
@@ -61,6 +62,7 @@ export default function HeartForm({
         setSending(false);
         return setError("전송에 실패했어요. 잠시 후 다시 시도해주세요 🛠️");
       }
+      if (typeof data === "string") notifyAdmin(data);
     } else {
       await new Promise((r) => setTimeout(r, 400));
     }

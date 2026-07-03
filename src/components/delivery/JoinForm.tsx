@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { supabase, isSupabaseConfigured, type GroupOrder } from "@/lib/supabase";
 import { formatYmdKo, formatPhone, isValidPhone } from "@/lib/wedding";
+import { notifyAdmin } from "@/lib/notify";
 import CompletePage from "@/components/delivery/CompletePage";
 
 /**
@@ -57,6 +58,7 @@ export default function JoinForm({
       if (row?.result === "closed")
         return setError("이 주문은 마감됐어요 😢 다른 주문을 골라주세요");
       setParticipantId((row?.participant_id as string) ?? null);
+      notifyAdmin(row?.participant_id as string);
     } else {
       await new Promise((r) => setTimeout(r, 400));
       setSending(false);

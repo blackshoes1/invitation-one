@@ -12,6 +12,7 @@ import {
   slotsForDate,
   groom,
 } from "@/lib/wedding";
+import { notifyAdmin } from "@/lib/notify";
 import DeliveryCalendar from "@/components/DeliveryCalendar";
 import StepIndicator from "@/components/delivery/StepIndicator";
 import OrderSummary from "@/components/delivery/OrderSummary";
@@ -180,6 +181,7 @@ export default function DeliveryForm({
         return setError("방금 그 주문이 마감됐어요 😢 새로 신청해주세요");
       }
       setParticipantId((row?.participant_id as string) ?? null);
+      notifyAdmin(row?.participant_id as string);
     } else {
       await new Promise((r) => setTimeout(r, 400));
       setSending(false);
@@ -225,7 +227,10 @@ export default function DeliveryForm({
         return;
       }
       const row = Array.isArray(data) ? data[0] : data;
-      if (row?.participant_id) setParticipantId(row.participant_id as string);
+      if (row?.participant_id) {
+        setParticipantId(row.participant_id as string);
+        notifyAdmin(row.participant_id as string);
+      }
     } else {
       console.info("[delivery demo]", { group, name, phone, location, date, slot, message });
       await new Promise((r) => setTimeout(r, 500));
