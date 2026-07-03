@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { formatYmdKo, groom, bride, VIDEO_URL } from "@/lib/wedding";
+import { formatYmdKo, groom, bride, VIDEO_URL, INVITATION_KEY } from "@/lib/wedding";
 import type { TimeSlot } from "@/lib/wedding";
 import TrackingView from "@/components/delivery/TrackingView";
 
@@ -30,8 +30,103 @@ export default function CompletePage({
   joined?: boolean;
   groupSlug?: string | null;
 }) {
-  const [captureHint, setCaptureHint] = useState(false);
   const [shareMsg, setShareMsg] = useState<string | null>(null);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+
+  /** 주문 내역 카드를 canvas 로 그려 PNG 저장 (라이브러리 없이) */
+  const saveCard = () => {
+    try {
+      const W = 720;
+      const H = 880;
+      const canvas = document.createElement("canvas");
+      canvas.width = W;
+      canvas.height = H;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("no ctx");
+
+      // 배경
+      ctx.fillStyle = "#f4f7f7";
+      ctx.fillRect(0, 0, W, H);
+
+      // 카드
+      const card = { x: 60, y: 90, w: W - 120, h: H - 180, r: 28 };
+      ctx.beginPath();
+      ctx.roundRect(card.x, card.y, card.w, card.h, card.r);
+      ctx.fillStyle = "#ffffff";
+      ctx.shadowColor = "rgba(0,0,0,0.08)";
+      ctx.shadowBlur = 18;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // 헤더 (민트)
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(card.x, card.y, card.w, 92, [28, 28, 0, 0]);
+      ctx.fillStyle = "#2ac1bc";
+      ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 30px Pretendard, sans-serif";
+      ctx.textBaseline = "middle";
+      ctx.fillText(`주문번호 #${orderNo}`, card.x + 32, card.y + 47);
+      ctx.font = "22px Pretendard, sans-serif";
+      ctx.textAlign = "right";
+      ctx.fillText("배차 완료 🛵", card.x + card.w - 32, card.y + 47);
+      ctx.textAlign = "left";
+
+      // 본문 행
+      const rows: [string, string][] = [
+        ["상품", `${groom.name}·${bride.name} 청첩장`],
+        ...(location ? ([["배송지", location]] as [string, string][]) : []),
+        ["배송 예정", `${formatYmdKo(date)} ${slot}`],
+        ["받는 분", name],
+        ["함께 받는 분", `${memberCount}명`],
+        ["배송기사", `${groom.name} (신랑)`],
+      ];
+      let y = card.y + 150;
+      for (const [label, value] of rows) {
+        ctx.fillStyle = "#9ca3af";
+        ctx.font = "22px Pretendard, sans-serif";
+        ctx.fillText(label, card.x + 32, y);
+        ctx.fillStyle = "#2b2a26";
+        ctx.font = "bold 24px Pretendard, sans-serif";
+        ctx.textAlign = "right";
+        // 긴 배송지는 말줄임
+        let v = value;
+        while (ctx.measureText(v).width > card.w - 220 && v.length > 4)
+          v = v.slice(0, -2) + "…";
+        ctx.fillText(v, card.x + card.w - 32, y);
+        ctx.textAlign = "left";
+        y += 62;
+      }
+
+      // 점선 + 푸터
+      ctx.strokeStyle = "#e5e7eb";
+      ctx.setLineDash([8, 8]);
+      ctx.beginPath();
+      ctx.moveTo(card.x + 32, y);
+      ctx.lineTo(card.x + card.w - 32, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#2ac1bc";
+      ctx.font = "bold 26px Pretendard, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("나 청첩장 배송 신청했다 🛵", W / 2, y + 56);
+      ctx.fillStyle = "#9ca3af";
+      ctx.font = "20px Pretendard, sans-serif";
+      ctx.fillText(`${groom.name} ♥ ${bride.name} · 청첩장배달`, W / 2, y + 100);
+      ctx.textAlign = "left";
+
+      const a = document.createElement("a");
+      a.href = canvas.toDataURL("image/png");
+      a.download = `청첩장배달_주문서_${orderNo}.png`;
+      a.click();
+      setSaveMsg("주문서 이미지를 저장했어요! 📸");
+    } catch {
+      setSaveMsg("저장에 실패했어요 — 화면을 스크린샷해 주세요 🙏");
+    }
+    setTimeout(() => setSaveMsg(null), 2500);
+  };
 
   const share = async () => {
     const url = groupSlug
@@ -111,16 +206,12 @@ export default function CompletePage({
       <div className="mt-5 flex flex-col items-center gap-2">
         <button
           type="button"
-          onClick={() => setCaptureHint(true)}
+          onClick={saveCard}
           className="px-5 py-2.5 rounded-full bg-white border border-delivery/25 text-delivery text-sm font-bold"
         >
-          주문 내역 캡처하기 📸
+          주문서 이미지로 저장 📸
         </button>
-        {captureHint && (
-          <p className="text-[11px] text-neutral-400">
-            화면을 스크린샷으로 저장해 주세요 :)
-          </p>
-        )}
+        {saveMsg && <p className="text-[11px] text-neutral-400">{saveMsg}</p>}
         <button
           type="button"
           onClick={share}
@@ -160,12 +251,13 @@ export default function CompletePage({
         )}
       </div>
 
-      {/* 청첩장은 만남 이후의 보상 — 링크 대신 티저 문구 */}
-      <p className="mt-7 text-xs text-neutral-400 leading-relaxed">
-        💌 모바일 청첩장은 만나서 받는
-        <br />
-        종이 청첩장 속 QR로 열려요 🤫
-      </p>
+      {/* 주문 접수 즉시 청첩장 공개 */}
+      <Link
+        href={INVITATION_KEY ? `/?key=${INVITATION_KEY}` : "/"}
+        className="mt-7 inline-block px-6 py-3.5 rounded-full bg-white border-2 border-delivery/25 text-delivery font-extrabold active:scale-95 transition-transform"
+      >
+        💌 모바일 청첩장 보기
+      </Link>
     </div>
   );
 }

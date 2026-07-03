@@ -37,10 +37,13 @@ interface Draft {
 
 export default function DeliveryForm({
   group = null,
+  groupSlug = null,
   convertId = null,
   onSubmitted,
 }: {
   group?: { id: string; name: string } | null;
+  /** 그룹 페이지에서 진입 시 — 완료 화면 공유 링크를 그룹 링크로 */
+  groupSlug?: string | null;
   /** 마음배송 → 직접배달 전환 시 기존 참여자 id */
   convertId?: string | null;
   onSubmitted?: () => void;
@@ -182,6 +185,7 @@ export default function DeliveryForm({
         orderNo={orderNo}
         memberCount={1}
         participantId={participantId}
+        groupSlug={groupSlug}
       />
     );
   }

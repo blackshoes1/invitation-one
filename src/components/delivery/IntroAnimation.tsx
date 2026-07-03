@@ -45,7 +45,7 @@ export default function IntroAnimation() {
                 playsInline
                 onEnded={close}
                 onError={() => setVideoFailed(true)}
-                className="w-full h-full object-contain"
+                className="w-full h-full object-cover"
               />
               <motion.div
                 initial={{ scale: 0, rotate: -25, opacity: 0 }}

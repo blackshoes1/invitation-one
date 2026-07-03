@@ -84,6 +84,7 @@ export default function AdminPage() {
   const [waiting, setWaiting] = useState<WaitingEntry[]>([]);
   const [messages, setMessages] = useState<Participant[]>([]);
   const [blocked, setBlocked] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [newGroup, setNewGroup] = useState("");
 
   const [openGroup, setOpenGroup] = useState<string | null>(null);
@@ -148,31 +149,45 @@ export default function AdminPage() {
     setLoading(false);
   };
 
-  /** 날짜 차단 토글 (일정 가능 on/off) */
-  const toggleBlock = async (ymd: string) => {
-    const isBlocked = blocked.has(ymd);
-    if (
-      !confirm(
-        isBlocked
-          ? `${formatYmdKo(ymd)} 차단을 해제할까요? (신청 가능해져요)`
-          : `${formatYmdKo(ymd)}을 차단할까요? (하객이 신청할 수 없어요)`
-      )
-    )
-      return;
+  /** 날짜 선택 토글 (다중 선택 → 일괄 차단/해제) */
+  const toggleSelect = (ymd: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(ymd)) next.delete(ymd);
+      else next.add(ymd);
+      return next;
+    });
+  };
+
+  /** 선택한 날짜들 일괄 차단/해제 */
+  const applyBlock = async (block: boolean) => {
+    if (selected.size === 0) return;
     setError(null);
+    setNotice(null);
     const res = await api("/api/admin/blocked", {
       method: "POST",
-      body: JSON.stringify({ date: ymd }),
+      body: JSON.stringify({ dates: [...selected], block }),
     });
     const j = await res.json();
     if (!res.ok) return setError(j.error ?? "차단 처리 실패");
     setBlocked((prev) => {
       const next = new Set(prev);
-      if (j.blocked) next.add(ymd);
-      else next.delete(ymd);
+      for (const d of selected) {
+        if (block && !(j.skipped ?? []).includes(d)) next.add(d);
+        if (!block) next.delete(d);
+      }
       return next;
     });
-    setNotice(j.blocked ? "차단했어요 🚫" : "차단을 해제했어요 ✅");
+    setSelected(new Set());
+    setNotice(
+      block
+        ? `${j.done}개 날짜를 차단했어요 🚫${
+            (j.skipped ?? []).length > 0
+              ? ` (주문 있는 ${j.skipped.length}개는 건너뜀)`
+              : ""
+          }`
+        : `${j.done}개 날짜 차단을 해제했어요 ✅`
+    );
   };
 
   const loadWaiting = async () => {
@@ -669,8 +684,34 @@ export default function AdminPage() {
               <Legend color="bg-neutral-700" label="차단됨 🚫" />
             </div>
             <p className="text-[11px] text-neutral-400 text-center">
-              빈 날짜를 누르면 차단, 차단된 날짜를 누르면 해제돼요
+              날짜를 눌러 여러 개 선택한 뒤 아래 버튼으로 한 번에 차단/해제하세요
             </p>
+
+            {selected.size > 0 && (
+              <div className="sticky top-2 z-10 flex justify-center gap-2 bg-white/95 border border-wedding-gold/20 rounded-full px-3 py-2 shadow-sm">
+                <span className="text-xs text-neutral-500 self-center">
+                  {selected.size}개 선택
+                </span>
+                <button
+                  onClick={() => applyBlock(true)}
+                  className="px-3 py-1.5 text-xs bg-neutral-700 text-white rounded-full"
+                >
+                  차단 🚫
+                </button>
+                <button
+                  onClick={() => applyBlock(false)}
+                  className="px-3 py-1.5 text-xs bg-sage-600 text-white rounded-full"
+                >
+                  해제 ✅
+                </button>
+                <button
+                  onClick={() => setSelected(new Set())}
+                  className="px-3 py-1.5 text-xs border border-neutral-200 text-neutral-500 rounded-full"
+                >
+                  취소
+                </button>
+              </div>
+            )}
             {CAL_MONTHS.map((month) => {
               const offset = new Date(CAL_YEAR, month, 1).getDay();
               const days = new Date(CAL_YEAR, month + 1, 0).getDate();
@@ -695,6 +736,7 @@ export default function AdminPage() {
                         (() => {
                           const r = byDate[ymd];
                           const isBlocked = blocked.has(ymd);
+                          const isSelected = selected.has(ymd);
                           const color = r
                             ? r.status === "대기중"
                               ? "bg-amber-300 text-white"
@@ -709,15 +751,19 @@ export default function AdminPage() {
                               key={ymd}
                               type="button"
                               disabled={!!r}
-                              onClick={() => toggleBlock(ymd)}
+                              onClick={() => toggleSelect(ymd)}
                               title={
                                 r
                                   ? `${ownerName(r)} 외 ${Math.max(0, (r.participants?.length ?? 1) - 1)}명 · ${r.time_slot} · ${r.status}`
                                   : isBlocked
-                                  ? "차단됨 — 누르면 해제"
-                                  : "누르면 차단"
+                                  ? "차단됨 — 선택 후 해제"
+                                  : "선택 후 차단"
                               }
-                              className={`aspect-square rounded-md text-[11px] flex items-center justify-center ${color}`}
+                              className={`aspect-square rounded-md text-[11px] flex items-center justify-center ${color} ${
+                                isSelected
+                                  ? "ring-2 ring-delivery ring-offset-1 font-bold"
+                                  : ""
+                              }`}
                             >
                               {Number(ymd.slice(-2))}
                             </button>

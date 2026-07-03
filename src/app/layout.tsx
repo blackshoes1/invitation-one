@@ -1,15 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { Noto_Sans_KR, Noto_Serif_KR } from "next/font/google";
+import { Noto_Serif_KR } from "next/font/google";
 import "./globals.css";
 import { groom, bride, formatFullDate, formatTime, venue } from "@/lib/wedding";
 
-const notoSans = Noto_Sans_KR({
-  weight: ["300", "400", "500", "700"],
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-noto-sans",
-});
-
+// 본문 폰트는 Pretendard Variable (globals.css 에서 CDN @import)
 const notoSerif = Noto_Serif_KR({
   weight: ["300", "400", "500", "600", "700"],
   subsets: ["latin"],
@@ -43,10 +37,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="ko"
-      className={`${notoSans.variable} ${notoSerif.variable} h-full antialiased`}
-    >
+    <html lang="ko" className={`${notoSerif.variable} h-full antialiased`}>
       <body className="min-h-full bg-wedding-cream">{children}</body>
     </html>
   );

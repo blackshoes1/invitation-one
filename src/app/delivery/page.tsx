@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
@@ -28,8 +27,9 @@ function DeliveryPageInner() {
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
     (async () => {
-      const { data } = await supabase!.rpc("get_booked_dates");
-      if (Array.isArray(data)) setTaken(data.length);
+      // 남은 자리 = 총 수량 - 직접배달 신청 인원 합계
+      const { data } = await supabase!.rpc("get_delivery_guest_count");
+      if (typeof data === "number") setTaken(data);
     })();
   }, []);
 
@@ -39,14 +39,11 @@ function DeliveryPageInner() {
   return (
     <div>
       <IntroAnimation />
-      <header className="sticky top-0 z-20 bg-delivery text-white px-5 py-3 flex items-center justify-between shadow-sm">
+      <header className="sticky top-0 z-20 bg-delivery text-white px-5 py-3 flex items-center shadow-sm">
         <span className="font-serif font-bold tracking-tight flex items-center gap-2">
           <BikeIcon className="w-6 h-6 text-white" />
           {groom.name}·{bride.name} 스토어
         </span>
-        <Link href="/" className="text-xs bg-white/20 px-3 py-1.5 rounded-full font-medium">
-          💌 청첩장
-        </Link>
       </header>
 
       <section className="px-6 pt-8 pb-6 text-center">
@@ -69,7 +66,7 @@ function DeliveryPageInner() {
             ⭐ 신규 오픈 · 무료배송
           </span>
           <span className="text-xs bg-white border border-delivery/15 text-neutral-600 px-3 py-1.5 rounded-full font-medium">
-            📦 남은 자리 {remaining}개
+            📦 남은 자리 {remaining}명
           </span>
         </div>
       </section>

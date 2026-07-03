@@ -44,12 +44,12 @@ function GroupPageInner() {
       setOrdersLoaded(true);
       return;
     }
-    const [ordersRes, bookedRes] = await Promise.all([
+    const [ordersRes, countRes] = await Promise.all([
       supabase.rpc("get_group_orders", { p_slug: slug }),
-      supabase.rpc("get_booked_dates"),
+      supabase.rpc("get_delivery_guest_count"), // 남은 자리 = 총 수량 - 신청 인원
     ]);
     if (Array.isArray(ordersRes.data)) setOrders(ordersRes.data as GroupOrder[]);
-    if (Array.isArray(bookedRes.data)) setTaken(bookedRes.data.length);
+    if (typeof countRes.data === "number") setTaken(countRes.data);
     setOrdersLoaded(true);
   }, [slug]);
 
@@ -99,14 +99,11 @@ function GroupPageInner() {
 
   return (
     <div>
-      <header className="sticky top-0 z-20 bg-delivery text-white px-5 py-3 flex items-center justify-between shadow-sm">
+      <header className="sticky top-0 z-20 bg-delivery text-white px-5 py-3 flex items-center shadow-sm">
         <span className="font-serif font-bold tracking-tight flex items-center gap-2">
           <BikeIcon className="w-6 h-6 text-white" />
           {groom.name}·{bride.name} 스토어
         </span>
-        <Link href="/" className="text-xs bg-white/20 px-3 py-1.5 rounded-full font-medium">
-          💌 청첩장
-        </Link>
       </header>
 
       <section className="px-6 pt-7 pb-5 text-center">
@@ -118,7 +115,7 @@ function GroupPageInner() {
         </h1>
         <p className="mt-2 text-sm text-neutral-500">
           📦 남은 자리:{" "}
-          <span className="text-delivery font-bold">{remaining}개</span>
+          <span className="text-delivery font-bold">{remaining}명</span>
         </p>
       </section>
 
@@ -171,6 +168,7 @@ function GroupPageInner() {
           {view.kind === "new" && (
             <DeliveryForm
               group={{ id: group.id, name: group.name }}
+              groupSlug={slug}
               convertId={convertId}
               onSubmitted={loadOrders}
             />

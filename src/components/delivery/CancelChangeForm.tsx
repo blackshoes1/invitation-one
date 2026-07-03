@@ -230,20 +230,20 @@ export default function CancelChangeForm({ participantId }: { participantId: str
         <div className="text-5xl">{msg[0]}</div>
         <p className="font-extrabold text-lg text-neutral-800">{msg[1]}</p>
         <p className="text-sm text-neutral-500">{msg[2]}</p>
-        {result === "heart" ? (
-          // 마음 배송 전환 = 즉시 공개 (키 포함 링크)
-          <Link
-            href={invitationHref}
-            className="mt-2 px-6 py-3 rounded-full bg-delivery text-white text-sm font-extrabold"
-          >
-            💌 모바일 청첩장 보기
-          </Link>
-        ) : (
+        {result === "left" ? (
           <Link
             href="/delivery"
             className="mt-2 text-sm text-neutral-400 underline underline-offset-2"
           >
             🛵 배달 메인으로
+          </Link>
+        ) : (
+          // 신청자(마음 배송 포함)는 청첩장 공개
+          <Link
+            href={invitationHref}
+            className="mt-2 px-6 py-3 rounded-full bg-delivery text-white text-sm font-extrabold"
+          >
+            💌 모바일 청첩장 보기
           </Link>
         )}
       </div>
@@ -549,6 +549,18 @@ export default function CancelChangeForm({ participantId }: { participantId: str
 
       {error && mode === "view" && (
         <p className="text-sm text-delivery-dark text-center">{error}</p>
+      )}
+
+      {/* 신청자는 청첩장 열람 가능 (접수 즉시 공개) */}
+      {mode === "view" && (
+        <div className="text-center pt-1">
+          <Link
+            href={invitationHref}
+            className="text-sm text-neutral-400 underline underline-offset-2"
+          >
+            💌 모바일 청첩장 보기
+          </Link>
+        </div>
       )}
     </div>
   );
