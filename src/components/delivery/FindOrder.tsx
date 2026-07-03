@@ -3,8 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { formatYmdKo, formatPhone, isValidPhone } from "@/lib/wedding";
-import type { TimeSlotValue, DeliveryStatus, TrackingStage, ParticipantType } from "@/lib/supabase";
+import { formatYmdKo } from "@/lib/wedding";
+import DeliveryCalendar from "@/components/DeliveryCalendar";
+import type {
+  TimeSlotValue,
+  DeliveryStatus,
+  TrackingStage,
+  ParticipantType,
+} from "@/lib/supabase";
 
 interface Found {
   participant_id: string;
@@ -16,22 +22,26 @@ interface Found {
   tracking_stage: TrackingStage | null;
 }
 
+const EMPTY_SET = new Set<string>();
+
 /**
- * 내 신청 찾기 — 이름+연락처로 조회해 manage 페이지로 재접근
- * (주문 완료 화면을 벗어난 뒤에도 취소/변경/배송 현황 확인 가능)
+ * 내 신청 찾기 — 이름 + 연락처 끝 4자리 + 신청(배송)일자(달력 선택)
+ * 일치하면 manage 페이지로 재접근 (취소/변경/배송 현황)
  */
 export default function FindOrder() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [last4, setLast4] = useState("");
+  const [date, setDate] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<Found[] | null>(null);
 
   const search = async () => {
     if (name.trim().length < 2) return setError("성함을 입력해주세요 🙏");
-    if (!isValidPhone(phone))
-      return setError("연락처 형식을 확인해주세요 (010-0000-0000) 📞");
+    if (!/^\d{4}$/.test(last4))
+      return setError("연락처 끝 4자리를 입력해주세요 📞");
+    if (!date) return setError("신청하신 배송 날짜를 달력에서 골라주세요 📅");
     setError(null);
     setBusy(true);
 
@@ -42,7 +52,8 @@ export default function FindOrder() {
     }
     const { data, error } = await supabase.rpc("find_participants", {
       p_name: name.trim(),
-      p_phone: phone.trim(),
+      p_last4: last4,
+      p_date: date,
     });
     setBusy(false);
     if (error) return setError("조회 중 문제가 생겼어요. 다시 시도해주세요 🛠️");
@@ -70,7 +81,7 @@ export default function FindOrder() {
           내 신청 찾기 🔍
         </p>
         <p className="text-center text-[11px] text-neutral-400">
-          신청할 때 입력한 성함과 연락처로 찾아드려요
+          신청할 때 입력한 정보로 찾아드려요
         </p>
         <input
           value={name}
@@ -79,13 +90,30 @@ export default function FindOrder() {
           className="dform-input"
         />
         <input
-          type="tel"
-          value={phone}
-          onChange={(e) => setPhone(formatPhone(e.target.value))}
-          onKeyDown={(e) => e.key === "Enter" && search()}
-          placeholder="연락처 010-0000-0000"
+          inputMode="numeric"
+          value={last4}
+          onChange={(e) => setLast4(e.target.value.replace(/\D/g, "").slice(0, 4))}
+          placeholder="연락처 끝 4자리"
           className="dform-input"
         />
+
+        <div className="space-y-1.5">
+          <p className="text-xs font-bold text-neutral-500">
+            신청하신 배송 날짜 📅
+          </p>
+          <DeliveryCalendar
+            selected={date}
+            booked={EMPTY_SET}
+            onSelect={setDate}
+            selectedClass="bg-delivery text-white font-bold"
+          />
+          {date && (
+            <p className="text-xs text-delivery font-bold text-center">
+              {formatYmdKo(date)} 선택
+            </p>
+          )}
+        </div>
+
         {error && <p className="text-xs text-delivery-dark text-center">{error}</p>}
 
         {results !== null &&
@@ -93,7 +121,7 @@ export default function FindOrder() {
             <p className="text-center text-xs text-neutral-400 py-2">
               신청 내역을 찾지 못했어요 😢
               <br />
-              성함·연락처를 다시 확인해주세요
+              성함·끝 4자리·날짜를 다시 확인해주세요
             </p>
           ) : (
             <ul className="space-y-2">
@@ -104,18 +132,14 @@ export default function FindOrder() {
                     className="block bg-delivery/5 rounded-xl px-4 py-3 text-left active:scale-[0.98] transition-transform"
                   >
                     <p className="text-sm font-bold text-neutral-700">
-                      {r.type === "마음배송"
-                        ? "💌 마음 배송"
-                        : `🛵 ${r.date ? formatYmdKo(r.date) : ""} ${r.time_slot ?? ""}`}
+                      🛵 {r.date ? formatYmdKo(r.date) : ""} {r.time_slot ?? ""}
                       <span className="float-right text-[11px] font-medium text-delivery">
                         관리하기 →
                       </span>
                     </p>
-                    {r.type === "직접배달" && (
-                      <p className="text-[11px] text-neutral-400 mt-0.5">
-                        {r.status} · {r.tracking_stage}
-                      </p>
-                    )}
+                    <p className="text-[11px] text-neutral-400 mt-0.5">
+                      {r.status} · {r.tracking_stage}
+                    </p>
                   </Link>
                 </li>
               ))}
