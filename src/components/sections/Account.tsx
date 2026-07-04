@@ -39,7 +39,7 @@ function AccountRow({ acc }: { acc: Acct }) {
   };
 
   const handleCopy = async () => {
-    if (await copyText(acc.number)) flash("복사됐어요!");
+    if (await copyText(`${acc.bank} ${acc.number} ${acc.name}`)) flash("복사됐어요!");
   };
 
   const handlePay = async (kind: "kakao" | "toss") => {

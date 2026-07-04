@@ -55,6 +55,8 @@ export default function JoinForm({
       const row = Array.isArray(data) ? data[0] : data;
       if (row?.result === "dup")
         return setError("이미 이 주문에 함께하고 계세요 😊");
+      if (row?.result === "full")
+        return setError("이 주문은 정원(10명)이 다 찼어요 😢 다른 주문을 골라주세요");
       if (row?.result === "closed")
         return setError("이 주문은 마감됐어요 😢 다른 주문을 골라주세요");
       setParticipantId((row?.participant_id as string) ?? null);
