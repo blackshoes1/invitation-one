@@ -639,6 +639,9 @@ export default function AdminPage() {
                           {r.rider === "신랑+신부" && (
                             <span className="text-delivery font-bold"> · 💑 신랑+신부</span>
                           )}
+                          {r.rider === "신부" && (
+                            <span className="text-delivery font-bold"> · 👰 신부</span>
+                          )}
                         </p>
                         <p className="text-[11px] text-neutral-400">
                           👥 {r.participants?.length ?? 0}명 · 📦 {groupName(r.group_id)}

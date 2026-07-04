@@ -196,6 +196,8 @@ export default function CompletePage({
             value={
               rider === "신랑+신부"
                 ? `${groom.name}·${bride.name} (신랑+신부) 💑`
+                : rider === "신부"
+                ? `${bride.name} (신부) 👰`
                 : `${groom.name} (신랑)`
             }
             highlight

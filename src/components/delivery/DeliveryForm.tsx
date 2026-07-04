@@ -11,6 +11,7 @@ import {
   isValidPhone,
   slotsForDate,
   groom,
+  bride,
 } from "@/lib/wedding";
 import { notifyAdmin } from "@/lib/notify";
 import DeliveryCalendar from "@/components/DeliveryCalendar";
@@ -24,9 +25,10 @@ const SLOTS: { value: TimeSlot; emoji: string }[] = [
   { value: "저녁", emoji: "🌙" },
 ];
 
-export type Rider = "신랑" | "신랑+신부";
+export type Rider = "신랑" | "신부" | "신랑+신부";
 const RIDERS: { value: Rider; emoji: string; desc: string }[] = [
-  { value: "신랑", emoji: "🤵", desc: "기본 배송기사" },
+  { value: "신랑", emoji: "🤵", desc: "신랑이 갈게요" },
+  { value: "신부", emoji: "👰", desc: "신부가 갈게요" },
   { value: "신랑+신부", emoji: "💑", desc: "둘이 같이 갈게요" },
 ];
 
@@ -482,9 +484,9 @@ export default function DeliveryForm({
         return (
           <Q
             title="배송기사를 선택해주세요 🛵"
-            sub="신부 동행은 신부 일정에 따라 조정될 수 있어요 😊"
+            sub="기사님 일정에 따라 조정될 수 있어요 😊"
           >
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               {RIDERS.map((r) => (
                 <button
                   key={r.value}
@@ -498,9 +500,7 @@ export default function DeliveryForm({
                   }`}
                 >
                   <span className="text-3xl">{r.emoji}</span>
-                  <span className="text-sm font-bold">
-                    {r.value === "신랑" ? `${groom.name} (신랑)` : "신랑+신부"}
-                  </span>
+                  <span className="text-sm font-bold">{r.value}</span>
                   <span
                     className={`text-[11px] ${
                       rider === r.value ? "text-white/80" : "text-neutral-400"
@@ -516,7 +516,13 @@ export default function DeliveryForm({
       case 5:
         return (
           <Q
-            title={`배송기사(${rider === "신랑+신부" ? "신랑·신부" : groom.name})에게 요청사항이 있으신가요? 💬`}
+            title={`배송기사(${
+              rider === "신랑+신부"
+                ? "신랑·신부"
+                : rider === "신부"
+                ? bride.name
+                : groom.name
+            })에게 요청사항이 있으신가요? 💬`}
             sub="예: 저녁 7시 이후에 와주세요 (선택)"
           >
             <textarea

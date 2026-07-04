@@ -40,7 +40,13 @@ export default function OrderSummary({
         {rider && (
           <Row
             label="배송기사"
-            value={rider === "신랑+신부" ? "신랑+신부 💑" : `${rider} 🤵`}
+            value={
+              rider === "신랑+신부"
+                ? "신랑+신부 💑"
+                : rider === "신부"
+                ? "신부 👰"
+                : "신랑 🤵"
+            }
           />
         )}
         <Row label="함께 받는 인원" value="참여자 수로 자동 집계돼요 👥" />
