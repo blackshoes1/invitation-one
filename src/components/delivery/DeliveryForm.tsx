@@ -24,8 +24,14 @@ const SLOTS: { value: TimeSlot; emoji: string }[] = [
   { value: "저녁", emoji: "🌙" },
 ];
 
-/** 0 받는분(이름+연락처) · 1 배송지 · 2 날짜 · 3 시간 · 4 요청 → 요약 → 완료 */
-const TOTAL = 5;
+export type Rider = "신랑" | "신랑+신부";
+const RIDERS: { value: Rider; emoji: string; desc: string }[] = [
+  { value: "신랑", emoji: "🤵", desc: "기본 배송기사" },
+  { value: "신랑+신부", emoji: "💑", desc: "둘이 같이 갈게요" },
+];
+
+/** 0 받는분(이름+연락처) · 1 배송지 · 2 날짜 · 3 시간 · 4 배송기사 · 5 요청 → 요약 → 완료 */
+const TOTAL = 6;
 const DRAFT_KEY = "delivery-form-draft";
 
 interface Draft {
@@ -34,6 +40,7 @@ interface Draft {
   location: string;
   date: string | null;
   slot: TimeSlot | null;
+  rider: Rider | null;
   message: string;
 }
 
@@ -67,6 +74,7 @@ export default function DeliveryForm({
   const [location, setLocation] = useState("");
   const [date, setDate] = useState<string | null>(null);
   const [slot, setSlot] = useState<TimeSlot | null>(null);
+  const [rider, setRider] = useState<Rider | null>(null);
   const [message, setMessage] = useState("");
 
   const [booked, setBooked] = useState<Set<string>>(new Set());
@@ -104,6 +112,7 @@ export default function DeliveryForm({
         setLocation(d.location ?? "");
         setDate(d.date ?? null);
         setSlot(d.slot ?? null);
+        setRider(d.rider ?? null);
         setMessage(d.message ?? "");
       }
     } catch {
@@ -114,13 +123,13 @@ export default function DeliveryForm({
 
   useEffect(() => {
     if (done) return;
-    const d: Draft = { name, phone, location, date, slot, message };
+    const d: Draft = { name, phone, location, date, slot, rider, message };
     try {
       sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d));
     } catch {
       /* ignore */
     }
-  }, [name, phone, location, date, slot, message, done]);
+  }, [name, phone, location, date, slot, rider, message, done]);
 
   const go = (delta: number) => {
     setError(null);
@@ -153,6 +162,7 @@ export default function DeliveryForm({
       }
     }
     if (step === 3 && !slot) return setError("시간대를 골라주세요 ⏰");
+    if (step === 4 && !rider) return setError("배송기사를 선택해주세요 🛵");
     if (step === TOTAL - 1) {
       setError(null);
       setSummary(true);
@@ -216,6 +226,7 @@ export default function DeliveryForm({
         p_time: slot,
         p_message: message.trim() || null,
         p_convert: convertId,
+        p_rider: rider ?? "신랑",
       });
       if (error) {
         setSending(false);
@@ -273,6 +284,7 @@ export default function DeliveryForm({
         date={date}
         slot={slot}
         location={location}
+        rider={rider}
         orderNo={orderNo}
         memberCount={1}
         participantId={participantId}
@@ -357,6 +369,7 @@ export default function DeliveryForm({
         location={location}
         date={date}
         slot={slot}
+        rider={rider}
         onEdit={() => setSummary(false)}
         onConfirm={submit}
         sending={sending}
@@ -468,8 +481,43 @@ export default function DeliveryForm({
       case 4:
         return (
           <Q
-            title={`배송기사(${groom.name})에게 요청사항이 있으신가요? 💬`}
-            sub="예: 신부도 같이 와주세요 (선택)"
+            title="배송기사를 선택해주세요 🛵"
+            sub="신부 동행은 신부 일정에 따라 조정될 수 있어요 😊"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              {RIDERS.map((r) => (
+                <button
+                  key={r.value}
+                  type="button"
+                  onClick={() => setRider(r.value)}
+                  aria-pressed={rider === r.value}
+                  className={`py-6 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${
+                    rider === r.value
+                      ? "border-delivery bg-delivery text-white scale-105"
+                      : "border-delivery/20 bg-white text-neutral-500"
+                  }`}
+                >
+                  <span className="text-3xl">{r.emoji}</span>
+                  <span className="text-sm font-bold">
+                    {r.value === "신랑" ? `${groom.name} (신랑)` : "신랑+신부"}
+                  </span>
+                  <span
+                    className={`text-[11px] ${
+                      rider === r.value ? "text-white/80" : "text-neutral-400"
+                    }`}
+                  >
+                    {r.desc}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </Q>
+        );
+      case 5:
+        return (
+          <Q
+            title={`배송기사(${rider === "신랑+신부" ? "신랑·신부" : groom.name})에게 요청사항이 있으신가요? 💬`}
+            sub="예: 저녁 7시 이후에 와주세요 (선택)"
           >
             <textarea
               autoFocus

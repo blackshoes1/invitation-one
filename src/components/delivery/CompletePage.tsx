@@ -12,6 +12,7 @@ export default function CompletePage({
   date,
   slot,
   location,
+  rider = null,
   orderNo,
   memberCount,
   participantId,
@@ -22,6 +23,8 @@ export default function CompletePage({
   date: string;
   slot: TimeSlot;
   location?: string | null;
+  /** 배송기사 ('신랑' | '신랑+신부') — 없으면 신랑 기본 표시 */
+  rider?: string | null;
   orderNo: string;
   /** 함께 받는 참여자 수 (자동 집계) */
   memberCount: number;
@@ -188,7 +191,15 @@ export default function CompletePage({
           <Row label="배송 예정" value={`${formatYmdKo(date)} ${slot}`} />
           <Row label="함께 받는 분" value={`${memberCount}명`} />
           <div className="border-t border-dashed border-neutral-200 my-2" />
-          <Row label="배송기사" value={`${groom.name} (신랑)`} highlight />
+          <Row
+            label="배송기사"
+            value={
+              rider === "신랑+신부"
+                ? `${groom.name}·${bride.name} (신랑+신부) 💑`
+                : `${groom.name} (신랑)`
+            }
+            highlight
+          />
         </div>
       </motion.div>
 

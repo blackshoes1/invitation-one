@@ -636,6 +636,9 @@ export default function AdminPage() {
                         </p>
                         <p className="text-xs text-neutral-500">
                           {formatYmdKo(r.date)} · {r.time_slot} · {r.location}
+                          {r.rider === "신랑+신부" && (
+                            <span className="text-delivery font-bold"> · 💑 신랑+신부</span>
+                          )}
                         </p>
                         <p className="text-[11px] text-neutral-400">
                           👥 {r.participants?.length ?? 0}명 · 📦 {groupName(r.group_id)}

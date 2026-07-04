@@ -9,6 +9,7 @@ export default function OrderSummary({
   location,
   date,
   slot,
+  rider,
   onEdit,
   onConfirm,
   sending,
@@ -19,6 +20,7 @@ export default function OrderSummary({
   location: string;
   date: string;
   slot: TimeSlot;
+  rider?: string | null;
   onEdit: () => void;
   onConfirm: () => void;
   sending: boolean;
@@ -35,6 +37,12 @@ export default function OrderSummary({
         <Row label="받는 분" value={`${name} · ${phone}`} />
         <Row label="배송지" value={location} />
         <Row label="배송 예정" value={`${formatYmdKo(date)} ${slot}`} />
+        {rider && (
+          <Row
+            label="배송기사"
+            value={rider === "신랑+신부" ? "신랑+신부 💑" : `${rider} 🤵`}
+          />
+        )}
         <Row label="함께 받는 인원" value="참여자 수로 자동 집계돼요 👥" />
       </div>
 

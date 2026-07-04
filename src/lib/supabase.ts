@@ -52,6 +52,8 @@ export interface Delivery {
   tracking_stage: TrackingStage;
   review_rating: number | null;
   review_text: string | null;
+  /** 배송기사 (v15) — '신랑' | '신랑+신부' */
+  rider?: string;
 }
 
 export type DeliveryInsert = Pick<
