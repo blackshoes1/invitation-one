@@ -22,12 +22,40 @@ export async function GET(req: Request) {
   const bad = guard(req);
   if (bad) return bad;
 
-  const { data, error } = await supabaseAdmin!
-    .from("groups")
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ groups: data });
+  // 그룹 목록 + 등록인원 집계 (직접배달·마음배송, 취소된 주문의 참여자는 제외)
+  const [gRes, pRes] = await Promise.all([
+    supabaseAdmin!
+      .from("groups")
+      .select("*")
+      .order("created_at", { ascending: false }),
+    supabaseAdmin!
+      .from("participants")
+      .select("group_id, type, delivery:deliveries!delivery_id(status)"),
+  ]);
+  if (gRes.error)
+    return NextResponse.json({ error: gRes.error.message }, { status: 500 });
+  if (pRes.error)
+    return NextResponse.json({ error: pRes.error.message }, { status: 500 });
+
+  const counts = new Map<string, number>();
+  let total = 0;
+  // delivery 임베드는 다대일(FK delivery_id)이라 런타임엔 객체 — TS 추론만 배열이라 unknown 경유 캐스팅
+  for (const p of (pRes.data ?? []) as unknown as {
+    group_id: string | null;
+    type: string;
+    delivery: { status: string } | null;
+  }[]) {
+    if (p.type === "직접배달" && p.delivery?.status === "취소") continue;
+    total++;
+    if (p.group_id)
+      counts.set(p.group_id, (counts.get(p.group_id) ?? 0) + 1);
+  }
+
+  const groups = (gRes.data ?? []).map((g: { id: string }) => ({
+    ...g,
+    member_count: counts.get(g.id) ?? 0,
+  }));
+  return NextResponse.json({ groups, total_members: total });
 }
 
 export async function POST(req: Request) {

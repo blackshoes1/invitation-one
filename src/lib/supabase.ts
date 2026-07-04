@@ -199,6 +199,8 @@ export interface Group {
   offer_time?: TimeSlotValue | null;
   offer_location?: string | null;
   offer_delivery_id?: string | null;
+  /** Admin 그룹 목록 전용 — 그룹 등록인원 (취소 주문 참여자 제외) */
+  member_count?: number;
 }
 
 export interface GroupMember {

@@ -87,6 +87,8 @@ export default function AdminPage() {
   const [rows, setRows] = useState<AdminDelivery[]>([]);
   const [allRows, setAllRows] = useState<AdminDelivery[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
+  /** 전체 등록인원 (취소 주문 참여자 제외, 그룹 미지정 포함) */
+  const [totalMembers, setTotalMembers] = useState<number | null>(null);
   const [waiting, setWaiting] = useState<WaitingEntry[]>([]);
   const [messages, setMessages] = useState<Participant[]>([]);
   const [blocked, setBlocked] = useState<Set<string>>(new Set());
@@ -128,7 +130,11 @@ export default function AdminPage() {
 
   const loadGroups = async () => {
     const res = await api("/api/admin/groups");
-    if (res.ok) setGroups((await res.json()).groups ?? []);
+    if (res.ok) {
+      const j = await res.json();
+      setGroups(j.groups ?? []);
+      setTotalMembers(typeof j.total_members === "number" ? j.total_members : null);
+    }
   };
 
   const loadOrders = async (
@@ -952,6 +958,23 @@ export default function AdminPage() {
               </div>
             </div>
 
+            {totalMembers != null && (
+              <p className="text-xs text-neutral-500 text-right">
+                👥 총 등록인원{" "}
+                <span className="font-bold text-sage-700">{totalMembers}명</span>
+                {(() => {
+                  const grouped = groups.reduce(
+                    (sum, g) => sum + (g.member_count ?? 0),
+                    0
+                  );
+                  const rest = totalMembers - grouped;
+                  return rest > 0 ? (
+                    <span className="text-neutral-400"> (그룹 외 {rest}명 포함)</span>
+                  ) : null;
+                })()}
+              </p>
+            )}
+
             {groups.length === 0 && (
               <p className="text-sm text-neutral-400 text-center py-8">
                 아직 그룹이 없습니다.
@@ -966,7 +989,12 @@ export default function AdminPage() {
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-medium text-sage-700 text-sm">{g.name}</p>
+                      <p className="font-medium text-sage-700 text-sm">
+                        {g.name}{" "}
+                        <span className="text-xs text-neutral-400 font-normal">
+                          👥 {g.member_count ?? 0}명
+                        </span>
+                      </p>
                       <p className="text-[11px] text-neutral-400 truncate">
                         /delivery/group/{g.slug}
                       </p>
