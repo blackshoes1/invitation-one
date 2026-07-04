@@ -571,7 +571,8 @@ export default function DeliveryForm({
         </AnimatePresence>
       </div>
 
-      <div className="flex gap-3 mt-8">
+      {/* 하단 고정 내비게이션 — 긴 스텝(달력 등)에서도 스크롤 없이 다음 버튼 접근 */}
+      <div className="sticky bottom-0 z-10 flex gap-3 mt-8 -mx-5 px-5 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] bg-delivery-bg/95 backdrop-blur-sm">
         {step > 0 && (
           <button
             type="button"
