@@ -20,7 +20,7 @@ export async function GET(req: Request) {
   // 참여 시스템: 주문 + 참여자 목록을 함께 조회
   let query = supabaseAdmin
     .from("deliveries")
-    .select("*, participants(*)")
+    .select("*, participants!delivery_id(*)")
     .order("date", { ascending: true });
   if (status) query = query.eq("status", status);
   if (groupId) query = query.eq("group_id", groupId);
