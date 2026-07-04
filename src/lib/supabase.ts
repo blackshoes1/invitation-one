@@ -153,6 +153,11 @@ export interface ParticipantDetail {
   tracking_stage: TrackingStage | null;
   member_count: number | null;
   member_names: string[] | null;
+  /** 대표가 일정 변경을 제안했을 때 — 이동 대상(새 주문) 정보 */
+  pending_delivery_id: string | null;
+  pending_date: string | null;
+  pending_time: TimeSlotValue | null;
+  pending_by: string | null;
 }
 
 /** get_celebrations RPC — 축하 피드 + 지도 핀 통합 */
