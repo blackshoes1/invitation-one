@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { checkAdmin } from "@/lib/adminAuth";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
+import { parseOffer } from "@/lib/groupOffer";
 
 function guard(req: Request) {
   if (!checkAdmin(req))
@@ -33,16 +34,26 @@ export async function POST(req: Request) {
   const bad = guard(req);
   if (bad) return bad;
 
-  const { name } = (await req.json()) as { name?: string };
+  const body = (await req.json()) as {
+    name?: string;
+    offer_date?: string | null;
+    offer_time?: string | null;
+    offer_location?: string | null;
+  };
+  const { name } = body;
   if (!name?.trim())
     return NextResponse.json({ error: "그룹명을 입력해주세요." }, { status: 400 });
+
+  const offer = parseOffer(body);
+  if ("error" in offer)
+    return NextResponse.json({ error: offer.error }, { status: 400 });
 
   // slug 충돌 시 최대 3회 재시도
   for (let i = 0; i < 3; i++) {
     const slug = makeSlug();
     const { data, error } = await supabaseAdmin!
       .from("groups")
-      .insert({ name: name.trim(), slug })
+      .insert({ name: name.trim(), slug, ...offer.fields })
       .select()
       .single();
     if (!error) return NextResponse.json({ group: data });

@@ -11,7 +11,13 @@ import type {
   Participant,
 } from "@/lib/supabase";
 import { TRACKING_STAGES } from "@/lib/supabase";
-import { formatYmdKo, toYmd } from "@/lib/wedding";
+import {
+  formatYmdKo,
+  toYmd,
+  slotsForDate,
+  DELIVERY_START,
+  DELIVERY_END,
+} from "@/lib/wedding";
 
 /** 참여 시스템: 주문 + 참여자 목록 */
 type AdminDelivery = Delivery & { participants: Participant[] };
@@ -87,6 +93,17 @@ export default function AdminPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [mergeSource, setMergeSource] = useState<string | null>(null);
   const [newGroup, setNewGroup] = useState("");
+  /** 그룹 생성 시 제안 일정 (선택) */
+  const [offerDate, setOfferDate] = useState("");
+  const [offerTime, setOfferTime] = useState("");
+  const [offerLocation, setOfferLocation] = useState("");
+  /** 기존 그룹의 제안 일정 편집 상태 */
+  const [editOffer, setEditOffer] = useState<{
+    gid: string;
+    date: string;
+    time: string;
+    location: string;
+  } | null>(null);
 
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [members, setMembers] = useState<Record<string, GroupMemberRow[]>>({});
@@ -276,13 +293,51 @@ export default function AdminPage() {
 
   const createGroup = async () => {
     if (!newGroup.trim()) return;
+    if (offerDate && !offerTime)
+      return setError("제안 일정의 시간대를 선택해주세요.");
     const res = await api("/api/admin/groups", {
       method: "POST",
-      body: JSON.stringify({ name: newGroup.trim() }),
+      body: JSON.stringify({
+        name: newGroup.trim(),
+        offer_date: offerDate || null,
+        offer_time: offerTime || null,
+        offer_location: offerLocation || null,
+      }),
     });
     const j = await res.json();
     if (!res.ok) return setError(j.error ?? "그룹 생성 실패");
     setNewGroup("");
+    setOfferDate("");
+    setOfferTime("");
+    setOfferLocation("");
+    setNotice(
+      offerDate
+        ? "그룹을 만들고 일정을 제안했어요 📅 링크를 공유하면 하객이 승낙만 하면 돼요."
+        : "그룹을 만들었어요."
+    );
+    loadGroups();
+  };
+
+  /** 기존 그룹 제안 일정 저장 (빈 날짜로 저장 = 제안 해제) */
+  const saveOffer = async (clear = false) => {
+    if (!editOffer) return;
+    if (!clear && editOffer.date && !editOffer.time)
+      return setError("제안 일정의 시간대를 선택해주세요.");
+    if (!clear && !editOffer.date)
+      return setError("제안 날짜를 선택해주세요.");
+    const res = await api(`/api/admin/groups/${editOffer.gid}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        set_offer: true,
+        offer_date: clear ? null : editOffer.date,
+        offer_time: clear ? null : editOffer.time,
+        offer_location: clear ? null : editOffer.location || null,
+      }),
+    });
+    const j = await res.json();
+    if (!res.ok) return setError(j.error ?? "제안 저장 실패");
+    setEditOffer(null);
+    setNotice(clear ? "제안 일정을 해제했어요." : "제안 일정을 저장했어요 📅");
     loadGroups();
   };
 
@@ -840,21 +895,61 @@ export default function AdminPage() {
         {/* ===== 그룹 ===== */}
         {view === "groups" && (
           <>
-            <div className="flex gap-2">
-              <input
-                value={newGroup}
-                onChange={(e) => setNewGroup(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && createGroup()}
-                enterKeyHint="done"
-                placeholder="새 그룹명 (예: 대학 친구들)"
-                className="flex-1 p-3 border border-wedding-gold/25 bg-white text-base rounded-none focus:outline-none focus:border-sage-600"
-              />
-              <button
-                onClick={createGroup}
-                className="px-4 bg-sage-700 text-white text-xs tracking-wider"
-              >
-                생성
-              </button>
+            <div className="bg-white border border-wedding-gold/15 p-3 space-y-2">
+              <div className="flex gap-2">
+                <input
+                  value={newGroup}
+                  onChange={(e) => setNewGroup(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && createGroup()}
+                  enterKeyHint="done"
+                  placeholder="새 그룹명 (예: 대학 친구들)"
+                  className="flex-1 p-3 border border-wedding-gold/25 bg-white text-base rounded-none focus:outline-none focus:border-sage-600"
+                />
+                <button
+                  onClick={createGroup}
+                  className="px-4 bg-sage-700 text-white text-xs tracking-wider"
+                >
+                  생성
+                </button>
+              </div>
+              {/* 제안 일정 (선택) — 하객은 링크에서 승낙만 하면 됨 */}
+              <p className="text-[11px] text-neutral-400">
+                📅 일정 제안 (선택) — 하객은 이름·연락처만 남기고 승낙하면 돼요
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                <input
+                  type="date"
+                  value={offerDate}
+                  min={DELIVERY_START}
+                  max={DELIVERY_END}
+                  onChange={(e) => {
+                    const d = e.target.value;
+                    setOfferDate(d);
+                    if (d && offerTime && !slotsForDate(d).includes(offerTime as never))
+                      setOfferTime("");
+                  }}
+                  className="p-2 text-base border border-wedding-gold/20 bg-white rounded-none focus:outline-none focus:border-sage-600"
+                />
+                <select
+                  value={offerTime}
+                  onChange={(e) => setOfferTime(e.target.value)}
+                  disabled={!offerDate}
+                  className="p-2 text-base border border-wedding-gold/20 bg-white text-neutral-600 disabled:opacity-50"
+                >
+                  <option value="">시간대</option>
+                  {(offerDate ? slotsForDate(offerDate) : []).map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={offerLocation}
+                  onChange={(e) => setOfferLocation(e.target.value)}
+                  placeholder="장소 (선택)"
+                  className="flex-1 min-w-[120px] p-2 text-base border border-wedding-gold/20 bg-white rounded-none focus:outline-none focus:border-sage-600"
+                />
+              </div>
             </div>
 
             {groups.length === 0 && (
@@ -875,8 +970,32 @@ export default function AdminPage() {
                       <p className="text-[11px] text-neutral-400 truncate">
                         /delivery/group/{g.slug}
                       </p>
+                      {g.offer_date && g.offer_time && (
+                        <p className="text-[11px] text-delivery font-bold">
+                          📅 제안: {formatYmdKo(g.offer_date)} {g.offer_time}
+                          {g.offer_location ? ` · ${g.offer_location}` : ""}
+                        </p>
+                      )}
                     </div>
                     <div className="flex gap-2 whitespace-nowrap">
+                      <button
+                        onClick={() =>
+                          setEditOffer(
+                            editOffer?.gid === g.id
+                              ? null
+                              : {
+                                  gid: g.id,
+                                  date: g.offer_date ?? "",
+                                  time: g.offer_time ?? "",
+                                  location: g.offer_location ?? "",
+                                }
+                          )
+                        }
+                        className="px-3 py-1.5 text-xs border border-wedding-gold/30 text-neutral-500"
+                        title="일정 제안 설정"
+                      >
+                        📅
+                      </button>
                       <button
                         onClick={() => renameGroup(g.id, g.name)}
                         className="px-3 py-1.5 text-xs border border-wedding-gold/30 text-neutral-500"
@@ -898,6 +1017,83 @@ export default function AdminPage() {
                       </button>
                     </div>
                   </div>
+
+                  {/* 제안 일정 편집 */}
+                  {editOffer?.gid === g.id && (
+                    <div className="border-t border-wedding-gold/10 pt-3 space-y-2">
+                      <p className="text-[11px] text-neutral-400">
+                        📅 일정 제안 — 저장하면 그룹 페이지 상단에 승낙 카드가 떠요.
+                        제안을 바꾸면 다음 승낙부터 새 주문으로 모여요.
+                      </p>
+                      <div className="flex gap-2 flex-wrap">
+                        <input
+                          type="date"
+                          value={editOffer.date}
+                          min={DELIVERY_START}
+                          max={DELIVERY_END}
+                          onChange={(e) => {
+                            const d = e.target.value;
+                            setEditOffer((prev) =>
+                              prev && {
+                                ...prev,
+                                date: d,
+                                time:
+                                  d && prev.time && !slotsForDate(d).includes(prev.time as never)
+                                    ? ""
+                                    : prev.time,
+                              }
+                            );
+                          }}
+                          className="p-2 text-base border border-wedding-gold/20 bg-white rounded-none focus:outline-none focus:border-sage-600"
+                        />
+                        <select
+                          value={editOffer.time}
+                          onChange={(e) =>
+                            setEditOffer((prev) => prev && { ...prev, time: e.target.value })
+                          }
+                          disabled={!editOffer.date}
+                          className="p-2 text-base border border-wedding-gold/20 bg-white text-neutral-600 disabled:opacity-50"
+                        >
+                          <option value="">시간대</option>
+                          {(editOffer.date ? slotsForDate(editOffer.date) : []).map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          value={editOffer.location}
+                          onChange={(e) =>
+                            setEditOffer((prev) => prev && { ...prev, location: e.target.value })
+                          }
+                          placeholder="장소 (선택)"
+                          className="flex-1 min-w-[120px] p-2 text-base border border-wedding-gold/20 bg-white rounded-none focus:outline-none focus:border-sage-600"
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        {(g.offer_date || g.offer_time) && (
+                          <button
+                            onClick={() => saveOffer(true)}
+                            className="px-3 py-1.5 text-xs border border-red-200 text-red-400"
+                          >
+                            제안 해제
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setEditOffer(null)}
+                          className="px-3 py-1.5 text-xs border border-neutral-200 text-neutral-500"
+                        >
+                          닫기
+                        </button>
+                        <button
+                          onClick={() => saveOffer(false)}
+                          className="px-3 py-1.5 text-xs bg-sage-600 text-white"
+                        >
+                          저장
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {openGroup === g.id && (
                     <div className="border-t border-wedding-gold/10 pt-3 space-y-2">

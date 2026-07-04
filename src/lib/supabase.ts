@@ -194,6 +194,11 @@ export interface Group {
   id: string;
   name: string;
   slug: string;
+  /** 관리자가 제안한 만남 일정 (v14) — 없으면 null/undefined */
+  offer_date?: string | null;
+  offer_time?: TimeSlotValue | null;
+  offer_location?: string | null;
+  offer_delivery_id?: string | null;
 }
 
 export interface GroupMember {

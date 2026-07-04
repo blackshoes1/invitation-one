@@ -20,12 +20,14 @@ import ReviewStrip from "@/components/delivery/ReviewStrip";
 import FindOrder from "@/components/delivery/FindOrder";
 import DeliveryClosed from "@/components/delivery/DeliveryClosed";
 import Faq from "@/components/delivery/Faq";
+import { OfferCard, AcceptOfferForm } from "@/components/delivery/GroupOffer";
 
 type View =
   | { kind: "menu" }
   | { kind: "join"; order: GroupOrder }
   | { kind: "new" }
-  | { kind: "heart" };
+  | { kind: "heart" }
+  | { kind: "offer" };
 
 function GroupPageInner() {
   const params = useParams<{ groupId: string }>();
@@ -121,7 +123,21 @@ function GroupPageInner() {
       </section>
 
       {view.kind === "menu" && (
-        <div className="px-6 pb-6 max-w-md mx-auto">
+        <div className="px-6 pb-6 max-w-md mx-auto space-y-4">
+          {group.offer_date && group.offer_time && !closed && (
+            <OfferCard
+              group={group}
+              memberCount={
+                orders.find(
+                  (o) =>
+                    o.id === group.offer_delivery_id &&
+                    o.status !== "취소" &&
+                    o.status !== "완료"
+                )?.member_names.length ?? null
+              }
+              onAccept={() => setView({ kind: "offer" })}
+            />
+          )}
           <OrderList
             orders={orders}
             loaded={ordersLoaded}
@@ -158,6 +174,15 @@ function GroupPageInner() {
             </div>
           )}
 
+          {view.kind === "offer" && (
+            <AcceptOfferForm
+              group={group}
+              slug={slug}
+              convertId={convertId}
+              onBack={() => setView({ kind: "menu" })}
+              onJoined={loadOrders}
+            />
+          )}
           {view.kind === "join" && (
             <JoinForm
               order={view.order}
