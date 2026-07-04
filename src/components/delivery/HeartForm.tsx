@@ -175,7 +175,7 @@ export default function HeartForm({
         maxLength={500}
         onChange={(e) => setMessage(e.target.value)}
         placeholder="한마디 (선택)"
-        className="w-full p-4 rounded-2xl border-2 border-delivery/20 bg-white focus:outline-none focus:border-delivery resize-none h-24 text-sm"
+        className="w-full p-4 rounded-2xl border-2 border-delivery/20 bg-white focus:outline-none focus:border-delivery resize-none h-24 text-base"
       />
 
       <div className="space-y-1.5">

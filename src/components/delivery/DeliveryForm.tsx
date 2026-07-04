@@ -477,7 +477,7 @@ export default function DeliveryForm({
               maxLength={500}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="요청사항을 적어주세요"
-              className="w-full p-4 rounded-2xl border-2 border-delivery/20 bg-white focus:outline-none focus:border-delivery resize-none h-28 text-sm"
+              className="w-full p-4 rounded-2xl border-2 border-delivery/20 bg-white focus:outline-none focus:border-delivery resize-none h-28 text-base"
             />
           </Q>
         );

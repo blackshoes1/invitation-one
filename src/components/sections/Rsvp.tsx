@@ -234,7 +234,7 @@ export default function Rsvp() {
                   maxLength={500}
                   onChange={(e) => update("memo", e.target.value)}
                   placeholder="축하 메시지를 남겨주세요"
-                  className="w-full p-3 border border-wedding-gold/15 bg-white focus:outline-none focus:border-wedding-gold transition-colors resize-none h-20 text-xs font-light tracking-wide placeholder:text-neutral-300"
+                  className="w-full p-3 border border-wedding-gold/15 bg-white focus:outline-none focus:border-wedding-gold transition-colors resize-none h-20 text-base font-light tracking-wide placeholder:text-neutral-300"
                 />
               </Field>
 

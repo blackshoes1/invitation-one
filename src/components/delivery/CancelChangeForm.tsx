@@ -649,7 +649,7 @@ export default function CancelChangeForm({ participantId }: { participantId: str
             maxLength={500}
             onChange={(e) => setHeartMsg(e.target.value)}
             placeholder="한마디 (선택)"
-            className="w-full p-4 rounded-2xl border-2 border-delivery/20 bg-white focus:outline-none focus:border-delivery resize-none h-20 text-sm"
+            className="w-full p-4 rounded-2xl border-2 border-delivery/20 bg-white focus:outline-none focus:border-delivery resize-none h-20 text-base"
           />
           {error && <p className="text-sm text-delivery-dark text-center">{error}</p>}
           <div className="flex gap-3">
@@ -763,7 +763,7 @@ function ReviewBlock({
           onChange={(e) => setReviewText(e.target.value.slice(0, 100))}
           placeholder="한줄 후기 (선택) 예) 신랑 친절해요 / 청첩장 예뻐요"
           rows={2}
-          className="w-full rounded-xl border border-delivery/20 px-3 py-2.5 text-sm resize-none focus:outline-none focus:border-delivery"
+          className="w-full rounded-xl border border-delivery/20 px-3 py-2.5 text-base resize-none focus:outline-none focus:border-delivery"
         />
         <p className="text-right text-[10px] text-neutral-300">
           {reviewText.length}/100

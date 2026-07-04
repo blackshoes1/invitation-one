@@ -145,21 +145,21 @@ export default function VerifyBadge({
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="성함"
-        className="w-full p-2.5 text-sm border border-wedding-gold/20 rounded-lg focus:outline-none focus:border-sage-600"
+        className="w-full p-2.5 text-base border border-wedding-gold/20 rounded-lg focus:outline-none focus:border-sage-600"
       />
       <input
         value={last4}
         onChange={(e) => setLast4(e.target.value.replace(/\D/g, "").slice(0, 4))}
         inputMode="numeric"
         placeholder="전화번호 끝 4자리"
-        className="w-full p-2.5 text-sm border border-wedding-gold/20 rounded-lg focus:outline-none focus:border-sage-600"
+        className="w-full p-2.5 text-base border border-wedding-gold/20 rounded-lg focus:outline-none focus:border-sage-600"
       />
       {needYmd && (
         <input
           value={ymd}
           onChange={(e) => setYmd(e.target.value)}
           placeholder="만난 날짜 (예: 2026-08-15)"
-          className="w-full p-2.5 text-sm border border-wedding-gold/20 rounded-lg focus:outline-none focus:border-sage-600"
+          className="w-full p-2.5 text-base border border-wedding-gold/20 rounded-lg focus:outline-none focus:border-sage-600"
         />
       )}
       {error && <p className="text-xs text-red-400 text-center">{error}</p>}
