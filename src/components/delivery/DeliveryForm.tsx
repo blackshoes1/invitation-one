@@ -138,10 +138,11 @@ export default function DeliveryForm({
       return setError("배송지를 입력해주세요 📍");
     if (step === 2) {
       if (!date) return setError("배송 희망일을 골라주세요 📅");
-      // 같은 날 먼저 신청한 주문이 있으면 합석 제안
+      // 같은 날 먼저 신청한 주문이 있으면 합석 제안 (본인 주문·정원 초과 주문 제외)
       if (isSupabaseConfigured && supabase) {
         const { data } = await supabase.rpc("get_orders_on_date", {
           p_date: date,
+          p_phone: phone.trim(),
         });
         const orders = Array.isArray(data) ? (data as DateOrder[]) : [];
         if (orders.length > 0) {
@@ -176,6 +177,10 @@ export default function DeliveryForm({
       const row = Array.isArray(data) ? data[0] : data;
       if (row?.result === "dup")
         return setError("이미 이 주문에 함께하고 계세요 😊");
+      if (row?.result === "full") {
+        setJoinOffer(null);
+        return setError("이 주문은 정원(10명)이 다 찼어요 😢 새로 신청해주세요");
+      }
       if (row?.result === "closed") {
         setJoinOffer(null);
         return setError("방금 그 주문이 마감됐어요 😢 새로 신청해주세요");

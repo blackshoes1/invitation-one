@@ -41,7 +41,10 @@ export default function CancelChangeForm({ participantId }: { participantId: str
   const [mode, setMode] = useState<Mode>("view");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<"left" | "switched" | "rescheduled" | "heart" | null>(null);
+  const [result, setResult] = useState<
+    "left" | "switched" | "rescheduled" | "heart" | "proposed" | "accepted" | "declined" | null
+  >(null);
+  const [proposedCount, setProposedCount] = useState(0);
 
   // 일정 변경
   const [newDate, setNewDate] = useState<string | null>(null);
@@ -106,6 +109,7 @@ export default function CancelChangeForm({ participantId }: { participantId: str
       setBusy(false);
       if (error) return setError("갈아타기에 실패했어요. 다시 시도해주세요.");
       if (data === "closed") return setError("그 주문은 방금 마감됐어요 😢");
+      if (data === "full") return setError("그 주문은 정원(10명)이 다 찼어요 😢");
       if (data === "dup") return setError("그 주문에 이미 같은 정보로 함께하고 계세요 😊");
       if (data !== "ok" && data !== "same") return setError("처리하지 못했어요. 다시 시도해주세요.");
     } else {
@@ -136,23 +140,73 @@ export default function CancelChangeForm({ participantId }: { participantId: str
     setBusy(true);
     setError(null);
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.rpc("reschedule_delivery_v2", {
-        p_participant: participantId,
-        p_date: newDate,
-        p_time: newSlot,
-      });
-      setBusy(false);
-      if (error) return setError("변경에 실패했어요. 다시 시도해주세요.");
-      if (data === "taken")
-        return setError("방금 다른 분이 먼저 신청한 날짜예요 😢 다른 날짜를 골라주세요.");
-      if (data === "range") return setError("신청 가능 기간이 아니에요.");
-      if (data === "not_owner") return setError("주문 대표만 일정을 변경할 수 있어요.");
-      if (data !== "ok") return setError("처리하지 못했어요. 다시 시도해주세요.");
+      try {
+        const res = await fetch("/api/delivery/reschedule", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            participantId,
+            date: newDate,
+            time: newSlot,
+          }),
+        });
+        const j = (await res.json().catch(() => ({}))) as {
+          result?: string;
+          moved_count?: number;
+        };
+        setBusy(false);
+        if (!res.ok)
+          return setError("변경에 실패했어요. 잠시 후 다시 시도해주세요.");
+        switch (j.result) {
+          case "taken":
+            return setError("방금 다른 분이 먼저 신청한 날짜예요 😢 다른 날짜를 골라주세요.");
+          case "range":
+            return setError("신청 가능 기간이 아니에요.");
+          case "not_owner":
+            return setError("주문 대표만 일정을 변경할 수 있어요.");
+          case "solo":
+            return setResult("rescheduled");
+          case "proposed":
+            setProposedCount(j.moved_count ?? 0);
+            return setResult("proposed");
+          default:
+            return setError("처리하지 못했어요. 다시 시도해주세요.");
+        }
+      } catch {
+        setBusy(false);
+        return setError("변경에 실패했어요. 잠시 후 다시 시도해주세요.");
+      }
     } else {
       await new Promise((r) => setTimeout(r, 400));
       setBusy(false);
+      setResult("rescheduled");
     }
-    setResult("rescheduled");
+  };
+
+  /** 일정 변경 제안에 응답 — 수락(함께 이동) / 사양(기존 날짜 잔류) */
+  const doRespond = async (accept: boolean) => {
+    setBusy(true);
+    setError(null);
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase.rpc("respond_reschedule", {
+        p_participant: participantId,
+        p_accept: accept,
+      });
+      setBusy(false);
+      if (error) return setError("처리에 실패했어요. 다시 시도해주세요.");
+      if (data === "closed")
+        return setError("아쉽지만 그 일정이 마감됐어요 😢 기존 날짜에 그대로 남아요.");
+      if (data === "full")
+        return setError("옮기려는 주문의 정원(10명)이 다 찼어요 😢");
+      if (data === "none") return load(); // 대기 상태가 이미 아님 — 새로고침
+      if (data === "accepted") return setResult("accepted");
+      if (data === "declined") return setResult("declined");
+      return setError("처리하지 못했어요. 다시 시도해주세요.");
+    } else {
+      await new Promise((r) => setTimeout(r, 400));
+      setBusy(false);
+      setResult(accept ? "accepted" : "declined");
+    }
   };
 
   const doToHeart = async () => {
@@ -230,6 +284,15 @@ export default function CancelChangeForm({ participantId }: { participantId: str
       switched: ["🔄", "갈아타기 완료!", "새 일정으로 함께 받아요 🛵"],
       rescheduled: ["✅", "일정이 변경되었어요", "변경된 일정으로 찾아뵐게요 🛵"],
       heart: ["💌", "마음 배송으로 바뀌었어요", "따뜻한 마음, 잘 받았어요 🥰 결혼식에서 꼭 안아드릴게요!"],
+      proposed: [
+        "📨",
+        "일정 변경을 제안했어요",
+        proposedCount > 0
+          ? `함께 받는 ${proposedCount}분께 문자로 이동 의사를 여쭤봤어요. 대표님은 새 일정으로 옮겨졌고, 동의하신 분만 함께 이동해요 🛵`
+          : "새 일정으로 옮겨졌어요 🛵",
+      ],
+      accepted: ["🤝", "함께 이동했어요", "변경된 일정으로 만나요 🛵"],
+      declined: ["🙂", "기존 일정을 유지했어요", "원래 날짜 그대로 찾아뵐게요"],
     }[result];
     return (
       <div className="h-[60vh] flex flex-col items-center justify-center text-center gap-3 px-8">
@@ -350,6 +413,47 @@ export default function CancelChangeForm({ participantId }: { participantId: str
         </div>
       </div>
 
+      {/* 대표의 일정 변경 제안 — 함께 이동 / 정중히 사양 */}
+      {!isDone && detail.pending_delivery_id && detail.pending_date && (
+        <div className="bg-delivery/5 border-2 border-delivery/25 rounded-2xl p-5 space-y-3">
+          <div className="text-center space-y-1.5">
+            <div className="text-3xl">📨</div>
+            <p className="text-sm font-extrabold text-neutral-800">
+              {detail.pending_by ? `${detail.pending_by}님` : "주문 대표님"}이
+              일정을 옮기려고 해요
+            </p>
+            <p className="text-xs text-neutral-500 leading-relaxed">
+              {detail.date ? formatYmdKo(detail.date) : ""} {detail.time_slot}
+              {" → "}
+              <span className="font-bold text-delivery">
+                {formatYmdKo(detail.pending_date)} {detail.pending_time}
+              </span>
+              <br />
+              함께 이동하시겠어요? 각자 편하게 정하시면 돼요 🙂
+            </p>
+          </div>
+          {error && (
+            <p className="text-sm text-delivery-dark text-center">{error}</p>
+          )}
+          <div className="flex gap-2.5">
+            <button
+              onClick={() => doRespond(false)}
+              disabled={busy}
+              className="flex-1 py-3 rounded-full bg-white border-2 border-delivery/20 text-neutral-500 text-sm font-bold disabled:opacity-60"
+            >
+              정중히 사양할게요 🙏
+            </button>
+            <button
+              onClick={() => doRespond(true)}
+              disabled={busy}
+              className="flex-1 py-3 rounded-full bg-delivery text-white text-sm font-extrabold active:scale-95 transition-transform disabled:opacity-60"
+            >
+              {busy ? "처리 중…" : "함께 이동할게요 🤝"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 실시간 배송 현황 */}
       {detail.tracking_stage && (
         <div className="bg-delivery/5 rounded-2xl py-5 px-4">
@@ -379,7 +483,7 @@ export default function CancelChangeForm({ participantId }: { participantId: str
               onClick={() => setMode("reschedule")}
               className="w-full py-3.5 rounded-full bg-delivery text-white font-bold active:scale-95 transition-transform"
             >
-              날짜/시간 변경하기 (주문 전체)
+              날짜/시간 변경하기
             </button>
           )}
           {orders.length > 0 && (
@@ -453,7 +557,9 @@ export default function CancelChangeForm({ participantId }: { participantId: str
           <p className="text-sm font-bold text-neutral-700">
             새 날짜를 골라주세요 📅{" "}
             <span className="text-xs text-neutral-400 font-normal">
-              (참여자 {memberCount}명 전원에게 적용돼요)
+              {memberCount > 1
+                ? `(함께 받는 분들껜 문자로 여쭤봐요 — 동의하신 분만 함께 이동해요)`
+                : `(바로 변경돼요)`}
             </span>
           </p>
           <DeliveryCalendar
