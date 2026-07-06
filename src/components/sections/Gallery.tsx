@@ -44,9 +44,6 @@ export default function Gallery() {
     <section className="px-6 py-10 bg-white">
       <div className="max-w-sm mx-auto space-y-8 text-center">
         <FadeIn className="space-y-2">
-          <p className="font-serif tracking-[0.3em] text-[11px] text-wedding-gold">
-            GALLERY
-          </p>
           <h2 className="font-serif text-2xl font-light tracking-widest text-sage-700">
             우리의 순간
           </h2>

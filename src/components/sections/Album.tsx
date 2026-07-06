@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getSiteSettings, type GalleryItem } from "@/lib/settings";
-import { groom, bride, venue, formatShortDate } from "@/lib/wedding";
+import { venue, formatShortDate } from "@/lib/wedding";
 import FadeIn from "@/components/FadeIn";
 
 /**
@@ -28,11 +28,7 @@ export default function Album() {
       <FadeIn>
         <div className="max-w-sm mx-auto bg-white border border-wedding-gold/15 shadow-sm px-7 py-10 space-y-8 text-center">
           <p className="font-serif text-[13px] tracking-[0.35em] text-neutral-700">
-            SAVE{" "}
-            <span className="italic font-light tracking-normal text-wedding-gold normal-case">
-              the
-            </span>{" "}
-            DATE
+            
           </p>
 
           {/* 2단 비대칭 콜라주 — 좌: 세로/정방형, 우: 정방형/세로 (지그재그) */}
@@ -78,7 +74,6 @@ export default function Album() {
           <div className="space-y-3">
             <div className="w-8 h-px bg-neutral-700 mx-auto" />
             <p className="font-serif tracking-[0.25em] text-sm text-neutral-800">
-              {groom.name} <span className="text-wedding-gold">+</span> {bride.name}
             </p>
             <p className="text-[11px] tracking-[0.2em] text-neutral-500">
               {formatShortDate()} / {venue.name}
