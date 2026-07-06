@@ -33,17 +33,18 @@ export default function Gallery() {
   const go = (dir: number) =>
     setIndex((i) => (i + dir + count) % count);
 
-  // 자동 슬라이드
+  // 자동 슬라이드 — setTimeout + index 의존: 수동 스와이프/화살표/도트로 넘기면
+  // 타이머가 리셋되어, 넘긴 직후 자동으로 또 넘어가는 문제를 방지
   useEffect(() => {
     if (count <= 1) return;
-    const t = setInterval(() => setIndex((i) => (i + 1) % count), 4500);
-    return () => clearInterval(t);
-  }, [count]);
+    const t = setTimeout(() => setIndex((i) => (i + 1) % count), 4500);
+    return () => clearTimeout(t);
+  }, [index, count]);
 
   const current = images[index] ?? images[0];
 
   return (
-    <section className="px-6 py-10 bg-white">
+    <section className="px-6 pt-5 pb-10 bg-white">
       <div className="max-w-sm mx-auto space-y-8 text-center">
         <FadeIn className="space-y-2">
           <h2 className="font-serif text-2xl font-light tracking-widest text-sage-700">
