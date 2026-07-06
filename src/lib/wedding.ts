@@ -70,6 +70,9 @@ export const brideAccounts: Account[] = [
 ];
 
 /* ----------------------- 갤러리 ----------------------- */
+// 청첩장 갤러리 슬라이드 최대 장수 (admin 업로드·표시 공통 상한)
+export const GALLERY_MAX = 10;
+
 // /public/pic/ 에 아래 파일을 넣으면 자동으로 슬라이드에 표시됩니다.
 export const galleryImages: { src: string; alt: string }[] = [
   { src: "/pic/gallery1.jpg", alt: "커플 사진 1" },

@@ -17,6 +17,7 @@ import {
   slotsForDate,
   DELIVERY_START,
   DELIVERY_END,
+  GALLERY_MAX,
 } from "@/lib/wedding";
 
 /** 참여 시스템: 주문 + 참여자 목록 */
@@ -314,18 +315,31 @@ export default function AdminPage() {
     setUploading(false);
   };
 
-  /** 갤러리 사진 추가 (여러 장) */
+  /** 갤러리 사진 추가 (여러 장, 최대 GALLERY_MAX장) */
   const addGalleryPhotos = async (files: FileList) => {
+    const current = siteSettings.gallery ?? [];
+    const remaining = GALLERY_MAX - current.length;
+    if (remaining <= 0) {
+      setError(`갤러리는 최대 ${GALLERY_MAX}장까지예요. 기존 사진을 지우고 추가해주세요.`);
+      return;
+    }
     setUploading(true);
     setError(null);
+    const picked = Array.from(files).slice(0, remaining);
     const added: GalleryItem[] = [];
-    for (const file of Array.from(files)) {
+    for (const file of picked) {
       const up = await uploadImage(file, "gallery");
       if (up) added.push({ src: up.url, path: up.path });
     }
     if (added.length > 0) {
-      const next = [...(siteSettings.gallery ?? []), ...added];
-      await saveSetting("gallery", next, `사진 ${added.length}장을 추가했어요 📸`);
+      const next = [...current, ...added];
+      await saveSetting(
+        "gallery",
+        next,
+        files.length > remaining
+          ? `사진 ${added.length}장 추가 — 최대 ${GALLERY_MAX}장이라 나머지는 제외했어요`
+          : `사진 ${added.length}장을 추가했어요 📸`
+      );
     }
     setUploading(false);
   };
@@ -1442,7 +1456,7 @@ export default function AdminPage() {
                 <p className="text-sm font-medium text-sage-700">
                   갤러리 사진{" "}
                   <span className="text-xs text-neutral-400 font-normal">
-                    {(siteSettings.gallery ?? []).length}장
+                    {(siteSettings.gallery ?? []).length}/{GALLERY_MAX}장
                   </span>
                 </p>
                 <label className="px-3 py-2 text-xs bg-sage-600 text-white cursor-pointer">
@@ -1504,7 +1518,8 @@ export default function AdminPage() {
                 </div>
               )}
               <p className="text-[11px] text-neutral-400">
-                순서대로 슬라이드에 표시돼요. 세로(4:5) 사진이 가장 예뻐요.
+                최대 {GALLERY_MAX}장, 순서대로 슬라이드에 표시돼요. 세로(4:5) 사진이 가장
+                예뻐요.
               </p>
             </section>
 

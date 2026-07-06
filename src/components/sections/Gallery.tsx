@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Heart, ChevronLeft, ChevronRight } from "lucide-react";
-import { galleryImages } from "@/lib/wedding";
+import { galleryImages, GALLERY_MAX } from "@/lib/wedding";
 import { getSiteSettings } from "@/lib/settings";
 import FadeIn from "@/components/FadeIn";
 
@@ -18,7 +18,9 @@ export default function Gallery() {
     getSiteSettings().then((s) => {
       if (s.gallery && s.gallery.length > 0) {
         setImages(
-          s.gallery.map((g, i) => ({ src: g.src, alt: g.alt ?? `커플 사진 ${i + 1}` }))
+          s.gallery
+            .slice(0, GALLERY_MAX)
+            .map((g, i) => ({ src: g.src, alt: g.alt ?? `커플 사진 ${i + 1}` }))
         );
         setIndex(0);
         setErrored({});
