@@ -32,11 +32,20 @@ export default function KakaoMap() {
       const kakao = window.kakao;
       if (!kakao?.maps) return setFailed(true);
       kakao.maps.load(() => {
-        const center = new kakao.maps.LatLng(venue.lat, venue.lng);
-        const map = new kakao.maps.Map(mapRef.current, { center, level: 4 });
-        new kakao.maps.Marker({ map, position: center });
-        map.setDraggable(false);
-        map.setZoomable(false);
+        try {
+          const center = new kakao.maps.LatLng(venue.lat, venue.lng);
+          const map = new kakao.maps.Map(mapRef.current, { center, level: 4 });
+          new kakao.maps.Marker({ map, position: center });
+          map.setDraggable(false);
+          map.setZoomable(false);
+          // 도메인 미등록/키 오류 시 타일이 안 그려짐 → 일정 시간 내 tilesloaded 없으면 폴백
+          const guard = setTimeout(() => setFailed(true), 3000);
+          kakao.maps.event.addListener(map, "tilesloaded", () =>
+            clearTimeout(guard)
+          );
+        } catch {
+          setFailed(true);
+        }
       });
     };
 

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import type { Celebration } from "@/lib/supabase";
 import { formatYmdKo } from "@/lib/wedding";
 import { sidoOf } from "@/lib/regions";
-import { KOREA_VIEW, KOREA_PATHS, SIDO_POS } from "@/lib/koreaGeo";
+import { KOREA_VIEW, KOREA_PATHS, SIDO_POS, REGION_POS } from "@/lib/koreaGeo";
 
 /** 문자열 → 안정적인 해시 (핀 위치를 매번 같게) */
 function hash(s: string): number {
@@ -21,12 +21,16 @@ const OVERSEAS_POS = { x: 12, y: VB_H - 18 };
  * 핀 좌표(%): 지역(시/도)의 실제 지도 위치 + 소량 지터(같은 지역 겹침 방지).
  */
 function pinPos(area: string | null, seed: string): { left: number; top: number } {
+  // 전체 지역명(예: "서울 강동구")이 있으면 자치구 좌표 우선, 없으면 시/도 중심으로 폴백
+  const key = area?.trim() ?? "";
+  const exact = REGION_POS[key];
   const sido = sidoOf(area);
-  const base = sido ? SIDO_POS[sido] : OVERSEAS_POS;
-  // 지터는 작게 — 서울처럼 좁은 시/도에서도 경계를 벗어나지 않게
+  const base = exact ?? (sido ? SIDO_POS[sido] : OVERSEAS_POS);
+  // 정확한 좌표가 있으면 지터 최소(겹침만 분산), 시/도 폴백이면 살짝 더
+  const spread = exact ? 0.25 : 0.5;
   const h = hash(seed + (area ?? ""));
-  const jx = ((h % 7) - 3) * 0.5; // ±1.5 (x: 0~VB_W)
-  const jy = (((h >> 3) % 7) - 3) * 0.5;
+  const jx = ((h % 7) - 3) * spread;
+  const jy = (((h >> 3) % 7) - 3) * spread;
   const x = Math.max(3, Math.min(VB_W - 3, base.x + jx));
   const y = Math.max(3, Math.min(VB_H - 3, base.y + jy));
   return { left: (x / VB_W) * 100, top: (y / VB_H) * 100 };
