@@ -1,80 +1,82 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getSiteSettings, type GalleryItem } from "@/lib/settings";
-import { venue, formatShortDate } from "@/lib/wedding";
+import { venue, formatShortDate, ALBUM_MAX } from "@/lib/wedding";
 import FadeIn from "@/components/FadeIn";
 
 /**
- * 앨범 — "SAVE the DATE" 콜라주 카드 (갤러리와 D-Day 사이).
- * 사진은 Admin 콘텐츠 탭(album 설정, 최대 4장)에서 관리.
- * 사진이 하나도 없으면 섹션 자체를 렌더링하지 않음.
+ * 앨범 — 커플 사진 카드 (갤러리와 오시는 길 사이).
+ * 사진은 Admin 콘텐츠 탭(album 설정)에서 관리. 없으면 섹션 미표시.
+ * 터치로 좌우 스와이프(scroll-snap) + 하단 도트 인디케이터.
  */
 export default function Album() {
   const [photos, setPhotos] = useState<GalleryItem[]>([]);
+  const [index, setIndex] = useState(0);
+  const trackRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     getSiteSettings().then((s) => {
-      if (s.album && s.album.length > 0) setPhotos(s.album.slice(0, 4));
+      if (s.album && s.album.length > 0) setPhotos(s.album.slice(0, ALBUM_MAX));
     });
   }, []);
 
   if (photos.length === 0) return null;
 
-  const [a, b, c, d] = photos;
+  const goTo = (i: number) => {
+    const el = trackRef.current;
+    if (!el) return;
+    el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
+  };
+
+  const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const i = Math.round(el.scrollLeft / el.clientWidth);
+    if (i !== index) setIndex(i);
+  };
 
   return (
     <section className="px-6 py-10 bg-wedding-cream border-t border-wedding-gold/10">
       <FadeIn>
-        <div className="max-w-sm mx-auto bg-white border border-wedding-gold/15 shadow-sm px-7 py-10 space-y-8 text-center">
-          <p className="font-serif text-[13px] tracking-[0.35em] text-neutral-700">
-            
-          </p>
-
-          {/* 2단 비대칭 콜라주 — 좌: 세로/정방형, 우: 정방형/세로 (지그재그) */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="flex flex-col gap-2.5">
-              {a && (
-                // eslint-disable-next-line @next/next/no-img-element
+        <div className="max-w-sm mx-auto bg-white border border-wedding-gold/15 shadow-sm px-5 py-8 space-y-6 text-center">
+          {/* 터치 스와이프 캐러셀 (scroll-snap) */}
+          <div
+            ref={trackRef}
+            onScroll={onScroll}
+            className="flex overflow-x-auto snap-x snap-mandatory rounded-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            style={{ WebkitOverflowScrolling: "touch" }}
+          >
+            {photos.map((p, i) => (
+              <div key={p.src} className="min-w-full snap-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={a.src}
-                  alt={a.alt ?? "앨범 사진 1"}
-                  className="w-full aspect-[3/4] object-cover"
+                  src={p.src}
+                  alt={p.alt ?? `앨범 사진 ${i + 1}`}
+                  className="w-full aspect-[4/5] object-cover select-none"
+                  draggable={false}
                 />
-              )}
-              {c && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={c.src}
-                  alt={c.alt ?? "앨범 사진 3"}
-                  className="w-full aspect-square object-cover"
-                />
-              )}
-            </div>
-            <div className="flex flex-col gap-2.5">
-              {b && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={b.src}
-                  alt={b.alt ?? "앨범 사진 2"}
-                  className="w-full aspect-square object-cover"
-                />
-              )}
-              {d && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={d.src}
-                  alt={d.alt ?? "앨범 사진 4"}
-                  className="w-full aspect-[3/4] object-cover"
-                />
-              )}
-            </div>
+              </div>
+            ))}
           </div>
+
+          {photos.length > 1 && (
+            <div className="flex justify-center gap-2">
+              {photos.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  aria-label={`${i + 1}번째 사진 보기`}
+                  onClick={() => goTo(i)}
+                  className={`h-1.5 rounded-full transition-all ${
+                    i === index ? "w-5 bg-wedding-gold" : "w-1.5 bg-sage-200"
+                  }`}
+                />
+              ))}
+            </div>
+          )}
 
           <div className="space-y-3">
             <div className="w-8 h-px bg-neutral-700 mx-auto" />
-            <p className="font-serif tracking-[0.25em] text-sm text-neutral-800">
-            </p>
             <p className="text-[11px] tracking-[0.2em] text-neutral-500">
               {formatShortDate()} / {venue.name}
             </p>

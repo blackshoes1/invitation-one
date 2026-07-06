@@ -44,18 +44,18 @@ export const venue = {
   tel: "02-792-5661",
   /** 주차 안내 (잠금 화면·오시는 길에 노출) — 실제 안내문으로 수정하세요 */
   parking: "공원 주차장 이용 가능 · 만차 시 국립중앙박물관 주차장을 이용해주세요",
-  // 서울 용산구 용산동6가 93-6 (서빙고로 185, 용산가족공원 야외예식장) — 카카오 지오코딩 좌표
-  lat: 37.520694,
-  lng: 126.983535,
+  // 용산가족공원 야외예식장 POI (카카오 장소검색 좌표, 용산동6가 93-6)
+  lat: 37.521135,
+  lng: 126.983812,
   /** 길찾기 앱 딥링크 (앱 미설치 시 web 폴백 사용) */
   nav: {
-    naverApp: `nmap://route/public?dlat=37.520694&dlng=126.983535&dname=${encodeURIComponent(
+    naverApp: `nmap://route/public?dlat=37.521135&dlng=126.983812&dname=${encodeURIComponent(
       "용산가족공원 야외예식장"
     )}`,
     naverWeb: "https://map.naver.com/p/search/용산가족공원 야외예식장",
-    kakaoApp: "kakaomap://route?ep=37.520694,126.983535&by=PUBLICTRANSIT",
+    kakaoApp: "kakaomap://route?ep=37.521135,126.983812&by=PUBLICTRANSIT",
     kakaoWeb: "https://map.kakao.com/?q=용산가족공원 야외예식장",
-    tmapApp: `tmap://route?goalx=126.983535&goaly=37.520694&goalname=${encodeURIComponent(
+    tmapApp: `tmap://route?goalx=126.983812&goaly=37.521135&goalname=${encodeURIComponent(
       "용산가족공원 야외예식장"
     )}`,
     tmapWeb: "https://tmap.life/ko",
