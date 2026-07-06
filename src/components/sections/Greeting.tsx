@@ -6,7 +6,7 @@ function ParentLine({ label, person }: { label: string; person: Person }) {
   const parents = [person.father, person.mother].filter(Boolean).join(" · ");
   return (
     <div className="flex justify-center items-center gap-2">
-      <span className="text-xs text-neutral-400 w-12 text-right">{label}</span>
+      <span className="text-xs text-neutral-400">{label}</span>
       {parents && (
         <>
           <span className="font-normal text-neutral-600">{parents}</span>
