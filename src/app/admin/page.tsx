@@ -92,6 +92,39 @@ function storagePathFromUrl(url: string): string | null {
   return part ? decodeURIComponent(part.split("?")[0]) : null;
 }
 
+/**
+ * 업로드 전 브라우저 리사이즈/압축 — Vercel 요청 본문 한도(4.5MB) 대응.
+ * 긴 변 2000px + JPEG 85% 면 청첩장 표시 화질로 충분하고 대개 1MB 안쪽.
+ * 실패(HEIC 미지원 등)하면 원본 그대로 반환.
+ */
+async function compressImage(file: File): Promise<File> {
+  try {
+    const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const maxDim = 2000;
+    const scale = Math.min(1, maxDim / Math.max(bmp.width, bmp.height));
+    const w = Math.round(bmp.width * scale);
+    const h = Math.round(bmp.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bmp, 0, 0, w, h);
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", 0.85)
+    );
+    if (!blob || blob.size >= file.size) return file; // 압축 효과 없으면 원본
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", {
+      type: "image/jpeg",
+    });
+  } catch {
+    return file;
+  }
+}
+
+/** Vercel 서버리스 요청 한도보다 살짝 보수적인 실제 업로드 상한 */
+const UPLOAD_MAX = 4 * 1024 * 1024;
+
 const CAL_MONTHS = [6, 7, 8, 9]; // 7~10월(0-base)
 const CAL_YEAR = 2026;
 const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
@@ -287,18 +320,38 @@ export default function AdminPage() {
     return true;
   };
 
-  /** 사진 업로드 → { url, path } (실패 시 null) */
-  const uploadImage = async (file: File, kind: "hero" | "gallery") => {
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("kind", kind);
-    const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
-    const j = await res.json();
-    if (!res.ok) {
-      setError(j.error ?? "업로드 실패");
+  /** 사진 업로드 (자동 압축) → { url, path } (실패 시 null — 루프 중단 없음) */
+  const uploadImage = async (raw: File, kind: "hero" | "gallery") => {
+    try {
+      const file = await compressImage(raw);
+      if (file.size > UPLOAD_MAX) {
+        setError(`"${raw.name}" 사진이 너무 커요 (압축 후에도 4MB 초과). 이 사진은 건너뛰었어요.`);
+        return null;
+      }
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("kind", kind);
+      const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
+      let j: { url?: string; path?: string; error?: string } = {};
+      try {
+        j = await res.json();
+      } catch {
+        /* 413 등 비-JSON 응답 */
+      }
+      if (!res.ok || !j.url || !j.path) {
+        setError(
+          j.error ??
+            (res.status === 413
+              ? `"${raw.name}" 사진이 너무 커서 서버가 거절했어요.`
+              : `"${raw.name}" 업로드 실패 (${res.status})`)
+        );
+        return null;
+      }
+      return j as { url: string; path: string };
+    } catch {
+      setError(`"${raw.name}" 업로드 중 오류가 발생했어요.`);
       return null;
     }
-    return j as { url: string; path: string };
   };
 
   /** 메인 사진 교체 */
