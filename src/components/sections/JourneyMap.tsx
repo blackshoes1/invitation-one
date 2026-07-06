@@ -23,9 +23,10 @@ const OVERSEAS_POS = { x: 12, y: VB_H - 18 };
 function pinPos(area: string | null, seed: string): { left: number; top: number } {
   const sido = sidoOf(area);
   const base = sido ? SIDO_POS[sido] : OVERSEAS_POS;
+  // 지터는 작게 — 서울처럼 좁은 시/도에서도 경계를 벗어나지 않게
   const h = hash(seed + (area ?? ""));
-  const jx = ((h % 9) - 4) * 0.9; // ±3.6 (x: 0~VB_W)
-  const jy = (((h >> 4) % 9) - 4) * 0.9;
+  const jx = ((h % 7) - 3) * 0.5; // ±1.5 (x: 0~VB_W)
+  const jy = (((h >> 3) % 7) - 3) * 0.5;
   const x = Math.max(3, Math.min(VB_W - 3, base.x + jx));
   const y = Math.max(3, Math.min(VB_H - 3, base.y + jy));
   return { left: (x / VB_W) * 100, top: (y / VB_H) * 100 };
@@ -112,27 +113,28 @@ export default function JourneyMap({
         </LegendBtn>
       </div>
 
-      <div
-        className="relative w-full rounded-2xl overflow-hidden border border-wedding-gold/15 bg-gradient-to-b from-sky-50 via-wedding-cream/30 to-sky-50"
-        style={{ aspectRatio: `${VB_W} / ${VB_H}` }}
-      >
-        {/* 정밀 대한민국 지도 (실제 지리 데이터 · 시/도 경계 포함) */}
-        <svg
-          className="absolute inset-0 w-full h-full"
-          viewBox={`0 0 ${VB_W} ${VB_H}`}
-          preserveAspectRatio="xMidYMid meet"
-        >
-          {KOREA_PATHS.map((d, i) => (
-            <path
-              key={i}
-              d={d}
-              fill="#eef2e9"
-              stroke="#c3d0b4"
-              strokeWidth="0.35"
-              strokeLinejoin="round"
-            />
-          ))}
-        </svg>
+      {/* 바깥 래퍼는 클리핑 없음 — 핀 말풍선이 지도 밖으로 나가도 안 잘리게 */}
+      <div className="relative w-full" style={{ aspectRatio: `${VB_W} / ${VB_H}` }}>
+        {/* 지도 자체만 둥근 모서리로 클리핑 */}
+        <div className="absolute inset-0 rounded-2xl overflow-hidden border border-wedding-gold/15 bg-gradient-to-b from-sky-50 via-wedding-cream/30 to-sky-50">
+          {/* 정밀 대한민국 지도 (실제 지리 데이터 · 시/도 경계 포함) */}
+          <svg
+            className="absolute inset-0 w-full h-full"
+            viewBox={`0 0 ${VB_W} ${VB_H}`}
+            preserveAspectRatio="xMidYMid meet"
+          >
+            {KOREA_PATHS.map((d, i) => (
+              <path
+                key={i}
+                d={d}
+                fill="#eef2e9"
+                stroke="#c3d0b4"
+                strokeWidth="0.35"
+                strokeLinejoin="round"
+              />
+            ))}
+          </svg>
+        </div>
 
         {visible.map((pin) => {
           const { left, top } = pinPos(pin.area, pin.key);
@@ -141,13 +143,21 @@ export default function JourneyMap({
           const isHeart = pin.kind === "마음배송";
           const count = pin.entries.length;
           const isOpen = open === pin.key;
+          // 말풍선 방향: 아래쪽 핀은 위로, 좌/우 가장자리 핀은 안쪽으로 정렬해 짤림 방지
+          const below = top < 58;
+          const alignX =
+            left < 26
+              ? "left-0"
+              : left > 74
+              ? "right-0"
+              : "left-1/2 -translate-x-1/2";
           return (
             <button
               key={pin.key}
               type="button"
               onClick={() => setOpen(isOpen ? null : pin.key)}
               style={{ left: `${left}%`, top: `${top}%` }}
-              className="absolute -translate-x-1/2 -translate-y-full"
+              className="absolute -translate-x-1/2 -translate-y-1/2"
             >
               <span className="relative block">
                 <span
@@ -164,7 +174,11 @@ export default function JourneyMap({
                 )}
               </span>
               {isOpen && (
-                <span className="absolute left-1/2 -translate-x-1/2 mt-1 w-max max-w-[11rem] bg-white shadow-md rounded-lg px-2.5 py-1.5 text-left z-10 border border-wedding-gold/20">
+                <span
+                  className={`absolute ${
+                    below ? "top-full mt-1" : "bottom-full mb-1"
+                  } ${alignX} w-max max-w-[11rem] bg-white shadow-md rounded-lg px-2.5 py-1.5 text-left z-20 border border-wedding-gold/20`}
+                >
                   {isHeart ? (
                     <>
                       <span className="block text-[11px] font-bold text-sage-700">
