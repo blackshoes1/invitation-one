@@ -1,8 +1,10 @@
 /* ==========================================================================
    시/도 → 시/군/구 지역 데이터 (마음 배송 지역 선택용)
    - 프라이버시: 시/군/구 수준까지만 수집·노출
-   - 지도 핀 좌표는 지역명 → 고정 매핑(해시)으로 처리 (지오코딩 불필요)
+   - 지도 핀 좌표는 지역명 → 정밀 대한민국 지도(koreaGeo) 상 시/도 위치로 매핑
    ========================================================================== */
+
+import { SIDO_POS } from "@/lib/koreaGeo";
 
 export const OVERSEAS = "해외" as const;
 
@@ -68,34 +70,12 @@ export function joinRegion(sido: string, sub: string): string {
   return `${sido} ${sub}`.trim();
 }
 
-/**
- * 시/도 → 대한민국 지도 상 좌표 (JourneyMap viewBox 100 x 125 기준, 실루엣에 맞춰 튜닝).
- * 마음 배송 지도 핀을 실제 지역 위치에 찍기 위한 고정 매핑 (지오코딩 불필요).
- */
-export const SIDO_POS: Record<string, { x: number; y: number }> = {
-  서울: { x: 34, y: 25 },
-  인천: { x: 26, y: 27 },
-  경기: { x: 39, y: 29 },
-  강원: { x: 63, y: 21 },
-  충북: { x: 49, y: 41 },
-  충남: { x: 29, y: 45 },
-  세종: { x: 40, y: 48 },
-  대전: { x: 43, y: 50 },
-  경북: { x: 70, y: 50 },
-  대구: { x: 67, y: 60 },
-  전북: { x: 36, y: 62 },
-  경남: { x: 58, y: 70 },
-  울산: { x: 82, y: 66 },
-  부산: { x: 76, y: 74 },
-  광주: { x: 30, y: 74 },
-  전남: { x: 31, y: 83 },
-  제주: { x: 24, y: 114 },
-  [OVERSEAS]: { x: 11, y: 112 },
-};
-
 /** area 문자열("부산 해운대구", "서울 강남구") → 시/도 키. 매칭 실패 시 null */
 export function sidoOf(area: string | null | undefined): string | null {
   if (!area) return null;
   const first = area.trim().split(/\s+/)[0];
   return first in SIDO_POS ? first : null;
 }
+
+// SIDO_POS(시/도 지도 좌표)는 정밀 지도 데이터와 함께 관리 → koreaGeo 에서 재노출
+export { SIDO_POS };
