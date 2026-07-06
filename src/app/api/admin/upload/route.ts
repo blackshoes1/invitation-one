@@ -4,7 +4,7 @@ import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
 
 const BUCKET = "invitation-media";
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
-const KINDS = ["hero", "gallery"];
+const KINDS = ["hero", "gallery", "album"];
 
 function guard(req: Request) {
   if (!checkAdmin(req))

@@ -73,6 +73,9 @@ export const brideAccounts: Account[] = [
 // 청첩장 갤러리 슬라이드 최대 장수 (admin 업로드·표시 공통 상한)
 export const GALLERY_MAX = 10;
 
+// 앨범(세이브 더 데이트 콜라주) 사진 장수 (2단 콜라주 기준 4장)
+export const ALBUM_MAX = 4;
+
 // /public/pic/ 에 아래 파일을 넣으면 자동으로 슬라이드에 표시됩니다.
 export const galleryImages: { src: string; alt: string }[] = [
   { src: "/pic/gallery1.jpg", alt: "커플 사진 1" },

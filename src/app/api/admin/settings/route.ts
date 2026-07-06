@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { checkAdmin } from "@/lib/adminAuth";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
 
-const ALLOWED_KEYS = ["hero_image", "gallery", "video_url", "heart_video_url"];
+const ALLOWED_KEYS = ["hero_image", "gallery", "album", "video_url", "heart_video_url"];
 
 function guard(req: Request) {
   if (!checkAdmin(req))

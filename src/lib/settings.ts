@@ -14,6 +14,8 @@ export interface GalleryItem {
 export interface SiteSettings {
   hero_image?: string;
   gallery?: GalleryItem[];
+  /** 앨범(세이브 더 데이트 콜라주) — 최대 4장 */
+  album?: GalleryItem[];
   video_url?: string;
   heart_video_url?: string;
 }

@@ -18,6 +18,7 @@ import {
   DELIVERY_START,
   DELIVERY_END,
   GALLERY_MAX,
+  ALBUM_MAX,
 } from "@/lib/wedding";
 
 /** 참여 시스템: 주문 + 참여자 목록 */
@@ -82,9 +83,13 @@ interface GalleryItem {
 interface SiteSettingsState {
   hero_image?: string;
   gallery?: GalleryItem[];
+  album?: GalleryItem[];
   video_url?: string;
   heart_video_url?: string;
 }
+
+/** 사진 목록형 설정 키 (갤러리 슬라이드 / 앨범 콜라주) */
+type PhotoKey = "gallery" | "album";
 
 /** 업로드 URL → Storage 경로 (버킷 내 파일만, 삭제용) */
 function storagePathFromUrl(url: string): string | null {
@@ -321,7 +326,7 @@ export default function AdminPage() {
   };
 
   /** 사진 업로드 (자동 압축) → { url, path } (실패 시 null — 루프 중단 없음) */
-  const uploadImage = async (raw: File, kind: "hero" | "gallery") => {
+  const uploadImage = async (raw: File, kind: "hero" | PhotoKey) => {
     try {
       const file = await compressImage(raw);
       if (file.size > UPLOAD_MAX) {
@@ -368,12 +373,12 @@ export default function AdminPage() {
     setUploading(false);
   };
 
-  /** 갤러리 사진 추가 (여러 장, 최대 GALLERY_MAX장) */
-  const addGalleryPhotos = async (files: FileList) => {
-    const current = siteSettings.gallery ?? [];
-    const remaining = GALLERY_MAX - current.length;
+  /** 사진 목록(갤러리/앨범)에 사진 추가 (여러 장, 상한 적용) */
+  const addPhotos = async (key: PhotoKey, files: FileList, max: number) => {
+    const current = siteSettings[key] ?? [];
+    const remaining = max - current.length;
     if (remaining <= 0) {
-      setError(`갤러리는 최대 ${GALLERY_MAX}장까지예요. 기존 사진을 지우고 추가해주세요.`);
+      setError(`최대 ${max}장까지예요. 기존 사진을 지우고 추가해주세요.`);
       return;
     }
     setUploading(true);
@@ -381,42 +386,51 @@ export default function AdminPage() {
     const picked = Array.from(files).slice(0, remaining);
     const added: GalleryItem[] = [];
     for (const file of picked) {
-      const up = await uploadImage(file, "gallery");
+      const up = await uploadImage(file, key);
       if (up) added.push({ src: up.url, path: up.path });
     }
     if (added.length > 0) {
       const next = [...current, ...added];
       await saveSetting(
-        "gallery",
+        key,
         next,
         files.length > remaining
-          ? `사진 ${added.length}장 추가 — 최대 ${GALLERY_MAX}장이라 나머지는 제외했어요`
+          ? `사진 ${added.length}장 추가 — 최대 ${max}장이라 나머지는 제외했어요`
           : `사진 ${added.length}장을 추가했어요 📸`
       );
     }
     setUploading(false);
   };
 
-  /** 갤러리 사진 삭제 */
-  const removeGalleryPhoto = async (idx: number) => {
-    const list = siteSettings.gallery ?? [];
+  /** 사진 목록에서 삭제 */
+  const removePhoto = async (key: PhotoKey, idx: number) => {
+    const list = siteSettings[key] ?? [];
     const target = list[idx];
     if (!target) return;
     const next = list.filter((_, i) => i !== idx);
-    if (await saveSetting("gallery", next.length > 0 ? next : null,
-        next.length > 0 ? "사진을 삭제했어요" : "사진을 모두 지웠어요 — 기본 사진으로 표시돼요")) {
+    if (
+      await saveSetting(
+        key,
+        next.length > 0 ? next : null,
+        next.length > 0
+          ? "사진을 삭제했어요"
+          : key === "gallery"
+          ? "사진을 모두 지웠어요 — 기본 사진으로 표시돼요"
+          : "사진을 모두 지웠어요 — 앨범 섹션이 숨겨져요"
+      )
+    ) {
       const p = target.path ?? storagePathFromUrl(target.src);
       if (p) api(`/api/admin/upload?path=${encodeURIComponent(p)}`, { method: "DELETE" });
     }
   };
 
-  /** 갤러리 순서 이동 */
-  const moveGalleryPhoto = async (idx: number, delta: number) => {
-    const list = [...(siteSettings.gallery ?? [])];
+  /** 사진 목록 순서 이동 */
+  const movePhoto = async (key: PhotoKey, idx: number, delta: number) => {
+    const list = [...(siteSettings[key] ?? [])];
     const j = idx + delta;
     if (j < 0 || j >= list.length) return;
     [list[idx], list[j]] = [list[j], list[idx]];
-    await saveSetting("gallery", list);
+    await saveSetting(key, list);
   };
 
   const downloadIcs = () => {
@@ -1521,7 +1535,8 @@ export default function AdminPage() {
                     className="hidden"
                     disabled={uploading}
                     onChange={(e) => {
-                      if (e.target.files?.length) addGalleryPhotos(e.target.files);
+                      if (e.target.files?.length)
+                        addPhotos("gallery", e.target.files, GALLERY_MAX);
                       e.target.value = "";
                     }}
                   />
@@ -1543,7 +1558,7 @@ export default function AdminPage() {
                       />
                       <div className="flex justify-center gap-1">
                         <button
-                          onClick={() => moveGalleryPhoto(i, -1)}
+                          onClick={() => movePhoto("gallery", i, -1)}
                           disabled={i === 0}
                           className="px-2 py-1 text-xs border border-neutral-200 text-neutral-500 disabled:opacity-30"
                           title="앞으로"
@@ -1551,7 +1566,7 @@ export default function AdminPage() {
                           ←
                         </button>
                         <button
-                          onClick={() => moveGalleryPhoto(i, 1)}
+                          onClick={() => movePhoto("gallery", i, 1)}
                           disabled={i === (siteSettings.gallery ?? []).length - 1}
                           className="px-2 py-1 text-xs border border-neutral-200 text-neutral-500 disabled:opacity-30"
                           title="뒤로"
@@ -1559,7 +1574,7 @@ export default function AdminPage() {
                           →
                         </button>
                         <button
-                          onClick={() => removeGalleryPhoto(i)}
+                          onClick={() => removePhoto("gallery", i)}
                           className="px-2 py-1 text-xs border border-red-200 text-red-400"
                           title="삭제"
                         >
@@ -1573,6 +1588,81 @@ export default function AdminPage() {
               <p className="text-[11px] text-neutral-400">
                 최대 {GALLERY_MAX}장, 순서대로 슬라이드에 표시돼요. 세로(4:5) 사진이 가장
                 예뻐요.
+              </p>
+            </section>
+
+            {/* 앨범 (세이브 더 데이트 콜라주) */}
+            <section className="bg-white border border-wedding-gold/15 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-sage-700">
+                  앨범 — SAVE the DATE 콜라주{" "}
+                  <span className="text-xs text-neutral-400 font-normal">
+                    {(siteSettings.album ?? []).length}/{ALBUM_MAX}장
+                  </span>
+                </p>
+                <label className="px-3 py-2 text-xs bg-sage-600 text-white cursor-pointer">
+                  사진 추가 📸
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    disabled={uploading}
+                    onChange={(e) => {
+                      if (e.target.files?.length)
+                        addPhotos("album", e.target.files, ALBUM_MAX);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
+              {(siteSettings.album ?? []).length === 0 ? (
+                <p className="text-xs text-neutral-400">
+                  갤러리와 D-Day 사이에 들어가는 4장 콜라주 카드예요. 사진을 넣어야
+                  청첩장에 표시돼요.
+                </p>
+              ) : (
+                <div className="grid grid-cols-4 gap-2">
+                  {(siteSettings.album ?? []).map((g, i) => (
+                    <div key={g.src} className="space-y-1">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={g.src}
+                        alt={g.alt ?? `앨범 ${i + 1}`}
+                        className="w-full aspect-[3/4] object-cover border border-wedding-gold/10"
+                      />
+                      <div className="flex justify-center gap-1">
+                        <button
+                          onClick={() => movePhoto("album", i, -1)}
+                          disabled={i === 0}
+                          className="px-1.5 py-1 text-xs border border-neutral-200 text-neutral-500 disabled:opacity-30"
+                          title="앞으로"
+                        >
+                          ←
+                        </button>
+                        <button
+                          onClick={() => movePhoto("album", i, 1)}
+                          disabled={i === (siteSettings.album ?? []).length - 1}
+                          className="px-1.5 py-1 text-xs border border-neutral-200 text-neutral-500 disabled:opacity-30"
+                          title="뒤로"
+                        >
+                          →
+                        </button>
+                        <button
+                          onClick={() => removePhoto("album", i)}
+                          className="px-1.5 py-1 text-xs border border-red-200 text-red-400"
+                          title="삭제"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-[11px] text-neutral-400">
+                {ALBUM_MAX}장을 채우면 가장 예뻐요 (1·4번째 세로, 2·3번째는 정방형으로
+                잘려요). 순서: 왼쪽 위 → 오른쪽 위 → 왼쪽 아래 → 오른쪽 아래.
               </p>
             </section>
 
