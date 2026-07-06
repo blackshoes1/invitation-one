@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Heart, ChevronLeft, ChevronRight } from "lucide-react";
 import { galleryImages, GALLERY_MAX } from "@/lib/wedding";
@@ -13,6 +13,8 @@ export default function Gallery() {
   // Admin 에서 업로드한 갤러리 (없으면 정적 파일 폴백)
   const [images, setImages] = useState(galleryImages);
   const count = images.length;
+  // 터치 스와이프 감지
+  const touchX = useRef<number | null>(null);
 
   useEffect(() => {
     getSiteSettings().then((s) => {
@@ -50,7 +52,18 @@ export default function Gallery() {
         </FadeIn>
 
         <FadeIn>
-          <div className="relative w-full aspect-[4/5] overflow-hidden bg-sage-50 border border-wedding-gold/15">
+          <div
+            className="relative w-full aspect-[4/5] overflow-hidden bg-sage-50 border border-wedding-gold/15 touch-pan-y select-none"
+            onTouchStart={(e) => {
+              touchX.current = e.touches[0].clientX;
+            }}
+            onTouchEnd={(e) => {
+              if (touchX.current === null || count <= 1) return;
+              const dx = e.changedTouches[0].clientX - touchX.current;
+              touchX.current = null;
+              if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1);
+            }}
+          >
             <AnimatePresence mode="wait">
               <motion.div
                 key={index}
