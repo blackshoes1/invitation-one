@@ -4,12 +4,27 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Heart, ChevronLeft, ChevronRight } from "lucide-react";
 import { galleryImages } from "@/lib/wedding";
+import { getSiteSettings } from "@/lib/settings";
 import FadeIn from "@/components/FadeIn";
 
 export default function Gallery() {
   const [index, setIndex] = useState(0);
   const [errored, setErrored] = useState<Record<number, boolean>>({});
-  const count = galleryImages.length;
+  // Admin 에서 업로드한 갤러리 (없으면 정적 파일 폴백)
+  const [images, setImages] = useState(galleryImages);
+  const count = images.length;
+
+  useEffect(() => {
+    getSiteSettings().then((s) => {
+      if (s.gallery && s.gallery.length > 0) {
+        setImages(
+          s.gallery.map((g, i) => ({ src: g.src, alt: g.alt ?? `커플 사진 ${i + 1}` }))
+        );
+        setIndex(0);
+        setErrored({});
+      }
+    });
+  }, []);
 
   const go = (dir: number) =>
     setIndex((i) => (i + dir + count) % count);
@@ -21,7 +36,7 @@ export default function Gallery() {
     return () => clearInterval(t);
   }, [count]);
 
-  const current = galleryImages[index];
+  const current = images[index] ?? images[0];
 
   return (
     <section className="px-6 py-20 bg-white">
@@ -93,7 +108,7 @@ export default function Gallery() {
 
         {count > 1 && (
           <div className="flex justify-center gap-2">
-            {galleryImages.map((_, i) => (
+            {images.map((_, i) => (
               <button
                 key={i}
                 type="button"

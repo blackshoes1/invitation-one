@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { useEffect } from "react";
 import { formatYmdKo, groom, bride, VIDEO_URL, INVITATION_KEY } from "@/lib/wedding";
 import type { TimeSlot } from "@/lib/wedding";
+import { getSiteSettings } from "@/lib/settings";
 import TrackingView from "@/components/delivery/TrackingView";
 
 export default function CompletePage({
@@ -35,6 +37,13 @@ export default function CompletePage({
 }) {
   const [shareMsg, setShareMsg] = useState<string | null>(null);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  // Admin 설정 영상 우선, 없으면 env(VIDEO_URL) 폴백
+  const [videoUrl, setVideoUrl] = useState(VIDEO_URL);
+  useEffect(() => {
+    getSiteSettings().then((s) => {
+      if (s.video_url) setVideoUrl(s.video_url);
+    });
+  }, []);
 
   /** 주문 내역 카드를 canvas 로 그려 PNG 저장 (라이브러리 없이) */
   const saveCard = () => {
@@ -250,9 +259,9 @@ export default function CompletePage({
           <br />
           특별한 영상 메시지가 있어요
         </p>
-        {VIDEO_URL ? (
+        {videoUrl ? (
           <a
-            href={VIDEO_URL}
+            href={videoUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="block w-full py-3 rounded-full bg-delivery-mint text-white font-bold text-sm active:scale-95 transition-transform"

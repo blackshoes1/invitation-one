@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import {
@@ -9,12 +10,21 @@ import {
   formatFullDate,
   formatTime,
 } from "@/lib/wedding";
+import { getSiteSettings } from "@/lib/settings";
 
 export default function Hero() {
+  // Admin 에서 업로드한 메인 사진 (없으면 정적 파일 폴백)
+  const [heroSrc, setHeroSrc] = useState("/pic/wedding_main.jpg");
+  useEffect(() => {
+    getSiteSettings().then((s) => {
+      if (s.hero_image) setHeroSrc(s.hero_image);
+    });
+  }, []);
+
   return (
     <section className="relative w-full min-h-[90vh] flex flex-col justify-between py-16 px-6 overflow-hidden bg-sage-50">
       <Image
-        src="/pic/wedding_main.jpg"
+        src={heroSrc}
         alt={`${groom.name} & ${bride.name} 웨딩 사진`}
         fill
         priority

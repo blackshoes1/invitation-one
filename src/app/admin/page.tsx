@@ -70,7 +70,26 @@ const NEXT_ACTION: Record<DeliveryStatus, DeliveryStatus | null> = {
   완료: null,
   취소: null,
 };
-type View = "orders" | "calendar" | "groups" | "waiting" | "messages";
+type View = "orders" | "calendar" | "groups" | "waiting" | "messages" | "content";
+
+/** 콘텐츠 설정 (site_settings) */
+interface GalleryItem {
+  src: string;
+  path?: string;
+  alt?: string;
+}
+interface SiteSettingsState {
+  hero_image?: string;
+  gallery?: GalleryItem[];
+  video_url?: string;
+  heart_video_url?: string;
+}
+
+/** 업로드 URL → Storage 경로 (버킷 내 파일만, 삭제용) */
+function storagePathFromUrl(url: string): string | null {
+  const part = url.split("/invitation-media/")[1];
+  return part ? decodeURIComponent(part.split("?")[0]) : null;
+}
 
 const CAL_MONTHS = [6, 7, 8, 9]; // 7~10월(0-base)
 const CAL_YEAR = 2026;
@@ -114,6 +133,12 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  /* ----- 콘텐츠 (사진/영상) ----- */
+  const [siteSettings, setSiteSettings] = useState<SiteSettingsState>({});
+  const [videoInput, setVideoInput] = useState("");
+  const [heartVideoInput, setHeartVideoInput] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   const groupName = (id: string | null) =>
     id ? groups.find((g) => g.id === id)?.name ?? "그룹" : "—";
@@ -224,6 +249,107 @@ export default function AdminPage() {
     const j = await res.json();
     setMessages(res.ok ? j.messages ?? [] : []);
     setLoading(false);
+  };
+
+  const loadContent = async () => {
+    setLoading(true);
+    const res = await api("/api/admin/settings");
+    if (res.ok) {
+      const j = await res.json();
+      const s = (j.settings ?? {}) as SiteSettingsState;
+      setSiteSettings(s);
+      setVideoInput(s.video_url ?? "");
+      setHeartVideoInput(s.heart_video_url ?? "");
+    }
+    setLoading(false);
+  };
+
+  /** 설정 저장 (value null = 삭제 → 기본값 폴백) */
+  const saveSetting = async (key: string, value: unknown, msg?: string) => {
+    setError(null);
+    const res = await api("/api/admin/settings", {
+      method: "PUT",
+      body: JSON.stringify({ key, value }),
+    });
+    const j = await res.json();
+    if (!res.ok) {
+      setError(j.error ?? "저장 실패");
+      return false;
+    }
+    setSiteSettings((prev) => {
+      const next = { ...prev } as Record<string, unknown>;
+      if (value === null) delete next[key];
+      else next[key] = value;
+      return next as SiteSettingsState;
+    });
+    if (msg) setNotice(msg);
+    return true;
+  };
+
+  /** 사진 업로드 → { url, path } (실패 시 null) */
+  const uploadImage = async (file: File, kind: "hero" | "gallery") => {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("kind", kind);
+    const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
+    const j = await res.json();
+    if (!res.ok) {
+      setError(j.error ?? "업로드 실패");
+      return null;
+    }
+    return j as { url: string; path: string };
+  };
+
+  /** 메인 사진 교체 */
+  const changeHero = async (file: File) => {
+    setUploading(true);
+    setError(null);
+    const prev = siteSettings.hero_image;
+    const up = await uploadImage(file, "hero");
+    if (up && (await saveSetting("hero_image", up.url, "메인 사진을 교체했어요 🖼️"))) {
+      // 이전 업로드 파일 정리 (버킷 파일일 때만)
+      const prevPath = prev ? storagePathFromUrl(prev) : null;
+      if (prevPath) api(`/api/admin/upload?path=${encodeURIComponent(prevPath)}`, { method: "DELETE" });
+    }
+    setUploading(false);
+  };
+
+  /** 갤러리 사진 추가 (여러 장) */
+  const addGalleryPhotos = async (files: FileList) => {
+    setUploading(true);
+    setError(null);
+    const added: GalleryItem[] = [];
+    for (const file of Array.from(files)) {
+      const up = await uploadImage(file, "gallery");
+      if (up) added.push({ src: up.url, path: up.path });
+    }
+    if (added.length > 0) {
+      const next = [...(siteSettings.gallery ?? []), ...added];
+      await saveSetting("gallery", next, `사진 ${added.length}장을 추가했어요 📸`);
+    }
+    setUploading(false);
+  };
+
+  /** 갤러리 사진 삭제 */
+  const removeGalleryPhoto = async (idx: number) => {
+    const list = siteSettings.gallery ?? [];
+    const target = list[idx];
+    if (!target) return;
+    const next = list.filter((_, i) => i !== idx);
+    if (await saveSetting("gallery", next.length > 0 ? next : null,
+        next.length > 0 ? "사진을 삭제했어요" : "사진을 모두 지웠어요 — 기본 사진으로 표시돼요")) {
+      const p = target.path ?? storagePathFromUrl(target.src);
+      if (p) api(`/api/admin/upload?path=${encodeURIComponent(p)}`, { method: "DELETE" });
+    }
+  };
+
+  /** 갤러리 순서 이동 */
+  const moveGalleryPhoto = async (idx: number, delta: number) => {
+    const list = [...(siteSettings.gallery ?? [])];
+    const j = idx + delta;
+    if (j < 0 || j >= list.length) return;
+    [list[idx], list[j]] = [list[j], list[idx]];
+    await saveSetting("gallery", list);
   };
 
   const downloadIcs = () => {
@@ -519,6 +645,7 @@ export default function AdminPage() {
               ["groups", "그룹"],
               ["waiting", "대기자"],
               ["messages", "방명록"],
+              ["content", "콘텐츠"],
             ] as [View, string][]
           ).map(([v, label]) => (
             <button
@@ -530,6 +657,7 @@ export default function AdminPage() {
                 if (v === "groups") loadGroups();
                 if (v === "waiting") loadWaiting();
                 if (v === "messages") loadMessages();
+                if (v === "content") loadContent();
               }}
               className={`px-4 py-2 text-xs tracking-wider border ${
                 view === v
@@ -1255,6 +1383,183 @@ export default function AdminPage() {
               ))}
             </div>
           </>
+        )}
+
+        {/* ===== 콘텐츠 (청첩장 사진/영상) ===== */}
+        {view === "content" && (
+          <div className="space-y-5">
+            {uploading && (
+              <p className="text-xs text-center text-sage-700 bg-sage-50 py-2 border border-sage-200">
+                업로드 중… 잠시만요 📤
+              </p>
+            )}
+
+            {/* 메인 사진 */}
+            <section className="bg-white border border-wedding-gold/15 p-4 space-y-3">
+              <p className="text-sm font-medium text-sage-700">메인(첫 화면) 사진</p>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={siteSettings.hero_image ?? "/pic/wedding_main.jpg"}
+                alt="메인 사진 미리보기"
+                className="w-full max-h-72 object-cover border border-wedding-gold/10"
+              />
+              <div className="flex gap-2">
+                <label className="px-3 py-2 text-xs bg-sage-600 text-white cursor-pointer">
+                  사진 교체 📤
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploading}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) changeHero(f);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                {siteSettings.hero_image && (
+                  <button
+                    onClick={() => {
+                      const p = storagePathFromUrl(siteSettings.hero_image!);
+                      saveSetting("hero_image", null, "기본 사진으로 되돌렸어요");
+                      if (p)
+                        api(`/api/admin/upload?path=${encodeURIComponent(p)}`, {
+                          method: "DELETE",
+                        });
+                    }}
+                    className="px-3 py-2 text-xs border border-neutral-300 text-neutral-500"
+                  >
+                    기본 사진으로 되돌리기
+                  </button>
+                )}
+              </div>
+            </section>
+
+            {/* 갤러리 사진 */}
+            <section className="bg-white border border-wedding-gold/15 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-sage-700">
+                  갤러리 사진{" "}
+                  <span className="text-xs text-neutral-400 font-normal">
+                    {(siteSettings.gallery ?? []).length}장
+                  </span>
+                </p>
+                <label className="px-3 py-2 text-xs bg-sage-600 text-white cursor-pointer">
+                  사진 추가 📸
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    disabled={uploading}
+                    onChange={(e) => {
+                      if (e.target.files?.length) addGalleryPhotos(e.target.files);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
+              {(siteSettings.gallery ?? []).length === 0 ? (
+                <p className="text-xs text-neutral-400">
+                  업로드한 사진이 없으면 기본 사진(/pic/gallery1~3.jpg)이 표시돼요.
+                </p>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {(siteSettings.gallery ?? []).map((g, i) => (
+                    <div key={g.src} className="space-y-1">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={g.src}
+                        alt={g.alt ?? `갤러리 ${i + 1}`}
+                        className="w-full aspect-[4/5] object-cover border border-wedding-gold/10"
+                      />
+                      <div className="flex justify-center gap-1">
+                        <button
+                          onClick={() => moveGalleryPhoto(i, -1)}
+                          disabled={i === 0}
+                          className="px-2 py-1 text-xs border border-neutral-200 text-neutral-500 disabled:opacity-30"
+                          title="앞으로"
+                        >
+                          ←
+                        </button>
+                        <button
+                          onClick={() => moveGalleryPhoto(i, 1)}
+                          disabled={i === (siteSettings.gallery ?? []).length - 1}
+                          className="px-2 py-1 text-xs border border-neutral-200 text-neutral-500 disabled:opacity-30"
+                          title="뒤로"
+                        >
+                          →
+                        </button>
+                        <button
+                          onClick={() => removeGalleryPhoto(i)}
+                          className="px-2 py-1 text-xs border border-red-200 text-red-400"
+                          title="삭제"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-[11px] text-neutral-400">
+                순서대로 슬라이드에 표시돼요. 세로(4:5) 사진이 가장 예뻐요.
+              </p>
+            </section>
+
+            {/* 영상 링크 */}
+            <section className="bg-white border border-wedding-gold/15 p-4 space-y-3">
+              <p className="text-sm font-medium text-sage-700">영상 링크</p>
+              <div className="space-y-1">
+                <p className="text-[11px] text-neutral-400">
+                  🛵 배달 완료 화면 — &quot;특별한 영상 메시지&quot; (유튜브 비공개 링크 등)
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    value={videoInput}
+                    onChange={(e) => setVideoInput(e.target.value)}
+                    placeholder="https://youtu.be/…"
+                    className="flex-1 p-2 text-base border border-wedding-gold/20 bg-white rounded-none focus:outline-none focus:border-sage-600"
+                  />
+                  <button
+                    onClick={() =>
+                      saveSetting("video_url", videoInput.trim() || null,
+                        videoInput.trim() ? "완료 화면 영상을 저장했어요 🎬" : "완료 화면 영상을 비웠어요")
+                    }
+                    className="px-3 bg-sage-600 text-white text-xs whitespace-nowrap"
+                  >
+                    저장
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[11px] text-neutral-400">
+                  💌 마음 배송 완료 — &quot;두 사람의 짧은 감사 영상&quot;
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    value={heartVideoInput}
+                    onChange={(e) => setHeartVideoInput(e.target.value)}
+                    placeholder="https://youtu.be/…"
+                    className="flex-1 p-2 text-base border border-wedding-gold/20 bg-white rounded-none focus:outline-none focus:border-sage-600"
+                  />
+                  <button
+                    onClick={() =>
+                      saveSetting("heart_video_url", heartVideoInput.trim() || null,
+                        heartVideoInput.trim() ? "감사 영상을 저장했어요 🎬" : "감사 영상을 비웠어요")
+                    }
+                    className="px-3 bg-sage-600 text-white text-xs whitespace-nowrap"
+                  >
+                    저장
+                  </button>
+                </div>
+              </div>
+              <p className="text-[11px] text-neutral-400">
+                비워두면 기존 환경변수(NEXT_PUBLIC_VIDEO_URL 등) 값이 대신 쓰여요.
+              </p>
+            </section>
+          </div>
         )}
       </div>
     </main>

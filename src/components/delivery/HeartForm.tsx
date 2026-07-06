@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
@@ -15,6 +15,7 @@ import { OVERSEAS, joinRegion } from "@/lib/regions";
 import StampPicker from "@/components/delivery/StampPicker";
 import RegionPicker from "@/components/delivery/RegionPicker";
 import { notifyAdmin } from "@/lib/notify";
+import { getSiteSettings } from "@/lib/settings";
 
 const invitationHref = INVITATION_KEY ? `/?key=${INVITATION_KEY}` : "/";
 
@@ -35,6 +36,13 @@ export default function HeartForm({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  // Admin 설정 영상 우선, 없으면 env(HEART_VIDEO_URL) 폴백
+  const [heartVideoUrl, setHeartVideoUrl] = useState(HEART_VIDEO_URL);
+  useEffect(() => {
+    getSiteSettings().then((s) => {
+      if (s.heart_video_url) setHeartVideoUrl(s.heart_video_url);
+    });
+  }, []);
 
   const submit = async () => {
     if (name.trim().length < 2) return setError("앗, 성함은 꼭 알려주셔야 해요! 🙏");
@@ -90,7 +98,7 @@ export default function HeartForm({
           저희 청첩장 지도에 예쁘게 찍혔어요 📍
         </p>
 
-        {HEART_VIDEO_URL && (
+        {heartVideoUrl && (
           <div className="bg-delivery/5 rounded-2xl p-5 space-y-2">
             <p className="text-xs text-neutral-500 leading-relaxed">
               직접 못 뵙는 게 아쉬워서
@@ -98,7 +106,7 @@ export default function HeartForm({
               저희가 짧게 인사 남겼어요
             </p>
             <a
-              href={HEART_VIDEO_URL}
+              href={heartVideoUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="block w-full py-3 rounded-full bg-delivery-mint text-white font-bold text-sm"
