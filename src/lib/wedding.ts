@@ -40,22 +40,23 @@ export const bride: Person = {
 
 export const venue = {
   name: "용산가족공원",
-  address: "서울 용산구 서빙고로 137",
+  address: "서울 용산구 서빙고로 185 (용산가족공원 야외예식장)",
   tel: "02-792-5661",
   /** 주차 안내 (잠금 화면·오시는 길에 노출) — 실제 안내문으로 수정하세요 */
   parking: "공원 주차장 이용 가능 · 만차 시 국립중앙박물관 주차장을 이용해주세요",
-  lat: 37.52401,
-  lng: 126.9805,
+  // 용산가족공원 야외예식장(연못광장) 좌표
+  lat: 37.52269,
+  lng: 126.98353,
   /** 길찾기 앱 딥링크 (앱 미설치 시 web 폴백 사용) */
   nav: {
-    naverApp: `nmap://route/public?dlat=37.52401&dlng=126.9805&dname=${encodeURIComponent(
-      "용산가족공원"
+    naverApp: `nmap://route/public?dlat=37.52269&dlng=126.98353&dname=${encodeURIComponent(
+      "용산가족공원 야외예식장"
     )}`,
-    naverWeb: "https://map.naver.com/p/search/용산가족공원",
-    kakaoApp: "kakaomap://route?ep=37.52401,126.9805&by=PUBLICTRANSIT",
-    kakaoWeb: "https://map.kakao.com/?q=용산가족공원",
-    tmapApp: `tmap://route?goalx=126.9805&goaly=37.52401&goalname=${encodeURIComponent(
-      "용산가족공원"
+    naverWeb: "https://map.naver.com/p/search/용산가족공원 야외예식장",
+    kakaoApp: "kakaomap://route?ep=37.52269,126.98353&by=PUBLICTRANSIT",
+    kakaoWeb: "https://map.kakao.com/?q=용산가족공원 야외예식장",
+    tmapApp: `tmap://route?goalx=126.98353&goaly=37.52269&goalname=${encodeURIComponent(
+      "용산가족공원 야외예식장"
     )}`,
     tmapWeb: "https://tmap.life/ko",
   },
