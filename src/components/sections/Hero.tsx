@@ -51,11 +51,11 @@ export default function Hero() {
         transition={{ duration: 1, delay: 0.4 }}
         className="relative z-10 text-center text-white space-y-4"
       >
-        {/* pl 로 letter-spacing 의 오른쪽 끝 여백을 상쇄해 광학적 가운데 정렬 */}
-        <div className="font-serif text-2xl font-light tracking-[0.15em] pl-[0.15em] flex items-center justify-center gap-3 drop-shadow">
+        {/* 마지막 글자 뒤 letter-spacing 끝여백을 음수 마진으로 제거해 광학적 가운데 정렬 */}
+        <div className="font-serif text-2xl font-light tracking-[0.15em] flex items-center justify-center gap-3 drop-shadow">
           <span>{groom.name}</span>
           <span className="text-sm text-wedding-gold/90">&</span>
-          <span>{bride.name}</span>
+          <span className="-mr-[0.15em]">{bride.name}</span>
         </div>
         <div className="text-[12px] tracking-widest font-light space-y-1 drop-shadow">
           <p>
