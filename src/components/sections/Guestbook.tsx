@@ -42,7 +42,7 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
   const feed = buildFeed(celebrations);
 
   return (
-    <section className="px-6 py-24 bg-wedding-cream border-t border-wedding-gold/10">
+    <section className="px-6 py-12 bg-wedding-cream border-t border-wedding-gold/10">
       <div className="max-w-sm mx-auto space-y-6 text-center">
         <FadeIn className="space-y-2">
           <p className="font-serif tracking-[0.3em] text-[11px] text-wedding-gold">

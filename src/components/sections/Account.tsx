@@ -151,7 +151,7 @@ function AccountAccordion({ title, accounts }: { title: string; accounts: Acct[]
 
 export default function Account() {
   return (
-    <section className="px-6 py-24 bg-wedding-cream border-t border-wedding-gold/10">
+    <section className="px-6 py-12 bg-wedding-cream border-t border-wedding-gold/10">
       <div className="max-w-sm mx-auto space-y-10 text-center">
         <FadeIn className="space-y-3">
           <p className="font-serif tracking-[0.3em] text-[11px] text-wedding-gold">

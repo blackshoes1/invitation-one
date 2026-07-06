@@ -24,7 +24,7 @@ export default function Album() {
   const [a, b, c, d] = photos;
 
   return (
-    <section className="px-6 py-20 bg-wedding-cream border-t border-wedding-gold/10">
+    <section className="px-6 py-10 bg-wedding-cream border-t border-wedding-gold/10">
       <FadeIn>
         <div className="max-w-sm mx-auto bg-white border border-wedding-gold/15 shadow-sm px-7 py-10 space-y-8 text-center">
           <p className="font-serif text-[13px] tracking-[0.35em] text-neutral-700">

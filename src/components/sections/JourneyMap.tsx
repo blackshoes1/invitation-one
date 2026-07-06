@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { Celebration } from "@/lib/supabase";
 import { formatYmdKo } from "@/lib/wedding";
+import { SIDO_POS, sidoOf } from "@/lib/regions";
 
 /** 문자열 → 안정적인 해시 (핀 위치를 매번 같게) */
 function hash(s: string): number {
@@ -11,12 +12,22 @@ function hash(s: string): number {
   return Math.abs(h);
 }
 
-/** 핀 좌표(%): 가장자리 여백을 두고 골고루 흩뿌림 */
-function pos(seed: string): { left: number; top: number } {
-  const h = hash(seed);
-  const left = 12 + (h % 76); // 12~88%
-  const top = 16 + ((h >> 7) % 64); // 16~80%
-  return { left, top };
+/** viewBox 세로 (Korea 실루엣 / 핀 좌표 공통) */
+const VB_H = 125;
+
+/**
+ * 핀 좌표(%): 지역(시/도)의 실제 위치 + 소량 지터(같은 지역 겹침 방지).
+ * 매칭 안 되면 지도 중앙 부근에 흩뿌림.
+ */
+function pinPos(area: string | null, seed: string): { left: number; top: number } {
+  const sido = sidoOf(area);
+  const base = sido ? SIDO_POS[sido] : { x: 45, y: 55 };
+  const h = hash(seed + (area ?? ""));
+  const jx = (h % 11) - 5; // -5 ~ +5 (x: 0~100)
+  const jy = ((h >> 4) % 11) - 5; // -5 ~ +5 (y: 0~125)
+  const x = Math.max(4, Math.min(96, base.x + jx));
+  const y = Math.max(4, Math.min(VB_H - 4, base.y + jy));
+  return { left: x, top: (y / VB_H) * 100 };
 }
 
 type Filter = "all" | "직접배달" | "마음배송";
@@ -100,24 +111,37 @@ export default function JourneyMap({
         </LegendBtn>
       </div>
 
-      <div className="relative w-full aspect-[4/5] rounded-2xl overflow-hidden border border-wedding-gold/15 bg-gradient-to-b from-sage-50 via-wedding-cream to-sage-50">
-        {/* 장식용 길 */}
+      <div className="relative w-full aspect-[4/5] rounded-2xl overflow-hidden border border-wedding-gold/15 bg-gradient-to-b from-sky-50 via-wedding-cream/40 to-sky-50">
+        {/* 대한민국 실루엣 지도 (본토 + 제주) */}
         <svg
-          className="absolute inset-0 w-full h-full opacity-40"
+          className="absolute inset-0 w-full h-full"
           viewBox="0 0 100 125"
           preserveAspectRatio="none"
         >
           <path
-            d="M8 12 C 40 30, 20 55, 55 65 S 60 100, 92 112"
-            fill="none"
-            stroke="#b7c4a8"
-            strokeWidth="0.8"
-            strokeDasharray="2 2"
+            d="M28 16 C34 12, 46 11, 56 13 C62 14, 66 18, 70 20
+               C76 24, 80 30, 80 38 C80 44, 85 50, 86 57
+               C87 63, 82 70, 78 74 C73 79, 64 80, 56 82
+               C48 84, 40 88, 32 88 C25 88, 20 84, 20 78
+               C20 72, 24 68, 22 62 C20 56, 16 52, 20 46
+               C22 41, 17 36, 21 30 C23 24, 22 19, 28 16 Z"
+            fill="#eef2e9"
+            stroke="#cdd8bf"
+            strokeWidth="0.7"
+          />
+          <ellipse
+            cx="24"
+            cy="115"
+            rx="8"
+            ry="4.5"
+            fill="#eef2e9"
+            stroke="#cdd8bf"
+            strokeWidth="0.7"
           />
         </svg>
 
         {visible.map((pin) => {
-          const { left, top } = pos(pin.key + (pin.area ?? ""));
+          const { left, top } = pinPos(pin.area, pin.key);
           const mine =
             highlightId != null && pin.entries.some((e) => e.id === highlightId);
           const isHeart = pin.kind === "마음배송";

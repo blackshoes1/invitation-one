@@ -41,7 +41,7 @@ export default function Gallery() {
   const current = images[index] ?? images[0];
 
   return (
-    <section className="px-6 py-20 bg-white">
+    <section className="px-6 py-10 bg-white">
       <div className="max-w-sm mx-auto space-y-8 text-center">
         <FadeIn className="space-y-2">
           <p className="font-serif tracking-[0.3em] text-[11px] text-wedding-gold">
