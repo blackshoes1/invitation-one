@@ -75,7 +75,14 @@ const NEXT_ACTION: Record<DeliveryStatus, DeliveryStatus | null> = {
   완료: null,
   취소: null,
 };
-type View = "orders" | "calendar" | "route" | "groups" | "waiting" | "messages" | "content" | "snap";
+type View = "dashboard" | "orders" | "calendar" | "route" | "groups" | "waiting" | "messages" | "content" | "snap";
+
+interface AdminStats {
+  participants: { total: number; delivery: number; heart: number };
+  deliveries: { waiting: number; confirmed: number; done: number; canceled: number; active: number };
+  waiting: number;
+  snaps: number;
+}
 
 /** 콘텐츠 설정 (site_settings) */
 interface GalleryItem {
@@ -156,6 +163,7 @@ export default function AdminPage() {
   const [routeDays, setRouteDays] = useState<RouteDay[]>([]);
   const [routeOrigin, setRouteOrigin] = useState<{ lat: number; lng: number; name: string } | null>(null);
   const [routeDate, setRouteDate] = useState<string>("");
+  const [stats, setStats] = useState<AdminStats | null>(null);
   const [blocked, setBlocked] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [mergeSource, setMergeSource] = useState<string | null>(null);
@@ -295,6 +303,14 @@ export default function AdminPage() {
     const res = await api("/api/admin/messages");
     const j = await res.json();
     setMessages(res.ok ? j.messages ?? [] : []);
+    setLoading(false);
+  };
+
+  const loadStats = async () => {
+    setLoading(true);
+    const res = await api("/api/admin/stats");
+    const j = await res.json();
+    setStats(res.ok ? j : null);
     setLoading(false);
   };
 
@@ -772,6 +788,7 @@ export default function AdminPage() {
         <div className="flex justify-center gap-2 flex-wrap">
           {(
             [
+              ["dashboard", "요약"],
               ["orders", "주문"],
               ["calendar", "캘린더"],
               ["route", "배송경로"],
@@ -786,6 +803,7 @@ export default function AdminPage() {
               key={v}
               onClick={() => {
                 setView(v);
+                if (v === "dashboard") loadStats();
                 if (v === "orders") loadOrders();
                 if (v === "calendar") loadCalendar();
                 if (v === "route") loadRoute();
@@ -824,6 +842,36 @@ export default function AdminPage() {
         {error && <p className="text-xs text-red-500 text-center">{error}</p>}
         {loading && (
           <p className="text-xs text-neutral-400 text-center">불러오는 중…</p>
+        )}
+
+        {/* ===== 대시보드 (요약) ===== */}
+        {view === "dashboard" && stats && (
+          <div className="space-y-4">
+            <div>
+              <p className="text-[11px] text-neutral-400 mb-1.5">참여자</p>
+              <div className="grid grid-cols-3 gap-2">
+                <Metric label="전체" value={stats.participants.total} />
+                <Metric label="🛵 직접배달" value={stats.participants.delivery} />
+                <Metric label="💌 마음배송" value={stats.participants.heart} />
+              </div>
+            </div>
+            <div>
+              <p className="text-[11px] text-neutral-400 mb-1.5">주문 상태</p>
+              <div className="grid grid-cols-4 gap-2">
+                <Metric label="대기중" value={stats.deliveries.waiting} />
+                <Metric label="확정" value={stats.deliveries.confirmed} />
+                <Metric label="완료" value={stats.deliveries.done} />
+                <Metric label="취소" value={stats.deliveries.canceled} muted />
+              </div>
+            </div>
+            <div>
+              <p className="text-[11px] text-neutral-400 mb-1.5">기타</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Metric label="대기자" value={stats.waiting} />
+                <Metric label="📸 하객 스냅" value={stats.snaps} />
+              </div>
+            </div>
+          </div>
         )}
 
         {/* ===== 주문 ===== */}
@@ -1976,6 +2024,29 @@ export default function AdminPage() {
         )}
       </div>
     </main>
+  );
+}
+
+function Metric({
+  label,
+  value,
+  muted = false,
+}: {
+  label: string;
+  value: number;
+  muted?: boolean;
+}) {
+  return (
+    <div className="bg-white border border-wedding-gold/15 rounded-md px-2 py-3 text-center">
+      <p
+        className={`text-2xl font-bold ${
+          muted ? "text-neutral-400" : "text-sage-700"
+        }`}
+      >
+        {value}
+      </p>
+      <p className="text-[10px] text-neutral-500 mt-0.5">{label}</p>
+    </div>
   );
 }
 
