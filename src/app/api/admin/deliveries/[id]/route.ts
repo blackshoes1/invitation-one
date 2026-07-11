@@ -72,13 +72,33 @@ export async function PATCH(
       .eq("delivery_id", id)
       .not("phone", "is", null);
 
+    // 확정 감사 문자 커스텀 템플릿 (LC-2) — 관리자가 콘텐츠 탭에서 설정, 없으면 기본
+    let confirmTpl = "";
+    if (patch.status === "확정") {
+      const { data: st } = await supabaseAdmin
+        .from("site_settings")
+        .select("value")
+        .eq("key", "confirm_sms")
+        .maybeSingle();
+      if (typeof st?.value === "string") confirmTpl = st.value.trim();
+    }
+    const dateK = formatYmdKo(data.date);
+    const fill = (tpl: string, name: string) =>
+      tpl
+        .replace(/\{이름\}/g, name)
+        .replace(/\{날짜\}/g, dateK)
+        .replace(/\{시간\}/g, data.time_slot)
+        .replace(/\{장소\}/g, data.location ?? "");
+
     const targets = (parts ?? []) as { name: string; phone: string }[];
     const results = await Promise.all(
       targets.map((p) => {
         const text =
           patch.status === "확정"
-            ? `[청첩장 배달] ${p.name}님, 신청하신 ${formatYmdKo(data.date)} ${data.time_slot} ${data.location} 일정이 확정되었습니다. 곧 찾아뵙겠습니다 :)`
-            : `[청첩장 배달] ${p.name}님, 부득이하게 ${formatYmdKo(data.date)} ${data.time_slot} 일정이 취소되었습니다. 자세한 안내는 곧 연락드리겠습니다. 양해 부탁드립니다.`;
+            ? confirmTpl
+              ? fill(confirmTpl, p.name)
+              : `[청첩장 배달] ${p.name}님, 소중한 마음으로 신청해주셔서 감사합니다 🙏 ${dateK} ${data.time_slot} ${data.location}(으)로 찾아뵙겠습니다. 곧 만나요!`
+            : `[청첩장 배달] ${p.name}님, 부득이하게 ${dateK} ${data.time_slot} 일정이 취소되었습니다. 자세한 안내는 곧 연락드리겠습니다. 양해 부탁드립니다.`;
         return sendSms(p.phone, text).then((r) => ({ name: p.name, ...r }));
       })
     );

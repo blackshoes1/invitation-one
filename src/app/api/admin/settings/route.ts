@@ -2,7 +2,14 @@ import { NextResponse } from "next/server";
 import { checkAdmin } from "@/lib/adminAuth";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
 
-const ALLOWED_KEYS = ["hero_image", "gallery", "album", "video_url", "heart_video_url"];
+const ALLOWED_KEYS = [
+  "hero_image",
+  "gallery",
+  "album",
+  "video_url",
+  "heart_video_url",
+  "confirm_sms", // 확정 시 감사 문자 템플릿 (LC-2) — 공개 RPC 에는 없음(관리자 전용)
+];
 
 function guard(req: Request) {
   if (!checkAdmin(req))
