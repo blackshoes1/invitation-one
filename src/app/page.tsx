@@ -4,6 +4,7 @@ import Gallery from "@/components/sections/Gallery";
 import Album from "@/components/sections/Album";
 import Location from "@/components/sections/Location";
 import Guestbook from "@/components/sections/Guestbook";
+import GuestSnap from "@/components/sections/GuestSnap";
 import Account from "@/components/sections/Account";
 import LockedGate from "@/components/LockedGate";
 import { INVITATION_KEY } from "@/lib/wedding";
@@ -46,6 +47,7 @@ export default async function Home({
       <Album />
       <Location />
       <Guestbook qrEntry={qrEntry} />
+      <GuestSnap />
       <Account />
     </main>
   );

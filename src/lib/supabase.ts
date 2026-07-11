@@ -242,3 +242,18 @@ export interface Message {
   message: string | null;
   created_at: string;
 }
+
+/** 하객 스냅 (Epic A) */
+export interface GuestPhoto {
+  id: string;
+  url: string;
+  name: string | null;
+  message: string | null;
+  created_at: string;
+}
+
+/** Admin 하객 스냅 관리 행 (미승인·경로 포함) */
+export interface GuestPhotoAdmin extends GuestPhoto {
+  path: string;
+  approved: boolean;
+}
