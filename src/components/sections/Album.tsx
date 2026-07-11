@@ -39,6 +39,8 @@ export default function Album() {
                 <img
                   src={a.src}
                   alt={a.alt ?? "앨범 사진 1"}
+                  loading="lazy"
+                  decoding="async"
                   className="w-full aspect-[3/4] object-cover"
                 />
               )}
@@ -47,6 +49,8 @@ export default function Album() {
                 <img
                   src={c.src}
                   alt={c.alt ?? "앨범 사진 3"}
+                  loading="lazy"
+                  decoding="async"
                   className="w-full aspect-square object-cover"
                 />
               )}
@@ -57,6 +61,8 @@ export default function Album() {
                 <img
                   src={b.src}
                   alt={b.alt ?? "앨범 사진 2"}
+                  loading="lazy"
+                  decoding="async"
                   className="w-full aspect-square object-cover"
                 />
               )}
@@ -65,6 +71,8 @@ export default function Album() {
                 <img
                   src={d.src}
                   alt={d.alt ?? "앨범 사진 4"}
+                  loading="lazy"
+                  decoding="async"
                   className="w-full aspect-[3/4] object-cover"
                 />
               )}

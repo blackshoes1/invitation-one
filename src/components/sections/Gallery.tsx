@@ -87,6 +87,8 @@ export default function Gallery() {
                   <img
                     src={current.src}
                     alt={current.alt}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover"
                     onError={() =>
                       setErrored((e) => ({ ...e, [index]: true }))

@@ -167,6 +167,33 @@ export function formatTime(date: Date = WEDDING_DATE): string {
   return `${ampm} ${h12}시${min ? ` ${min}분` : ""}`;
 }
 
+/**
+ * 예식 일정 .ics (캘린더에 추가용).
+ * TZ 안전을 위해 KST 절대 시각을 UTC 로 하드코딩 (11:00 KST = 02:00 UTC, +2시간).
+ * 서버/클라 TZ 와 무관하게 동일한 순간을 가리킴.
+ */
+export function weddingIcs(): string {
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+  const start = new Date(Date.UTC(2026, 9, 18, 2, 0, 0)); // 2026-10-18 11:00 KST
+  const end = new Date(Date.UTC(2026, 9, 18, 4, 0, 0)); // 13:00 KST
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//cheong//wedding//KO",
+    "CALSCALE:GREGORIAN",
+    "BEGIN:VEVENT",
+    `UID:wedding-${groom.name}-${bride.name}-20261018@cheong`,
+    `DTSTAMP:${fmt(start)}`,
+    `DTSTART:${fmt(start)}`,
+    `DTEND:${fmt(end)}`,
+    `SUMMARY:${groom.name} ♥ ${bride.name} 결혼식`,
+    `LOCATION:${venue.name}\\, ${venue.address}`,
+    `DESCRIPTION:${formatFullDate()} ${formatTime()} · ${venue.name}`,
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+}
+
 /** "26.10.18" */
 export function formatShortDate(date: Date = WEDDING_DATE): string {
   const yy = String(date.getFullYear()).slice(2);

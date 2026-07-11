@@ -1,9 +1,22 @@
 "use client";
 
-import { Phone, Navigation } from "lucide-react";
-import { venue } from "@/lib/wedding";
+import { Phone, Navigation, CalendarPlus } from "lucide-react";
+import { venue, weddingIcs } from "@/lib/wedding";
 import FadeIn from "@/components/FadeIn";
 import KakaoMap from "@/components/KakaoMap";
+
+/** 예식 일정을 .ics 로 내려받아 캘린더에 추가 */
+function addToCalendar() {
+  const blob = new Blob([weddingIcs()], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "wedding.ics";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
 
 /** 앱 스킴을 먼저 시도하고, 안 열리면 웹 지도로 폴백 */
 function openNav(appUrl: string, webUrl: string) {
@@ -52,6 +65,14 @@ export default function Location() {
               {venue.tel}
             </a>
           </div>
+          <button
+            type="button"
+            onClick={addToCalendar}
+            className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 border border-wedding-gold/30 text-xs text-sage-700 tracking-wide hover:bg-sage-50 transition-colors"
+          >
+            <CalendarPlus size={13} className="text-wedding-gold" />
+            내 캘린더에 추가
+          </button>
         </FadeIn>
 
         <FadeIn>
