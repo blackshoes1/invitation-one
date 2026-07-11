@@ -257,3 +257,22 @@ export interface GuestPhotoAdmin extends GuestPhoto {
   path: string;
   approved: boolean;
 }
+
+/** 배송 경로 (AD-1) */
+export interface RouteStop {
+  id: string;
+  name: string;
+  phone: string | null;
+  count: number;
+  location: string;
+  time_slot: string;
+  tracking_stage: string;
+  lat: number | null;
+  lng: number | null;
+  order: number;
+}
+export interface RouteDay {
+  date: string;
+  count: number;
+  stops: RouteStop[];
+}
