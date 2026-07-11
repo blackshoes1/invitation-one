@@ -863,12 +863,21 @@ export default function AdminPage() {
               </select>
             </div>
 
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="이름 · 연락처 검색"
-              className="w-full p-2.5 text-sm border border-wedding-gold/20 bg-white rounded-none focus:outline-none focus:border-sage-600"
-            />
+            <div className="flex gap-2">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="이름 · 연락처 검색"
+                className="flex-1 p-2.5 text-sm border border-wedding-gold/20 bg-white rounded-none focus:outline-none focus:border-sage-600"
+              />
+              <a
+                href="/api/admin/export"
+                className="shrink-0 flex items-center px-3 text-xs border border-sage-300 text-sage-600 bg-white whitespace-nowrap"
+                title="참여자 연락처 CSV 내보내기"
+              >
+                CSV ⬇
+              </a>
+            </div>
 
             {mergeSource && (
               <p className="text-xs text-center text-delivery bg-delivery/5 border border-delivery/20 py-2">

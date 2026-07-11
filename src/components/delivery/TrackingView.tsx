@@ -1,6 +1,7 @@
 "use client";
 
 import type { TrackingStage } from "@/lib/supabase";
+import Confetti from "@/components/Confetti";
 
 const STEPS = [
   { emoji: "📦", label: "주문 접수", stage: "주문접수" },
@@ -41,7 +42,8 @@ export default function TrackingView({
   const hint = HINT[stage];
 
   return (
-    <div className="w-full max-w-xs mx-auto">
+    <div className="relative w-full max-w-xs mx-auto">
+      {stage === "배송완료" && <Confetti />}
       <div className="flex items-start">
         {STEPS.map((s, i) => {
           const reached = i <= current;

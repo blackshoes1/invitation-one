@@ -2,12 +2,47 @@
 
 import { useEffect, useState } from "react";
 import { supabase, isSupabaseConfigured, type Celebration } from "@/lib/supabase";
+import { sidoOf } from "@/lib/regions";
+import { SIDO_POS } from "@/lib/koreaGeo";
 import FadeIn from "@/components/FadeIn";
 import MessageFeed, { buildFeed } from "@/components/sections/MessageFeed";
 import JourneyMap from "@/components/sections/JourneyMap";
 import VerifyBadge from "@/components/sections/VerifyBadge";
 
 type ViewMode = "map" | "messages";
+
+// 예식지(서울 용산) 기준 위치 — '가장 먼 곳' 계산용
+const SEOUL = SIDO_POS["서울"];
+
+/** 축하 지역 통계 (MP-2) — TOP 3 지역 + 가장 먼 곳 */
+function regionStats(celebrations: Celebration[]) {
+  const counts = new Map<string, number>();
+  let overseas = 0;
+  for (const c of celebrations) {
+    if (c.area?.startsWith("해외")) {
+      overseas++;
+      continue;
+    }
+    const sido = sidoOf(c.area);
+    if (sido) counts.set(sido, (counts.get(sido) ?? 0) + 1);
+  }
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+  let farthest: string | null = null;
+  if (overseas > 0) farthest = "해외 🌍";
+  else {
+    let best = -1;
+    for (const [sido] of counts) {
+      const p = SIDO_POS[sido];
+      if (!p) continue;
+      const d = (p.x - SEOUL.x) ** 2 + (p.y - SEOUL.y) ** 2;
+      if (d > best) {
+        best = d;
+        farthest = sido;
+      }
+    }
+  }
+  return { top, farthest, hasAny: top.length > 0 || overseas > 0 };
+}
 
 /**
  * 💝 우리를 축하해준 사람들 — 지도(🛵/💌 핀) / 메시지(방명록+리뷰) 통합
@@ -92,7 +127,34 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
 
             <FadeIn>
               {mode === "map" ? (
-                <JourneyMap celebrations={celebrations} highlightId={mineId} />
+                <>
+                  {(() => {
+                    const st = regionStats(celebrations);
+                    if (!st.hasAny) return null;
+                    return (
+                      <div className="mb-3 flex flex-wrap justify-center items-center gap-x-3 gap-y-1 text-[11px] text-neutral-500">
+                        {st.top.length > 0 && (
+                          <span>
+                            🏅 축하 많은 지역{" "}
+                            {st.top.map(([s, n], i) => (
+                              <span key={s}>
+                                {i > 0 && " · "}
+                                <span className="font-bold text-sage-700">{s}</span> {n}
+                              </span>
+                            ))}
+                          </span>
+                        )}
+                        {st.farthest && (
+                          <span>
+                            🌍 가장 먼 곳{" "}
+                            <span className="font-bold text-sage-700">{st.farthest}</span>
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  <JourneyMap celebrations={celebrations} highlightId={mineId} />
+                </>
               ) : (
                 <MessageFeed items={feed} highlightId={mineId} />
               )}
