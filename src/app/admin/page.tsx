@@ -174,6 +174,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [kakao, setKakao] = useState<"ok" | "expired" | "unconfigured" | null>(null);
 
   /* ----- 콘텐츠 (사진/영상) ----- */
   const [siteSettings, setSiteSettings] = useState<SiteSettingsState>({});
@@ -483,6 +484,10 @@ export default function AdminPage() {
       setAuthed(true);
       await loadGroups();
       await loadOrders("대기중", "");
+      // 카카오 알림 연결 상태 (만료 사전 경고)
+      api("/api/admin/kakao-status")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => j && setKakao(j.status));
     } finally {
       setLoading(false);
     }
@@ -777,6 +782,16 @@ export default function AdminPage() {
             </button>
           ))}
         </div>
+
+        {kakao === "expired" && (
+          <p className="text-xs text-center text-red-600 bg-red-50 py-2 border border-red-200">
+            🔔 카카오 알림 연결이 만료됐어요 — 새 주문 알림이 오지 않습니다. refresh
+            token 재발급이 필요해요 (README/kakao.ts 참고).
+          </p>
+        )}
+        {kakao === "ok" && (
+          <p className="text-[11px] text-center text-sage-500">🔔 카카오 알림 연결됨</p>
+        )}
 
         {notice && (
           <p className="text-xs text-center text-sage-700 bg-sage-50 py-2 border border-sage-200">

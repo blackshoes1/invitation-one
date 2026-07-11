@@ -48,6 +48,19 @@ async function getAccessToken(): Promise<string | null> {
   return j.access_token ?? null;
 }
 
+export type KakaoTokenStatus = "ok" | "expired" | "unconfigured";
+
+/** 관리자 알림 연결 상태 — 만료(재발급 필요) 사전 감지용 (AD-4). 메시지 발송 없음. */
+export async function kakaoTokenStatus(): Promise<KakaoTokenStatus> {
+  if (!isKakaoConfigured) return "unconfigured";
+  try {
+    const token = await getAccessToken();
+    return token ? "ok" : "expired";
+  } catch {
+    return "expired";
+  }
+}
+
 /** 나에게 보내기 (텍스트 + 링크 버튼) */
 export async function sendToMe(text: string, linkUrl?: string): Promise<SendResult> {
   if (!isKakaoConfigured) {

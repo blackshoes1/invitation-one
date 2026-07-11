@@ -6,6 +6,7 @@ import Location from "@/components/sections/Location";
 import Guestbook from "@/components/sections/Guestbook";
 import GuestSnap from "@/components/sections/GuestSnap";
 import Account from "@/components/sections/Account";
+import ShareButton from "@/components/ShareButton";
 import LockedGate from "@/components/LockedGate";
 import { INVITATION_KEY } from "@/lib/wedding";
 
@@ -49,6 +50,9 @@ export default async function Home({
       <Guestbook qrEntry={qrEntry} />
       <GuestSnap />
       <Account />
+      <footer className="bg-wedding-cream px-6 pt-2 pb-16 text-center">
+        <ShareButton />
+      </footer>
     </main>
   );
 }
