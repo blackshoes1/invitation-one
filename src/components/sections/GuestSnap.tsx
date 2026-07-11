@@ -30,6 +30,24 @@ export default function GuestSnap() {
 
   useEffect(load, []);
 
+  // 테이블 QR(?snap=1 또는 #snap)로 들어오면 하객 스냅으로 스크롤.
+  // 위쪽 지도·피드·이미지가 늦게 로드되며 위치가 밀리므로 여러 번 재시도.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const wantsSnap =
+      new URLSearchParams(window.location.search).has("snap") ||
+      window.location.hash === "#snap";
+    if (!wantsSnap) return;
+    const timers = [300, 900, 1600, 2600].map((ms) =>
+      setTimeout(() => {
+        document
+          .getElementById("guest-snap")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, ms)
+    );
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
   const onPick = async (file: File) => {
     setError(null);
     setUploading(true);
@@ -54,7 +72,10 @@ export default function GuestSnap() {
   };
 
   return (
-    <section className="px-6 py-12 bg-white border-t border-wedding-gold/10">
+    <section
+      id="guest-snap"
+      className="px-6 py-12 bg-white border-t border-wedding-gold/10 scroll-mt-4"
+    >
       <div className="max-w-sm mx-auto space-y-6 text-center">
         <FadeIn className="space-y-2">
           <p className="font-serif tracking-[0.3em] text-[11px] text-wedding-gold">

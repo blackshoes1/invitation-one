@@ -1496,6 +1496,16 @@ export default function AdminPage() {
         {/* ===== 하객 스냅 ===== */}
         {view === "snap" && (
           <>
+            <div className="flex justify-center">
+              <a
+                href="/table-qr"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 text-xs border border-sage-300 text-sage-600 bg-white"
+              >
+                🖨️ 테이블 QR 카드 인쇄
+              </a>
+            </div>
             <p className="text-[11px] text-neutral-400 text-center">
               하객이 올린 사진입니다. 부적절한 사진은 숨기거나 삭제하세요. 원본은
               NAS(Cloud Sync)에 자동 보관돼요.
