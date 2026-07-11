@@ -53,7 +53,9 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
   const [loaded, setLoaded] = useState(false);
   const [mode, setMode] = useState<ViewMode>("messages");
   const [mineId, setMineId] = useState<string | null>(null);
+  const [liveToast, setLiveToast] = useState<string | null>(null);
 
+  // 최초 로드 + 25초 폴링 (MP-1) — 새 마음/리뷰가 도착하면 지도·피드 갱신 + 토스트
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -61,14 +63,37 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
       return;
     }
     let alive = true;
-    (async () => {
+    const seen = new Set<string>();
+    let first = true;
+
+    const fetchNow = async () => {
       const { data } = await supabase!.rpc("get_celebrations");
-      if (!alive) return;
-      setCelebrations(Array.isArray(data) ? (data as Celebration[]) : []);
+      if (!alive || !Array.isArray(data)) return;
+      const list = data as Celebration[];
+      // 최초 로드 이후 새로 들어온 항목 감지 → 토스트
+      if (!first) {
+        const fresh = list.find((c) => !seen.has(c.id));
+        if (fresh) {
+          const where = fresh.area ? `${fresh.area}에서 ` : "";
+          setLiveToast(
+            fresh.kind === "마음배송"
+              ? `방금 ${where}마음이 도착했어요 💌`
+              : `방금 ${where}축하가 도착했어요 🛵`
+          );
+          setTimeout(() => alive && setLiveToast(null), 4000);
+        }
+      }
+      list.forEach((c) => seen.add(c.id));
+      first = false;
+      setCelebrations(list);
       setLoaded(true);
-    })();
+    };
+
+    fetchNow();
+    const timer = setInterval(fetchNow, 25000);
     return () => {
       alive = false;
+      clearInterval(timer);
     };
   }, []);
 
@@ -77,7 +102,12 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
   const feed = buildFeed(celebrations);
 
   return (
-    <section className="px-6 py-12 bg-wedding-cream border-t border-wedding-gold/10">
+    <section className="relative px-6 py-12 bg-wedding-cream border-t border-wedding-gold/10">
+      {liveToast && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-sage-700 text-white text-xs px-4 py-2 rounded-full shadow-md animate-pulse">
+          {liveToast}
+        </div>
+      )}
       <div className="max-w-sm mx-auto space-y-6 text-center">
         <FadeIn className="space-y-2">
           <p className="font-serif tracking-[0.3em] text-[11px] text-wedding-gold">

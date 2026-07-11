@@ -8,6 +8,7 @@ import GuestSnap from "@/components/sections/GuestSnap";
 import Account from "@/components/sections/Account";
 import ShareButton from "@/components/ShareButton";
 import TextSizeToggle from "@/components/TextSizeToggle";
+import PostWeddingBanner from "@/components/PostWeddingBanner";
 import LockedGate from "@/components/LockedGate";
 import { INVITATION_KEY } from "@/lib/wedding";
 
@@ -44,6 +45,7 @@ export default async function Home({
   return (
     <main className="w-full min-h-screen bg-white text-neutral-800 antialiased">
       <TextSizeToggle />
+      <PostWeddingBanner />
       <Hero />
       <Greeting />
       <Gallery />
