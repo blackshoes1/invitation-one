@@ -76,6 +76,19 @@ export default function MessageFeed({
                   {isReview ? it.review : it.message}
                 </p>
               )}
+              {it.reply && (
+                <div className="mt-2 flex gap-1.5 rounded-sm bg-wedding-cream/70 border-l-2 border-wedding-gold/40 px-2.5 py-1.5">
+                  <span className="text-xs shrink-0">💌</span>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold text-wedding-gold">
+                      신랑·신부의 답글
+                    </p>
+                    <p className="text-xs text-neutral-600 leading-relaxed mt-0.5 break-words">
+                      {it.reply}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </li>
         );

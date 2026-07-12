@@ -121,6 +121,9 @@ export interface Participant {
   message: string | null;
   review_rating: number | null;
   review_text: string | null;
+  /** 신랑·신부 공개 답글 (LC-3) */
+  reply: string | null;
+  replied_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -173,6 +176,9 @@ export interface Celebration {
   message: string | null;
   rating: number | null;
   review: string | null;
+  /** 신랑·신부 공개 답글 (LC-3) */
+  reply: string | null;
+  replied_at: string | null;
   created_at: string;
 }
 
