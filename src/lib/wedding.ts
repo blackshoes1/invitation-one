@@ -84,6 +84,28 @@ export const galleryImages: { src: string; alt: string }[] = [
   { src: "/pic/gallery3.jpg", alt: "커플 사진 3" },
 ];
 
+/* ----------------------- 러브스토리 타임라인 (LC-4) ----------------------- */
+export interface LoveMoment {
+  /** 시점 라벨 — "2019 봄", "2021.05" 등 자유롭게 */
+  when: string;
+  title: string;
+  /** 한두 줄 설명 (선택) */
+  desc?: string;
+  /** 이모지 아이콘 (선택, 기본 💕) */
+  emoji?: string;
+}
+
+/**
+ * 두 사람의 이야기 — 값이 비어 있으면 섹션이 표시되지 않습니다.
+ * 아래 예시를 두 분의 실제 이야기로 바꾸면 청첩장에 타임라인이 나타납니다.
+ */
+export const loveStory: LoveMoment[] = [
+  // { when: "2019 봄", title: "우리, 처음 만난 날", desc: "친구 소개로 어색하게 첫 인사를 나눴어요.", emoji: "🌸" },
+  // { when: "2021 여름", title: "첫 여행", desc: "둘만의 바다, 여기서 확신이 생겼죠.", emoji: "🌊" },
+  // { when: "2025 겨울", title: "프러포즈", desc: "함께 걷던 길 위에서 평생을 약속했어요.", emoji: "💍" },
+  // { when: "2026.10.18", title: "결혼", desc: "이제 매일을 함께합니다.", emoji: "💒" },
+];
+
 /* ------------------ 청첩장 받기(배달 신청) ------------------ */
 export type TimeSlot = "오전" | "오후" | "저녁";
 export const TIME_SLOTS: TimeSlot[] = ["오전", "오후", "저녁"];
@@ -192,6 +214,37 @@ export function weddingIcs(): string {
     "END:VEVENT",
     "END:VCALENDAR",
   ].join("\r\n");
+}
+
+/**
+ * 예식 연락처 .vcf (연락처에 저장용, vCard 3.0).
+ * 신랑·신부 이름을 한 장의 카드로 저장하고, 전화는 등록된 번호만 넣습니다.
+ * (개인 번호가 없으면 예식장 대표번호를 폴백으로 사용)
+ */
+export function weddingVcard(): string {
+  const esc = (s: string) => s.replace(/([,;\\])/g, "\\$1").replace(/\n/g, "\\n");
+  const title = `${groom.name} ♥ ${bride.name} 결혼`;
+  const lines = [
+    "BEGIN:VCARD",
+    "VERSION:3.0",
+    `N:;${esc(title)};;;`,
+    `FN:${esc(title)}`,
+    `ORG:${esc(`${groom.name} ♥ ${bride.name} 결혼식`)}`,
+  ];
+  // 개인 번호가 있으면 각각, 없으면 예식장 대표번호
+  const phones: { label: string; num: string }[] = [];
+  if (groom.phone) phones.push({ label: `신랑 ${groom.name}`, num: groom.phone });
+  if (bride.phone) phones.push({ label: `신부 ${bride.name}`, num: bride.phone });
+  if (phones.length === 0) phones.push({ label: venue.name, num: venue.tel });
+  for (const p of phones) {
+    lines.push(`TEL;TYPE=CELL:${p.num}`);
+  }
+  lines.push(
+    `ADR;TYPE=WORK:;;${esc(venue.address)};;;;`,
+    `NOTE:${esc(`${formatFullDate()} ${formatTime()} · ${venue.name}`)}`,
+    "END:VCARD"
+  );
+  return lines.join("\r\n");
 }
 
 /** "26.10.18" */

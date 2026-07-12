@@ -1,21 +1,31 @@
 "use client";
 
-import { Phone, Navigation, CalendarPlus } from "lucide-react";
-import { venue, weddingIcs } from "@/lib/wedding";
+import { Phone, Navigation, CalendarPlus, UserPlus } from "lucide-react";
+import { venue, weddingIcs, weddingVcard } from "@/lib/wedding";
 import FadeIn from "@/components/FadeIn";
 import KakaoMap from "@/components/KakaoMap";
 
-/** 예식 일정을 .ics 로 내려받아 캘린더에 추가 */
-function addToCalendar() {
-  const blob = new Blob([weddingIcs()], { type: "text/calendar;charset=utf-8" });
+/** 텍스트를 파일로 내려받기 (Blob 다운로드 공통 헬퍼) */
+function downloadFile(content: string, filename: string, mime: string) {
+  const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "wedding.ics";
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+/** 예식 일정을 .ics 로 내려받아 캘린더에 추가 */
+function addToCalendar() {
+  downloadFile(weddingIcs(), "wedding.ics", "text/calendar;charset=utf-8");
+}
+
+/** 예식 연락처를 .vcf 로 내려받아 연락처에 저장 */
+function saveContact() {
+  downloadFile(weddingVcard(), "wedding.vcf", "text/vcard;charset=utf-8");
 }
 
 /** 앱 스킴을 먼저 시도하고, 안 열리면 웹 지도로 폴백 */
@@ -65,14 +75,24 @@ export default function Location() {
               {venue.tel}
             </a>
           </div>
-          <button
-            type="button"
-            onClick={addToCalendar}
-            className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 border border-wedding-gold/30 text-xs text-sage-700 tracking-wide hover:bg-sage-50 transition-colors"
-          >
-            <CalendarPlus size={13} className="text-wedding-gold" />
-            내 캘린더에 추가
-          </button>
+          <div className="mt-3 flex justify-center gap-2">
+            <button
+              type="button"
+              onClick={addToCalendar}
+              className="inline-flex items-center gap-1.5 px-4 py-2 border border-wedding-gold/30 text-xs text-sage-700 tracking-wide hover:bg-sage-50 transition-colors"
+            >
+              <CalendarPlus size={13} className="text-wedding-gold" />
+              내 캘린더에 추가
+            </button>
+            <button
+              type="button"
+              onClick={saveContact}
+              className="inline-flex items-center gap-1.5 px-4 py-2 border border-wedding-gold/30 text-xs text-sage-700 tracking-wide hover:bg-sage-50 transition-colors"
+            >
+              <UserPlus size={13} className="text-wedding-gold" />
+              연락처 저장
+            </button>
+          </div>
         </FadeIn>
 
         <FadeIn>

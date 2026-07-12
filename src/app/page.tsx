@@ -1,5 +1,6 @@
 import Hero from "@/components/sections/Hero";
 import Greeting from "@/components/sections/Greeting";
+import LoveStory from "@/components/sections/LoveStory";
 import Gallery from "@/components/sections/Gallery";
 import Album from "@/components/sections/Album";
 import Location from "@/components/sections/Location";
@@ -48,6 +49,7 @@ export default async function Home({
       <PostWeddingBanner />
       <Hero />
       <Greeting />
+      <LoveStory />
       <Gallery />
       <Album />
       <Location />
