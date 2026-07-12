@@ -82,6 +82,7 @@ interface AdminStats {
   deliveries: { waiting: number; confirmed: number; done: number; canceled: number; active: number };
   waiting: number;
   snaps: number;
+  checkin?: { checkins: number; people: number };
 }
 
 /** 콘텐츠 설정 (site_settings) */
@@ -897,6 +898,34 @@ export default function AdminPage() {
               <div className="grid grid-cols-2 gap-2">
                 <Metric label="대기자" value={stats.waiting} />
                 <Metric label="📸 하객 스냅" value={stats.snaps} />
+              </div>
+            </div>
+            {/* 현장 체크인 (GX-4) */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[11px] text-neutral-400">현장 체크인 (식수)</p>
+                <div className="flex gap-2">
+                  <a
+                    href="/checkin"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-sage-600 underline underline-offset-2"
+                  >
+                    체크인 열기
+                  </a>
+                  <a
+                    href="/checkin-qr"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-sage-600 underline underline-offset-2"
+                  >
+                    🖨️ QR 인쇄
+                  </a>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Metric label="🍽️ 참석 인원" value={stats.checkin?.people ?? 0} />
+                <Metric label="체크인 팀" value={stats.checkin?.checkins ?? 0} />
               </div>
             </div>
           </div>

@@ -51,6 +51,16 @@ export async function GET(req: Request) {
     countOf("guest_photos", (q: any) => q.select("id", { count: "exact", head: true })),
   ]);
 
+  // 현장 체크인 요약 (GX-4) — RPC 로 합계. 실패해도 대시보드는 유지.
+  let checkin = { checkins: 0, people: 0 };
+  const { data: ck } = await sb.rpc("get_checkin_summary");
+  if (Array.isArray(ck) && ck[0]) {
+    checkin = {
+      checkins: ck[0].total_checkins ?? 0,
+      people: ck[0].total_people ?? 0,
+    };
+  }
+
   return NextResponse.json({
     participants: { total: partTotal, delivery: partDelivery, heart: partHeart },
     deliveries: {
@@ -62,5 +72,6 @@ export async function GET(req: Request) {
     },
     waiting,
     snaps,
+    checkin,
   });
 }

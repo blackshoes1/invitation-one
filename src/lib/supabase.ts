@@ -249,6 +249,14 @@ export interface Message {
   created_at: string;
 }
 
+/** 현장 체크인 요약 (GX-4) — get_checkin_summary RPC */
+export interface CheckinSummary {
+  total_checkins: number;
+  total_people: number;
+  groom: number;
+  bride: number;
+}
+
 /** 하객 스냅 (Epic A) */
 export interface GuestPhoto {
   id: string;
