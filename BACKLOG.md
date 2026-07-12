@@ -55,7 +55,7 @@
 | GX-2 | ✅ 연락처 저장 (vCard .vcf) — 오시는 길 "연락처 저장" 버튼 | P2 | S |
 | GX-3 | ✅ 어르신 모드 (큰 글씨 토글) | P2 | S |
 | GX-4 | ✅ 현장 체크인 QR (실시간 식수 집계 · /checkin·/checkin-qr, db v22) | P3 | M |
-| GX-5 | 영어 토글 (해외 하객) | P3 | M |
+| GX-5 | ~~영어 토글 (해외 하객)~~ — 제외 | P3 | M |
 
 ## F. 자동화 · 라이프사이클
 
@@ -76,7 +76,7 @@
 | FD-2 | 카카오톡 공유 버튼 (JS SDK 피드 카드) | P1 | M | ✅ 완료 |
 | FD-3 | apple-touch-icon(모노그램) · theme-color | P1 | S | ✅ 완료 |
 | FD-4 | 이미지 lazy-load · 최적화 | P1 | S | ✅ 완료 |
-| FD-5 | 배경음악(BGM) 토글 (음원 필요) | P2 | S | |
+| FD-5 | 배경음악(BGM) 토글 (BgmToggle · `NEXT_PUBLIC_BGM_URL` 지정 시 노출) | P2 | S | ✅ 완료 (음원 투입 대기) |
 
 ---
 

@@ -161,6 +161,18 @@ export const DELIVERY_CAPACITY = 103;
 // 완료 화면 "특별한 영상 메시지" (유튜브 비공개 링크). 비어 있으면 '준비 중' 표시.
 export const VIDEO_URL = process.env.NEXT_PUBLIC_VIDEO_URL ?? "";
 
+/* ----------------------- 배경음악 BGM (FD-5) ----------------------- */
+/**
+ * 청첩장 배경음악.
+ * `/public/audio/` 에 음원 파일(mp3/m4a 등)을 넣고 아래 경로를 지정하면
+ * 좌상단에 재생/일시정지 토글 버튼이 나타납니다. 값이 비어 있으면 숨겨집니다.
+ * 예) BGM_URL = "/audio/bgm.mp3"
+ * ⚠︎ 저작권: 배포 전 사용 허락된(라이선스/직접 제작) 음원인지 반드시 확인하세요.
+ */
+export const BGM_URL = process.env.NEXT_PUBLIC_BGM_URL ?? "";
+/** 재생 곡 안내 (버튼 툴팁·접근성 라벨용, 선택) */
+export const BGM_TITLE = process.env.NEXT_PUBLIC_BGM_TITLE ?? "배경음악";
+
 // 마음 배송 전용 감사 영상 (직접 배달 영상과 별개). 비어 있으면 표시 안 함.
 export const HEART_VIDEO_URL = process.env.NEXT_PUBLIC_HEART_VIDEO_URL ?? "";
 
