@@ -22,8 +22,10 @@ export async function GET(req: Request) {
   const bad = guard(req);
   if (bad) return bad;
 
-  // 그룹 목록 + 등록인원 집계 (직접배달·마음배송, 취소된 주문의 참여자는 제외)
-  const [gRes, pRes] = await Promise.all([
+  // 그룹 목록 + 인원 집계
+  //  - roster_count: 관리자가 등록한 명단(group_members) 인원 — 카드에 표시
+  //  - member_count: 실제 참여(주문)한 participants 인원 (취소 직접배달 제외) — 요약·식수용
+  const [gRes, pRes, mRes] = await Promise.all([
     supabaseAdmin!
       .from("groups")
       .select("*")
@@ -31,11 +33,21 @@ export async function GET(req: Request) {
     supabaseAdmin!
       .from("participants")
       .select("group_id, type, delivery:deliveries!delivery_id(status)"),
+    supabaseAdmin!.from("group_members").select("group_id"),
   ]);
   if (gRes.error)
     return NextResponse.json({ error: gRes.error.message }, { status: 500 });
   if (pRes.error)
     return NextResponse.json({ error: pRes.error.message }, { status: 500 });
+  if (mRes.error)
+    return NextResponse.json({ error: mRes.error.message }, { status: 500 });
+
+  // 명단(roster) 인원 집계
+  const roster = new Map<string, number>();
+  for (const m of (mRes.data ?? []) as { group_id: string | null }[]) {
+    if (m.group_id)
+      roster.set(m.group_id, (roster.get(m.group_id) ?? 0) + 1);
+  }
 
   const counts = new Map<string, number>();
   let total = 0;
@@ -54,6 +66,7 @@ export async function GET(req: Request) {
   const groups = (gRes.data ?? []).map((g: { id: string }) => ({
     ...g,
     member_count: counts.get(g.id) ?? 0,
+    roster_count: roster.get(g.id) ?? 0,
   }));
   return NextResponse.json({ groups, total_members: total });
 }

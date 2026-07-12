@@ -1462,7 +1462,7 @@ export default function AdminPage() {
 
             {totalMembers != null && (
               <p className="text-xs text-neutral-500 text-right">
-                👥 총 등록인원{" "}
+                👥 총 신청 인원{" "}
                 <span className="font-bold text-sage-700">{totalMembers}명</span>
                 {(() => {
                   const grouped = groups.reduce(
@@ -1494,7 +1494,12 @@ export default function AdminPage() {
                       <p className="font-medium text-sage-700 text-sm">
                         {g.name}{" "}
                         <span className="text-xs text-neutral-400 font-normal">
-                          👥 {g.member_count ?? 0}명
+                          👥 명단 {g.roster_count ?? 0}명
+                          {(g.member_count ?? 0) > 0 && (
+                            <span className="text-sage-500">
+                              {" "}· 신청 {g.member_count}명
+                            </span>
+                          )}
                         </span>
                       </p>
                       <p className="text-[11px] text-neutral-400 truncate">
