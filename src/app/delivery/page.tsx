@@ -10,6 +10,7 @@ import BikeIcon from "@/components/delivery/BikeIcon";
 import MenuSelect, { type DeliveryMode } from "@/components/delivery/MenuSelect";
 import DeliveryForm from "@/components/delivery/DeliveryForm";
 import HeartForm from "@/components/delivery/HeartForm";
+import RiderProfile from "@/components/delivery/RiderProfile";
 import ReviewStrip from "@/components/delivery/ReviewStrip";
 import FindOrder from "@/components/delivery/FindOrder";
 import DeliveryClosed from "@/components/delivery/DeliveryClosed";
@@ -78,6 +79,7 @@ function DeliveryPageInner() {
         <section className="pb-6">
           {mode === null && (
             <>
+              <RiderProfile deliveredCount={taken} />
               <ReviewStrip />
               <MenuSelect onPick={setMode} />
               <FindOrder />

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Camera, X } from "lucide-react";
 import { supabase, isSupabaseConfigured, type GuestPhoto } from "@/lib/supabase";
-import { INVITATION_KEY } from "@/lib/wedding";
+import { INVITATION_KEY, PHOTO_MISSIONS } from "@/lib/wedding";
 import { compressImage } from "@/lib/image";
 import FadeIn from "@/components/FadeIn";
 
@@ -19,7 +19,21 @@ export default function GuestSnap() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
+  /** 선택한 포토 미션 (GS-9) — 업로드 시 사진에 함께 기록 */
+  const [mission, setMission] = useState<string | null>(null);
+  /** 완료한 미션 (기기 로컬 기억 — 재방문해도 체크 유지) */
+  const [doneMissions, setDoneMissions] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // 완료 미션 로컬 복원
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("snap-missions-done");
+      if (raw) setDoneMissions(JSON.parse(raw));
+    } catch {
+      /* 무시 */
+    }
+  }, []);
 
   const load = () => {
     if (!isSupabaseConfigured || !supabase) return;
@@ -48,6 +62,25 @@ export default function GuestSnap() {
     return () => timers.forEach(clearTimeout);
   }, []);
 
+  /** 미션을 고르면 표시명을 준비하고 곧바로 카메라/앨범을 엽니다 */
+  const pickMission = (m: string) => {
+    setMission((cur) => (cur === m ? null : m));
+    if (mission !== m) fileRef.current?.click();
+  };
+
+  const markMissionDone = (m: string) => {
+    setDoneMissions((prev) => {
+      if (prev.includes(m)) return prev;
+      const next = [...prev, m];
+      try {
+        localStorage.setItem("snap-missions-done", JSON.stringify(next));
+      } catch {
+        /* 무시 */
+      }
+      return next;
+    });
+  };
+
   const onPick = async (file: File) => {
     setError(null);
     setUploading(true);
@@ -56,7 +89,9 @@ export default function GuestSnap() {
       const fd = new FormData();
       fd.append("file", compressed);
       fd.append("key", INVITATION_KEY);
-      if (name.trim()) fd.append("name", name.trim());
+      // 이름 + 선택한 미션을 함께 기록 (미션만 있어도 태그로 남김)
+      const label = [name.trim(), mission].filter(Boolean).join(" · ");
+      if (label) fd.append("name", label);
       const res = await fetch("/api/guest-photos", { method: "POST", body: fd });
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.photo) {
@@ -64,6 +99,8 @@ export default function GuestSnap() {
         return;
       }
       setPhotos((prev) => [j.photo as GuestPhoto, ...prev]);
+      if (mission) markMissionDone(mission);
+      setMission(null);
     } catch {
       setError("업로드 중 오류가 발생했어요.");
     } finally {
@@ -89,6 +126,42 @@ export default function GuestSnap() {
             <br />
             사진을 올려주시면 저희에게 소중히 간직됩니다
           </p>
+        </FadeIn>
+
+        {/* 포토 미션 (GS-9) — 고르면 카메라가 열리고, 올리면 체크됩니다 */}
+        <FadeIn className="space-y-2">
+          <p className="text-xs text-neutral-400">
+            📸 포토 미션 · {doneMissions.length}/{PHOTO_MISSIONS.length} 완료
+          </p>
+          <div className="flex flex-wrap justify-center gap-1.5">
+            {PHOTO_MISSIONS.map((m) => {
+              const done = doneMissions.includes(m);
+              const active = mission === m;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => pickMission(m)}
+                  disabled={uploading}
+                  className={`text-[11px] px-2.5 py-1.5 rounded-full border transition-colors disabled:opacity-60 ${
+                    active
+                      ? "bg-sage-700 text-white border-sage-700"
+                      : done
+                      ? "bg-sage-50 text-sage-600 border-sage-200"
+                      : "bg-white text-neutral-500 border-wedding-gold/25"
+                  }`}
+                >
+                  {done && !active ? "✓ " : ""}
+                  {m}
+                </button>
+              );
+            })}
+          </div>
+          {mission && (
+            <p className="text-[11px] text-sage-600">
+              「{mission}」 미션 사진을 올려주세요 🙌
+            </p>
+          )}
         </FadeIn>
 
         <FadeIn className="space-y-3">
