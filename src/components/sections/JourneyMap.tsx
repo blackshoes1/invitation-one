@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Celebration } from "@/lib/supabase";
 import { formatYmdKo } from "@/lib/wedding";
 import { sidoOf } from "@/lib/regions";
@@ -18,9 +18,9 @@ const { w: VB_W, h: VB_H } = KOREA_VIEW;
 const OVERSEAS_POS = { x: 12, y: VB_H - 18 };
 
 /**
- * 핀 좌표(%): 지역(시/도)의 실제 지도 위치 + 소량 지터(같은 지역 겹침 방지).
+ * 핀 좌표(viewBox 단위): 지역(시/도)의 실제 지도 위치 + 소량 지터(같은 지역 겹침 방지).
  */
-function pinPos(area: string | null, seed: string): { left: number; top: number } {
+function pinXY(area: string | null, seed: string): { x: number; y: number } {
   // 전체 지역명(예: "서울 강동구")이 있으면 자치구 좌표 우선, 없으면 시/도 중심으로 폴백
   const key = area?.trim() ?? "";
   const exact = REGION_POS[key];
@@ -33,6 +33,12 @@ function pinPos(area: string | null, seed: string): { left: number; top: number 
   const jy = (((h >> 3) % 7) - 3) * spread;
   const x = Math.max(3, Math.min(VB_W - 3, base.x + jx));
   const y = Math.max(3, Math.min(VB_H - 3, base.y + jy));
+  return { x, y };
+}
+
+/** 핀 좌표(%) — pinXY 를 컨테이너 백분율로 변환 */
+function pinPos(area: string | null, seed: string): { left: number; top: number } {
+  const { x, y } = pinXY(area, seed);
   return { left: (x / VB_W) * 100, top: (y / VB_H) * 100 };
 }
 
@@ -60,6 +66,28 @@ export default function JourneyMap({
 }) {
   const [open, setOpen] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
+  /** 여정 애니메이션 재생 트리거 (키가 바뀌면 리마운트되어 다시 재생) */
+  const [playKey, setPlayKey] = useState(0);
+
+  // 직접배달 완료 지점을 날짜순으로 이어 스쿠터 여정 경로 구성 (MP-3)
+  const route = useMemo(() => {
+    const deliveries = celebrations
+      .filter((c) => c.kind === "직접배달")
+      .sort((a, b) => {
+        const da = a.date ?? "";
+        const db = b.date ?? "";
+        if (da !== db) return da < db ? -1 : 1;
+        return a.created_at < b.created_at ? -1 : 1;
+      });
+    return deliveries.map((c) => pinXY(c.area, `d-${c.id}`));
+  }, [celebrations]);
+
+  const showJourney = route.length >= 2 && filter !== "마음배송";
+
+  // 데이터가 준비되면 최초 1회 자동 재생
+  useEffect(() => {
+    if (route.length >= 2) setPlayKey((k) => (k === 0 ? 1 : k));
+  }, [route.length]);
 
   const { pins, deliveryCount, heartCount } = useMemo(() => {
     const deliveries = celebrations.filter((c) => c.kind === "직접배달");
@@ -117,6 +145,21 @@ export default function JourneyMap({
         </LegendBtn>
       </div>
 
+      {route.length >= 2 && (
+        <div className="flex justify-center mb-2">
+          <button
+            type="button"
+            onClick={() => {
+              if (filter === "마음배송") setFilter("all");
+              setPlayKey((k) => k + 1);
+            }}
+            className="px-3 py-1.5 text-[11px] rounded-full border border-delivery/25 bg-white text-delivery font-bold hover:bg-delivery/5 transition-colors"
+          >
+            🛵 여정 따라가기
+          </button>
+        </div>
+      )}
+
       {/* 바깥 래퍼는 클리핑 없음 — 핀 말풍선이 지도 밖으로 나가도 안 잘리게 */}
       <div className="relative w-full" style={{ aspectRatio: `${VB_W} / ${VB_H}` }}>
         {/* 지도 자체만 둥근 모서리로 클리핑 */}
@@ -138,6 +181,11 @@ export default function JourneyMap({
               />
             ))}
           </svg>
+
+          {/* 여정 애니메이션 (MP-3) — 스쿠터가 배송 지점을 잇는다 */}
+          {showJourney && playKey > 0 && (
+            <JourneyAnimation key={playKey} points={route} />
+          )}
         </div>
 
         {visible.map((pin) => {
@@ -215,6 +263,66 @@ export default function JourneyMap({
         핀을 탭해보세요 · 정확한 주소는 공개하지 않아요
       </p>
     </div>
+  );
+}
+
+/**
+ * 스쿠터 여정 애니메이션 (MP-3)
+ * - 배송 지점을 잇는 선이 그려지고, 🛵 가 그 선을 따라 달림.
+ * - 선(stroke-dashoffset) 과 스쿠터(animateMotion) 모두 등속 → 스쿠터 끝이 그려지는 선의 앞머리.
+ */
+function JourneyAnimation({ points }: { points: { x: number; y: number }[] }) {
+  const d = points
+    .map((p, i) => `${i ? "L" : "M"} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`)
+    .join(" ");
+  const len = useMemo(() => {
+    let l = 0;
+    for (let i = 1; i < points.length; i++) {
+      l += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+    }
+    return l;
+  }, [points]);
+  const dur = Math.min(9, 2.5 + points.length * 0.7);
+  const last = points[points.length - 1];
+
+  return (
+    <svg
+      className="absolute inset-0 w-full h-full pointer-events-none overflow-visible"
+      viewBox={`0 0 ${VB_W} ${VB_H}`}
+      preserveAspectRatio="xMidYMid meet"
+    >
+      <style>{`@keyframes mp3draw{to{stroke-dashoffset:0}}`}</style>
+      {/* 여정 선 */}
+      <path
+        d={d}
+        fill="none"
+        stroke="#c8a96a"
+        strokeWidth="0.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeDasharray={len}
+        strokeDashoffset={len}
+        style={{ animation: `mp3draw ${dur}s linear forwards` }}
+      />
+      {/* 출발점 */}
+      <circle cx={points[0].x} cy={points[0].y} r="1.1" fill="#8aa06e" />
+      {/* 도착점 (선이 다 그려진 뒤 표시) */}
+      <circle cx={last.x} cy={last.y} r="1.1" fill="#c8a96a" opacity="0">
+        <animate
+          attributeName="opacity"
+          from="0"
+          to="1"
+          begin={`${dur - 0.4}s`}
+          dur="0.4s"
+          fill="freeze"
+        />
+      </circle>
+      {/* 스쿠터 */}
+      <text fontSize="6" textAnchor="middle" dominantBaseline="central">
+        🛵
+        <animateMotion dur={`${dur}s`} path={d} rotate="0" fill="freeze" />
+      </text>
+    </svg>
   );
 }
 
