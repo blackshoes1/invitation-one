@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import type { TrackingStage } from "@/lib/supabase";
 import Confetti from "@/components/Confetti";
 
@@ -78,11 +79,69 @@ export default function TrackingView({
           );
         })}
       </div>
+      {stage === "배송출발" && <ScooterEnRoute />}
+
       {hint && (
         <p className="mt-3 text-center text-xs text-delivery font-medium">
           {hint}
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * 실시간 스쿠터 추적 연출 (DL-4)
+ * 배송 출발 단계에서 🛵 가 목적지(🏡)를 향해 부지런히 달려가는 모습.
+ * 도로(점선)가 왼쪽으로 흘러 '이동 중' 느낌 + 스쿠터 진동 + 매연 퍼프.
+ */
+function ScooterEnRoute() {
+  return (
+    <div className="relative mt-4 h-16 overflow-hidden rounded-xl bg-delivery/5">
+      {/* 흐르는 도로 점선 (treadmill) */}
+      <motion.div
+        className="absolute bottom-4 left-0 h-0.5 w-[200%]"
+        style={{
+          backgroundImage:
+            "repeating-linear-gradient(90deg, rgba(0,0,0,0.18) 0 10px, transparent 10px 22px)",
+        }}
+        animate={{ x: ["0%", "-50%"] }}
+        transition={{ duration: 0.9, repeat: Infinity, ease: "linear" }}
+      />
+
+      {/* 목적지 */}
+      <motion.div
+        className="absolute bottom-3 right-2 text-xl"
+        animate={{ scale: [1, 1.12, 1] }}
+        transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+      >
+        🏡
+      </motion.div>
+
+      {/* 스쿠터 — 목적지로 점점 다가감(반복) */}
+      <motion.div
+        className="absolute bottom-3"
+        initial={{ left: "-8%" }}
+        animate={{ left: ["-8%", "76%"] }}
+        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+      >
+        {/* 매연 퍼프 */}
+        <motion.span
+          className="absolute -left-3 bottom-1 text-xs opacity-60"
+          animate={{ opacity: [0, 0.6, 0], x: [-2, -8, -14] }}
+          transition={{ duration: 0.7, repeat: Infinity, ease: "easeOut" }}
+        >
+          💨
+        </motion.span>
+        {/* 노면 진동 */}
+        <motion.span
+          className="inline-block text-2xl"
+          animate={{ y: [0, -2, 0], rotate: [-2, 1, -2] }}
+          transition={{ duration: 0.32, repeat: Infinity, ease: "easeInOut" }}
+        >
+          🛵
+        </motion.span>
+      </motion.div>
     </div>
   );
 }
