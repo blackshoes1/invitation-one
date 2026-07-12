@@ -1460,6 +1460,15 @@ export default function AdminPage() {
               </div>
             </div>
 
+            {groups.length > 0 && (
+              <p className="text-xs text-neutral-500 text-right">
+                📋 총 명단 인원{" "}
+                <span className="font-bold text-sage-700">
+                  {groups.reduce((sum, g) => sum + (g.roster_count ?? 0), 0)}명
+                </span>
+              </p>
+            )}
+
             {totalMembers != null && (
               <p className="text-xs text-neutral-500 text-right">
                 👥 총 신청 인원{" "}
