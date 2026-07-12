@@ -65,7 +65,7 @@
 | LC-2 | ✅ 확정 시 감사 자동 문자 (편집 가능 템플릿) | P2 | S |
 | LC-3 | ✅ 방명록 공개 답글 (관리자 답글 → 피드 공개, db v21) | P3 | S |
 | LC-4 | ✅ 러브스토리 타임라인 (wedding.ts `loveStory` 채우면 노출) | P3 | S |
-| LC-5 | 신혼 근황 페이지 | P3 | M |
+| LC-5 | ✅ 신혼 근황 피드 (wedding.ts `newlywedNews` 채우면 노출) | P3 | M |
 
 ## G. 공유 · 기반 (Foundation)
 

@@ -4,6 +4,7 @@ import LoveStory from "@/components/sections/LoveStory";
 import Gallery from "@/components/sections/Gallery";
 import Album from "@/components/sections/Album";
 import Location from "@/components/sections/Location";
+import NewlywedNews from "@/components/sections/NewlywedNews";
 import Guestbook from "@/components/sections/Guestbook";
 import GuestSnap from "@/components/sections/GuestSnap";
 import Account from "@/components/sections/Account";
@@ -53,6 +54,7 @@ export default async function Home({
       <Gallery />
       <Album />
       <Location />
+      <NewlywedNews />
       <Guestbook qrEntry={qrEntry} />
       <GuestSnap />
       <Account />
