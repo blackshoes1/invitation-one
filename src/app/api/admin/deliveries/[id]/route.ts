@@ -110,5 +110,48 @@ export async function PATCH(
     };
   }
 
+  // 배송 완료 → 리뷰요청 문자 (DL-3) — 개인 리뷰 링크(manage) 포함
+  if (data && patch.status === "완료") {
+    const { data: parts } = await supabaseAdmin
+      .from("participants")
+      .select("id, name, phone")
+      .eq("delivery_id", id)
+      .not("phone", "is", null);
+
+    let reviewTpl = "";
+    const { data: st } = await supabaseAdmin
+      .from("site_settings")
+      .select("value")
+      .eq("key", "review_sms")
+      .maybeSingle();
+    if (typeof st?.value === "string") reviewTpl = st.value.trim();
+
+    const origin = new URL(req.url).origin;
+    const dateK = formatYmdKo(data.date);
+    const targets = (parts ?? []) as { id: string; name: string; phone: string }[];
+    const results = await Promise.all(
+      targets.map((p) => {
+        const link = `${origin}/delivery/manage/${p.id}`;
+        const fill = (tpl: string) =>
+          tpl
+            .replace(/\{이름\}/g, p.name)
+            .replace(/\{날짜\}/g, dateK)
+            .replace(/\{시간\}/g, data.time_slot)
+            .replace(/\{장소\}/g, data.location ?? "")
+            .replace(/\{링크\}/g, link);
+        const text = reviewTpl
+          ? fill(reviewTpl)
+          : `[청첩장 배달] ${p.name}님, 청첩장 잘 받으셨나요? 😊 짧은 한줄 후기를 남겨주시면 큰 힘이 됩니다 🙏 ${link}`;
+        return sendSms(p.phone, text).then((r) => ({ name: p.name, ...r }));
+      })
+    );
+    sms = {
+      count: targets.length,
+      sent: results.filter((r) => r.ok && !r.skipped).length,
+      skipped: results.some((r) => r.skipped),
+      results,
+    };
+  }
+
   return NextResponse.json({ delivery: data, sms });
 }

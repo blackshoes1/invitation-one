@@ -9,6 +9,7 @@ const ALLOWED_KEYS = [
   "video_url",
   "heart_video_url",
   "confirm_sms", // 확정 시 감사 문자 템플릿 (LC-2) — 공개 RPC 에는 없음(관리자 전용)
+  "review_sms", // 완료 시 리뷰요청 문자 템플릿 (DL-3) — 관리자 전용
 ];
 
 function guard(req: Request) {
