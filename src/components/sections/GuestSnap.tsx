@@ -4,8 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Camera, X } from "lucide-react";
 import { supabase, isSupabaseConfigured, type GuestPhoto } from "@/lib/supabase";
-import { INVITATION_KEY, PHOTO_MISSIONS } from "@/lib/wedding";
+import {
+  INVITATION_KEY,
+  PHOTO_MISSIONS,
+  groom,
+  bride,
+  formatShortDate,
+} from "@/lib/wedding";
 import { compressImage } from "@/lib/image";
+import { applyFrame, FRAMES, type FrameId } from "@/lib/frames";
 import FadeIn from "@/components/FadeIn";
 
 /**
@@ -23,7 +30,13 @@ export default function GuestSnap() {
   const [mission, setMission] = useState<string | null>(null);
   /** 완료한 미션 (기기 로컬 기억 — 재방문해도 체크 유지) */
   const [doneMissions, setDoneMissions] = useState<string[]>([]);
+  /** 프레임 선택 단계 (GS-7) — 사진 고른 뒤 프레임 미리보기 */
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [frame, setFrame] = useState<FrameId>("none");
+  const [preview, setPreview] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const signature = `${groom.name} ♥ ${bride.name} · ${formatShortDate()}`;
 
   // 완료 미션 로컬 복원
   useEffect(() => {
@@ -81,11 +94,42 @@ export default function GuestSnap() {
     });
   };
 
-  const onPick = async (file: File) => {
+  /** 사진을 고르면 곧바로 업로드하지 않고 프레임 선택 단계로 (GS-7) */
+  const beginDecorate = (file: File) => {
+    setError(null);
+    setFrame("none");
+    setPendingFile(file);
+  };
+
+  // 선택한 프레임으로 미리보기 갱신 (원본은 그대로 미리보기)
+  useEffect(() => {
+    if (!pendingFile) {
+      setPreview(null);
+      return;
+    }
+    let alive = true;
+    let url: string | null = null;
+    (async () => {
+      const framed = await applyFrame(pendingFile, frame, signature);
+      if (!alive) return;
+      url = URL.createObjectURL(framed);
+      setPreview(url);
+    })();
+    return () => {
+      alive = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+    // signature 는 렌더마다 동일 문자열 (deps 제외)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingFile, frame]);
+
+  /** 실제 업로드 (프레임 적용 후) */
+  const uploadFile = async (file: File) => {
     setError(null);
     setUploading(true);
     try {
-      const compressed = await compressImage(file);
+      const framed = await applyFrame(file, frame, signature);
+      const compressed = await compressImage(framed);
       const fd = new FormData();
       fd.append("file", compressed);
       fd.append("key", INVITATION_KEY);
@@ -101,6 +145,7 @@ export default function GuestSnap() {
       setPhotos((prev) => [j.photo as GuestPhoto, ...prev]);
       if (mission) markMissionDone(mission);
       setMission(null);
+      setPendingFile(null);
     } catch {
       setError("업로드 중 오류가 발생했어요.");
     } finally {
@@ -188,7 +233,7 @@ export default function GuestSnap() {
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
-              if (f) onPick(f);
+              if (f) beginDecorate(f);
               e.target.value = "";
             }}
           />
@@ -245,6 +290,80 @@ export default function GuestSnap() {
               alt="하객 스냅"
               className="max-w-full max-h-[85vh] object-contain"
             />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 프레임 선택 (GS-7) */}
+      <AnimatePresence>
+        {pendingFile && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.94, y: 12 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.94, opacity: 0 }}
+              className="bg-white rounded-lg overflow-hidden w-full max-w-xs"
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100">
+                <p className="text-sm font-medium text-sage-700">프레임 고르기 🖼️</p>
+                <button
+                  type="button"
+                  aria-label="닫기"
+                  onClick={() => !uploading && setPendingFile(null)}
+                  className="text-neutral-400"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="bg-neutral-50 flex items-center justify-center p-3 min-h-[220px]">
+                {preview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={preview}
+                    alt="미리보기"
+                    className="max-h-[46vh] max-w-full object-contain shadow-sm"
+                  />
+                ) : (
+                  <div className="w-40 h-40 bg-neutral-200 animate-pulse rounded" />
+                )}
+              </div>
+
+              <div className="flex gap-2 px-4 py-3 overflow-x-auto">
+                {FRAMES.map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setFrame(f.id)}
+                    disabled={uploading}
+                    className={`shrink-0 text-[11px] px-3 py-1.5 rounded-full border transition-colors disabled:opacity-60 ${
+                      frame === f.id
+                        ? "bg-sage-700 text-white border-sage-700"
+                        : "bg-white text-neutral-500 border-wedding-gold/25"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="px-4 pb-4 pt-1">
+                <button
+                  type="button"
+                  onClick={() => pendingFile && uploadFile(pendingFile)}
+                  disabled={uploading || !preview}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-sage-700 text-white text-sm font-medium disabled:opacity-60"
+                >
+                  <Camera size={16} />
+                  {uploading ? "올리는 중…" : "이대로 올리기"}
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
