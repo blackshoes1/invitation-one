@@ -9,7 +9,7 @@
  *   KAKAO_REFRESH_TOKEN=...     (talk_message 동의로 발급받은 refresh token)
  *
  * ※ refresh token 은 약 2개월 유효 — 만료 전 재발급 필요.
- *   재발급 절차는 README 또는 아래 주석 참고:
+ *   재발급 절차 (.env.local.example 에도 요약 있음):
  *   1) https://kauth.kakao.com/oauth/authorize?client_id={REST_KEY}
  *        &redirect_uri={등록한 URI}&response_type=code&scope=talk_message
  *   2) 받은 code 로 https://kauth.kakao.com/oauth/token 호출 → refresh_token

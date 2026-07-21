@@ -179,7 +179,7 @@ export const HEART_VIDEO_URL = process.env.NEXT_PUBLIC_HEART_VIDEO_URL ?? "";
 // 예상 참석 인원 상한
 export const PARTY_MAX = 10;
 
-// 청첩장 공개 접근 키 (QR/링크의 ?key=). 비어 있으면 청첩장은 그냥 공개.
+// 청첩장 공개 접근 키 (QR/링크의 ?key=). 비어 있으면 청첩장·업로드 API 모두 잠금(fail-closed).
 export const INVITATION_KEY = process.env.NEXT_PUBLIC_INVITATION_KEY ?? "";
 
 // 마음 배송 축하 스탬프

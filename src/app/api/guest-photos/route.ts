@@ -7,7 +7,7 @@ const INVITATION_KEY = process.env.NEXT_PUBLIC_INVITATION_KEY ?? "";
 
 /**
  * 하객 사진 업로드 (공개). 청첩장 '하객 스냅'에서 호출.
- * - 소프트 게이트: 청첩장 접근 키를 함께 받아 검증 (키 설정 시). 링크 아는 하객만 업로드.
+ * - 접근 키 게이트: 청첩장 접근 키를 함께 받아 검증. 키 미설정·불일치 모두 403 (fail-closed).
  * - service role 로 Storage 업로드 + guest_photos insert. 기본 즉시 공개(approved=true).
  */
 export async function POST(req: Request) {
@@ -20,8 +20,8 @@ export async function POST(req: Request) {
   const name = String(form.get("name") ?? "").trim().slice(0, 40) || null;
   const message = String(form.get("message") ?? "").trim().slice(0, 200) || null;
 
-  // 소프트 게이트 (키가 설정돼 있으면 일치해야 함)
-  if (INVITATION_KEY && key !== INVITATION_KEY)
+  // 접근 키 게이트 — 청첩장 페이지와 동일하게 fail-closed (키 미설정 시에도 차단)
+  if (!INVITATION_KEY || key !== INVITATION_KEY)
     return NextResponse.json({ error: "청첩장에서만 업로드할 수 있어요." }, { status: 403 });
 
   if (!(file instanceof File))

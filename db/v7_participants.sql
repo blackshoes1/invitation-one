@@ -52,10 +52,13 @@ begin
     where name is not null and phone is not null;
 
     -- 기존 마음배송(messages) → 마음배송 참여자 (region 은 legacy null 허용)
-    insert into public.participants
-      (delivery_id, group_id, type, name, is_owner, stamp, message, created_at)
-    select null, group_id, '마음배송', name, false, stamp, message, created_at
-    from public.messages;
+    -- v4 를 건너뛴 신규 환경에는 messages 가 없으므로 존재할 때만 이관 (v23 에서 제거됨)
+    if to_regclass('public.messages') is not null then
+      insert into public.participants
+        (delivery_id, group_id, type, name, is_owner, stamp, message, created_at)
+      select null, group_id, '마음배송', name, false, stamp, message, created_at
+      from public.messages;
+    end if;
   end if;
 end $$;
 
