@@ -1,5 +1,4 @@
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
-import { rateLimit, rateLimitResponse, clientIp } from "@/lib/rateLimit";
 import {
   passJson,
   isUuid,
@@ -14,6 +13,11 @@ import {
  * GET  ?t=<token> : 토큰 검증 + 최소 정보 (체크인 전에는 좌석 비노출)
  * POST {token, actualPartySize, mealCount} : 원자적·멱등 체크인
  * 토큰 오류는 존재 여부를 구분할 수 없게 invalid_pass 로 통합한다.
+ *
+ * rate limit 없음(의도) — §11 단계적 방어:
+ * 토큰 자체가 128비트 비밀이라 무차별 대입이 비현실적이고, 운영 시간 +
+ * 활성 1건 unique 가 남용을 막는다. 예식장 공유 WiFi(단일 IP)에서 하객이
+ * 몰리는 상황에서 IP 제한은 정상 하객을 차단하는 역효과만 낸다.
  */
 
 interface PassRsvp {
@@ -41,9 +45,6 @@ async function findByToken(token: string): Promise<PassRsvp | null> {
 export async function GET(req: Request) {
   if (!isAdminConfigured || !supabaseAdmin)
     return passJson({ valid: false, error: "server_not_configured" }, 503);
-
-  const rl = await rateLimit(`pass-get:${clientIp(req)}`, 60, 60, false);
-  if (!rl.ok) return rateLimitResponse(rl);
 
   const token = new URL(req.url).searchParams.get("t");
   if (!isUuid(token)) return passJson({ valid: false, error: "invalid_pass" });
@@ -80,10 +81,6 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   if (!isAdminConfigured || !supabaseAdmin)
     return passJson({ result: "server_not_configured" }, 503);
-
-  // 공개 쓰기 — fail-closed (IP 당 10회/분)
-  const rl = await rateLimit(`pass-post:${clientIp(req)}`, 10, 60, true);
-  if (!rl.ok) return rateLimitResponse(rl);
 
   const body = (await req.json().catch(() => ({}))) as {
     token?: string;

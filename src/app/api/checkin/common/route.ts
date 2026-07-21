@@ -1,5 +1,4 @@
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
-import { rateLimit, rateLimitResponse, clientIp } from "@/lib/rateLimit";
 import {
   passJson,
   isUuid,
@@ -7,26 +6,31 @@ import {
   getCheckinWindow,
   fetchSeat,
   insertCheckin,
+  checkEventKey,
 } from "@/lib/checkinServer";
 
 /**
  * 공용 QR — 검색된 RSVP 체크인 (공개) — §4.4
- * search 로 받은 rsvpId + 전화번호 뒤 4자리를 재검증한 뒤
- * 개인 QR 과 동일한 규칙으로 체크인한다 (source='common_qr').
+ * 행사 키(?event=) 게이트 통과 후, search 로 받은 rsvpId + 전화번호
+ * 뒤 4자리를 재검증한 뒤 개인 QR 과 동일한 규칙으로 체크인한다
+ * (source='common_qr'). rate limit 없음 — §11 단계적 방어 참고.
  */
 export async function POST(req: Request) {
   if (!isAdminConfigured || !supabaseAdmin)
     return passJson({ result: "server_not_configured" }, 503);
 
-  const rl = await rateLimit(`pass-common:${clientIp(req)}`, 10, 60, true);
-  if (!rl.ok) return rateLimitResponse(rl);
-
   const body = (await req.json().catch(() => ({}))) as {
+    eventKey?: string;
     rsvpId?: string;
     last4?: string;
     actualPartySize?: number;
     mealCount?: number;
   };
+
+  const gate = checkEventKey(body.eventKey);
+  if (gate !== "ok")
+    return passJson({ result: "event_key" }, gate === "unset" ? 503 : 403);
+
   const last4 = digits(String(body.last4 ?? ""));
   if (!isUuid(body.rsvpId) || last4.length !== 4)
     return passJson({ result: "invalid_pass" });

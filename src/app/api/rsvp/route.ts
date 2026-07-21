@@ -1,19 +1,28 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
-import { rateLimit, rateLimitResponse, clientIp } from "@/lib/rateLimit";
-import { PASS_HEADERS } from "@/lib/checkinServer";
+import { PASS_HEADERS, rsvpSubmitToken } from "@/lib/checkinServer";
 import { isValidPhone } from "@/lib/wedding";
 
 /**
  * RSVP 제출·수정 (공개) — 체크인 v2 (docs/CHECKIN_SEATING_SPEC.md §8.1)
  * 브라우저의 submit_rsvp 직접 RPC 를 대체한다 (v24 에서 anon 실행 회수).
- * 토큰 반환 정책: 신규 제출(inserted)만 passToken 일회 반환. 기존 수정은 null —
- * 이름+연락처는 인증 수단이 아니므로 저장된 토큰을 공개 경로로 노출하지 않는다.
+ *
+ * 남용 방어 (Upstash 없이 — §11 단계적 방어):
+ * - 서버 전용 제출 토큰: 키 게이트를 통과한 청첩장 페이지(서버 컴포넌트)만
+ *   폼에 토큰을 내려줄 수 있다. 번들 스크래핑으로는 얻을 수 없음.
+ * - 허니팟 필드(website): 채워져 있으면 저장 없이 성공 흉내.
+ * - 총량 상한: RSVP 행 수가 상한을 넘으면 접수 중단 (스팸 폭주 회로 차단기).
+ *
+ * 토큰 반환 정책: 신규 제출(inserted)만 passToken 일회 반환. 기존 수정은 null.
  */
 
 type Eating = "yes" | "no" | "undecided";
 
+const MAX_RSVP_ROWS = 400; // 단일 예식 상한 — 넘으면 스팸으로 간주하고 접수 중단
+
 interface Body {
+  submitToken?: string;
+  website?: string; // 허니팟 — 사람은 채우지 않는 숨김 필드
   name?: string;
   phone?: string;
   side?: string;
@@ -37,15 +46,32 @@ export async function POST(req: Request) {
       { status: 503, headers: PASS_HEADERS }
     );
 
-  // 공개 쓰기 — fail-closed rate limit (IP 당 10회/10분)
-  const rl = await rateLimit(`rsvp:${clientIp(req)}`, 10, 600, true);
-  if (!rl.ok) return rateLimitResponse(rl);
+  const expected = rsvpSubmitToken();
+  if (!expected)
+    // ADMIN_PASSWORD/INVITATION_KEY 미설정 — fail-closed
+    return NextResponse.json(
+      { error: "접수 준비가 되지 않았습니다." },
+      { status: 503, headers: PASS_HEADERS }
+    );
 
   const body = (await req.json().catch(() => ({}))) as Body;
 
+  if (body.submitToken !== expected)
+    return NextResponse.json(
+      { error: "청첩장에서만 제출할 수 있어요." },
+      { status: 403, headers: PASS_HEADERS }
+    );
+
+  // 허니팟 — 봇에게는 성공한 것처럼 응답하고 저장하지 않는다
+  if (String(body.website ?? "").trim() !== "")
+    return NextResponse.json(
+      { result: "updated", passToken: null, passUrl: null },
+      { headers: PASS_HEADERS }
+    );
+
   const name = String(body.name ?? "").trim();
   const phone = String(body.phone ?? "").trim();
-  if (name.length < 2)
+  if (name.length < 2 || name.length > 40)
     return NextResponse.json(
       { error: "성함을 2자 이상 입력해 주세요." },
       { status: 400, headers: PASS_HEADERS }
@@ -66,6 +92,16 @@ export async function POST(req: Request) {
       : "yes"
     : "no";
   const memo = String(body.memo ?? "").trim().slice(0, 500) || null;
+
+  // 총량 상한 (회로 차단기) — 수정(upsert)도 막히지만 상한 도달 자체가 이상 상황
+  const { count } = await supabaseAdmin
+    .from("rsvp")
+    .select("id", { count: "exact", head: true });
+  if ((count ?? 0) >= MAX_RSVP_ROWS)
+    return NextResponse.json(
+      { error: "접수가 잠시 중단되었어요. 안내데스크에 문의해 주세요." },
+      { status: 503, headers: PASS_HEADERS }
+    );
 
   const { data, error } = await supabaseAdmin.rpc("submit_rsvp_v2", {
     p_name: name,

@@ -6,8 +6,10 @@ import { groom, bride } from "@/lib/wedding";
 
 /**
  * 현장 체크인 v2 (docs/CHECKIN_SEATING_SPEC.md §4.2~4.4, §13)
- * - ?t=<token> : 개인 QR — 예약 확인 → 실제 인원 → 체크인 → 좌석 안내
- * - 토큰 없음  : 공용 QR — [RSVP 검색] / [현장 등록]
+ * - ?t=<token>      : 개인 QR — 예약 확인 → 실제 인원 → 체크인 → 좌석 안내
+ * - ?event=<행사키> : 예식장 공용 QR — 이름+뒤4자리로 RSVP 검색 후 체크인
+ * - 파라미터 없음   : 안내 화면 (QR 스캔 / 안내데스크 유도)
+ * 현장 등록(walk-in)은 안내데스크(관리자 현장운영 탭) 전용 — 공개 API 없음.
  * 체크인 상태는 항상 서버 기록으로 판단. 레거시 localStorage 플래그는 제거만 한다.
  */
 
@@ -47,18 +49,12 @@ interface Candidate {
   maskedPhone: string | null;
 }
 
-type Mode =
-  | "loading"
-  | "personal"
-  | "invalid"
-  | "home"
-  | "search"
-  | "walkin"
-  | "done";
+type Mode = "loading" | "personal" | "invalid" | "guide" | "search" | "done";
 
 export default function CheckinPage() {
   const [mode, setMode] = useState<Mode>("loading");
   const [token, setToken] = useState<string | null>(null);
+  const [eventKey, setEventKey] = useState<string | null>(null);
   const [guest, setGuest] = useState<Guest | null>(null);
   const [windowState, setWindowState] = useState<string>("ok");
   const [party, setParty] = useState(1);
@@ -72,11 +68,6 @@ export default function CheckinPage() {
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   const [picked, setPicked] = useState<Candidate | null>(null);
 
-  // 공용 — 현장 등록
-  const [wName, setWName] = useState("");
-  const [wSide, setWSide] = useState<"groom" | "bride" | null>(null);
-  const [wMeal, setWMeal] = useState<number | null>(null);
-
   useEffect(() => {
     // 레거시 플래그 정리 (§13) — 상태 판단에 사용하지 않음
     try {
@@ -85,9 +76,13 @@ export default function CheckinPage() {
       /* 무시 */
     }
 
-    const t = new URLSearchParams(window.location.search).get("t");
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get("t");
+    const ev = params.get("event");
+    if (ev) setEventKey(ev);
+
     if (!t) {
-      setMode("home");
+      setMode(ev ? "search" : "guide");
       return;
     }
     setToken(t);
@@ -168,13 +163,17 @@ export default function CheckinPage() {
       const res = await fetch("/api/checkin/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: sName.trim(), last4: sLast4 }),
+        body: JSON.stringify({ eventKey, name: sName.trim(), last4: sLast4 }),
       });
       const j = await res.json();
+      if (j.error === "event_key") {
+        setError("QR 을 다시 스캔해 주세요. 계속 안 되면 안내데스크로 와주세요.");
+        return;
+      }
       const list: Candidate[] = j.candidates ?? [];
       setCandidates(list);
       if (list.length === 0)
-        setError("예약을 찾지 못했어요. 현장 등록을 이용하거나 안내데스크에 문의해 주세요.");
+        setError("예약을 찾지 못했어요. 안내데스크에서 등록을 도와드릴게요.");
       if (list.length === 1 && !list[0].alreadyCheckedIn) {
         setPicked(list[0]);
         setParty(list[0].expectedPartySize);
@@ -196,6 +195,7 @@ export default function CheckinPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          eventKey,
           rsvpId: picked.rsvpId,
           last4: sLast4,
           actualPartySize: party,
@@ -214,42 +214,6 @@ export default function CheckinPage() {
         setWindowState(j.result);
       } else {
         setError("체크인에 실패했어요. 안내데스크에 문의해 주세요.");
-      }
-    } catch {
-      setError("연결이 원활하지 않아요. 다시 시도해 주세요.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  /** 공용 — 현장 등록 */
-  const submitWalkin = async () => {
-    if (busy) return;
-    if (wName.trim().length < 2) {
-      setError("성함을 입력해 주세요.");
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/checkin/walkin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: wName.trim(),
-          side: wSide,
-          actualPartySize: party,
-          mealCount: Math.min(wMeal ?? party, party),
-        }),
-      });
-      const j = await res.json();
-      if (j.result === "checked_in") {
-        setDone({ name: wName.trim(), actual: party, seat: null, already: false });
-        setMode("done");
-      } else if (WINDOW_MSG[j.result]) {
-        setWindowState(j.result);
-      } else {
-        setError("등록에 실패했어요. 안내데스크에 문의해 주세요.");
       }
     } catch {
       setError("연결이 원활하지 않아요. 다시 시도해 주세요.");
@@ -301,11 +265,31 @@ export default function CheckinPage() {
               <p className="text-sm text-neutral-500 leading-relaxed">
                 링크가 만료되었거나 잘못된 QR 일 수 있어요.
                 <br />
-                아래에서 이름으로 찾거나 안내데스크에 문의해 주세요.
+                예식장에 있는 공용 QR 을 스캔하시거나
+                <br />
+                안내데스크에 문의해 주세요.
               </p>
-              <BigButton onClick={() => { setError(null); setMode("search"); }}>
-                이름으로 예약 찾기
-              </BigButton>
+            </motion.div>
+          )}
+
+          {mode === "guide" && (
+            <motion.div
+              key="guide"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="space-y-5 py-4"
+            >
+              <div className="text-4xl">📷</div>
+              <p className="text-base text-sage-700 font-medium leading-relaxed">
+                체크인은 QR 로 진행돼요.
+              </p>
+              <p className="text-sm text-neutral-500 leading-relaxed">
+                받으신 개인 QR 또는 예식장에 있는
+                <br />
+                공용 QR 을 스캔해 주세요.
+                <br />
+                도움이 필요하면 안내데스크로 와주세요.
+              </p>
             </motion.div>
           )}
 
@@ -346,31 +330,6 @@ export default function CheckinPage() {
             </motion.div>
           )}
 
-          {mode === "home" && (
-            <motion.div
-              key="home"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="space-y-4 py-2"
-            >
-              <p className="text-sm text-neutral-500 leading-relaxed">
-                참석 확인을 도와드릴게요.
-                <br />
-                해당하는 버튼을 눌러주세요.
-              </p>
-              <BigButton onClick={() => { setError(null); setMode("search"); }}>
-                RSVP 를 제출했어요
-              </BigButton>
-              <BigButton
-                variant="outline"
-                onClick={() => { setError(null); setMode("walkin"); }}
-              >
-                현장에서 바로 등록할게요
-              </BigButton>
-            </motion.div>
-          )}
-
           {mode === "search" && (
             <motion.div
               key="search"
@@ -381,6 +340,9 @@ export default function CheckinPage() {
             >
               {!picked ? (
                 <>
+                  <p className="text-sm text-neutral-500 text-center leading-relaxed">
+                    참석 의사를 전해주셨던 성함으로 찾아드릴게요.
+                  </p>
                   <input
                     value={sName}
                     onChange={(e) => setSName(e.target.value)}
@@ -437,6 +399,11 @@ export default function CheckinPage() {
                       인원 변경은 안내데스크에서 도와드려요.
                     </p>
                   )}
+                  <p className="text-xs text-neutral-400 text-center leading-relaxed pt-1">
+                    참석 의사를 미리 전하지 못하셨나요?
+                    <br />
+                    안내데스크에서 바로 등록해 드려요.
+                  </p>
                 </>
               ) : windowBlocked ? (
                 <WindowNotice state={windowState} />
@@ -458,66 +425,19 @@ export default function CheckinPage() {
                   <BigButton onClick={submitCommon} disabled={busy}>
                     {busy ? "체크인 중…" : `${party}명 체크인하기`}
                   </BigButton>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPicked(null);
+                      setCandidates(null);
+                      setError(null);
+                    }}
+                    className="w-full text-center text-sm text-neutral-400 underline underline-offset-4"
+                  >
+                    다시 검색하기
+                  </button>
                 </div>
               )}
-              <BackLink onClick={() => { setPicked(null); setCandidates(null); setError(null); setMode("home"); }} />
-            </motion.div>
-          )}
-
-          {mode === "walkin" && (
-            <motion.div
-              key="walkin"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="space-y-4 text-left"
-            >
-              {windowBlocked ? (
-                <WindowNotice state={windowState} />
-              ) : (
-                <>
-                  <input
-                    value={wName}
-                    onChange={(e) => setWName(e.target.value)}
-                    placeholder="성함"
-                    className="w-full p-3.5 text-base text-center border border-wedding-gold/25 bg-white rounded-md focus:outline-none focus:border-sage-600"
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    {(["groom", "bride"] as const).map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => setWSide((cur) => (cur === s ? null : s))}
-                        className={`py-3 text-base rounded-md border transition-colors ${
-                          wSide === s
-                            ? "bg-sage-600 text-white border-sage-600 font-bold"
-                            : "bg-white text-neutral-500 border-wedding-gold/20"
-                        }`}
-                      >
-                        {SIDE_LABEL[s]}
-                      </button>
-                    ))}
-                  </div>
-                  <Stepper label="함께 오신 인원" value={party} setValue={setParty} />
-                  <Stepper
-                    label="식사하실 인원"
-                    value={wMeal ?? party}
-                    setValue={(f) =>
-                      setWMeal((cur) =>
-                        Math.min(party, Math.max(0, f(cur ?? party)))
-                      )
-                    }
-                    min={0}
-                  />
-                  {error && (
-                    <p className="text-sm text-red-400 text-center">{error}</p>
-                  )}
-                  <BigButton onClick={submitWalkin} disabled={busy}>
-                    {busy ? "등록 중…" : "체크인하기"}
-                  </BigButton>
-                </>
-              )}
-              <BackLink onClick={() => { setError(null); setMode("home"); }} />
             </motion.div>
           )}
 
@@ -581,7 +501,6 @@ export default function CheckinPage() {
           )}
         </AnimatePresence>
       </div>
-
     </main>
   );
 }
@@ -657,17 +576,5 @@ function WindowNotice({ state }: { state: string }) {
     <p className="text-base text-sage-700 leading-relaxed whitespace-pre-line py-4">
       {WINDOW_MSG[state] ?? WINDOW_MSG.checkin_not_enabled}
     </p>
-  );
-}
-
-function BackLink({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full text-center text-sm text-neutral-400 underline underline-offset-4 pt-1"
-    >
-      처음으로
-    </button>
   );
 }

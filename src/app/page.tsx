@@ -5,6 +5,7 @@ import Gallery from "@/components/sections/Gallery";
 import Album from "@/components/sections/Album";
 import Location from "@/components/sections/Location";
 import NewlywedNews from "@/components/sections/NewlywedNews";
+import Rsvp from "@/components/sections/Rsvp";
 import Guestbook from "@/components/sections/Guestbook";
 import GuestSnap from "@/components/sections/GuestSnap";
 import Account from "@/components/sections/Account";
@@ -14,6 +15,7 @@ import BgmToggle from "@/components/BgmToggle";
 import PostWeddingBanner from "@/components/PostWeddingBanner";
 import LockedGate from "@/components/LockedGate";
 import { INVITATION_KEY } from "@/lib/wedding";
+import { rsvpSubmitToken } from "@/lib/checkinServer";
 
 /**
  * 모바일 청첩장
@@ -56,6 +58,8 @@ export default async function Home({
       <Gallery />
       <Album />
       <Location />
+      {/* 참석 의사 (RSVP) — 제출 토큰은 서버 전용 값에서 파생, 키 게이트 통과 페이지만 내려줌 */}
+      <Rsvp submitToken={rsvpSubmitToken()} />
       <NewlywedNews />
       <Guestbook qrEntry={qrEntry} />
       <GuestSnap />

@@ -1,25 +1,32 @@
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
-import { rateLimit, rateLimitResponse, clientIp } from "@/lib/rateLimit";
-import { passJson, digits } from "@/lib/checkinServer";
+import { passJson, digits, checkEventKey } from "@/lib/checkinServer";
 
 /**
  * 공용 QR — RSVP 검색 (공개) — §4.4
+ * 예식장 공용 QR 에 포함된 행사 키(?event=CHECKIN_EVENT_KEY)를 가진
+ * 요청만 처리한다 (키 미설정 시 fail-closed). 익명 인터넷 전체에는
+ * 닫혀 있고, 현장 QR 을 스캔한 사람에게만 열리는 게이트.
  * 이름 + 전화번호 뒤 4자리로 참석 RSVP 를 찾는다.
- * 동명이인은 전체 전화번호(fullPhone)로 추가 확인.
  * 전체 전화번호·토큰은 반환하지 않는다 (마스킹 + rsvpId 만).
  */
 export async function POST(req: Request) {
   if (!isAdminConfigured || !supabaseAdmin)
     return passJson({ error: "server_not_configured" }, 503);
 
-  const rl = await rateLimit(`pass-search:${clientIp(req)}`, 20, 600, false);
-  if (!rl.ok) return rateLimitResponse(rl);
-
   const body = (await req.json().catch(() => ({}))) as {
+    eventKey?: string;
     name?: string;
     last4?: string;
     fullPhone?: string;
   };
+
+  const gate = checkEventKey(body.eventKey);
+  if (gate !== "ok")
+    return passJson(
+      { error: "event_key" },
+      gate === "unset" ? 503 : 403
+    );
+
   const name = String(body.name ?? "").trim();
   const last4 = digits(String(body.last4 ?? ""));
   const fullPhone = digits(String(body.fullPhone ?? ""));

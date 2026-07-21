@@ -33,8 +33,10 @@ const initial: FormState = {
   memo: "",
 };
 
-export default function Rsvp() {
+export default function Rsvp({ submitToken }: { submitToken: string | null }) {
   const [form, setForm] = useState<FormState>(initial);
+  // 허니팟 — 사람은 보지도 채우지도 않는 필드 (봇 차단, §11)
+  const [website, setWebsite] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [updated, setUpdated] = useState(false);
   const [sending, setSending] = useState(false);
@@ -60,6 +62,8 @@ export default function Rsvp() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          submitToken,
+          website,
           name: form.name.trim(),
           phone: form.phone.trim(),
           side: form.side,
@@ -130,6 +134,18 @@ export default function Rsvp() {
               onSubmit={handleSubmit}
               className="text-left space-y-7 bg-wedding-cream/60 p-8 border border-wedding-gold/15 text-sm font-light"
             >
+              {/* 허니팟 — 시각적으로 숨김. 봇이 채우면 서버가 저장 없이 무시 */}
+              <input
+                type="text"
+                name="website"
+                value={website}
+                onChange={(e) => setWebsite(e.target.value)}
+                tabIndex={-1}
+                autoComplete="off"
+                aria-hidden="true"
+                className="absolute -left-[9999px] top-auto h-px w-px overflow-hidden"
+              />
+
               <Field label="성함">
                 <input
                   type="text"

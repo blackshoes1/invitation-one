@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
@@ -62,6 +63,30 @@ export function isUuid(v: unknown): v is string {
 /** 전화번호에서 숫자만 */
 export function digits(v: string): string {
   return v.replace(/\D/g, "");
+}
+
+/**
+ * RSVP 서버 전용 제출 토큰.
+ * 청첩장 페이지(서버 컴포넌트, 키 게이트 통과 후)가 폼에 prop 으로 내려주고
+ * /api/rsvp 가 검증한다. 서버 전용 값(ADMIN_PASSWORD)에서 파생하므로
+ * JS 번들에는 포함되지 않는다 — 초대 링크 없이 번들만 훑어서는 얻을 수 없음.
+ * env 미설정 시 null → API fail-closed.
+ */
+export function rsvpSubmitToken(): string | null {
+  const pw = process.env.ADMIN_PASSWORD;
+  const inv = process.env.NEXT_PUBLIC_INVITATION_KEY;
+  if (!pw || !inv) return null;
+  return crypto
+    .createHash("sha256")
+    .update(`rsvp-submit:${pw}:${inv}`)
+    .digest("hex");
+}
+
+/** 공용 QR 행사 키 (?event=) 검증 — 미설정 시 null (fail-closed) */
+export function checkEventKey(v: unknown): "ok" | "unset" | "mismatch" {
+  const key = process.env.CHECKIN_EVENT_KEY;
+  if (!key) return "unset";
+  return typeof v === "string" && v === key ? "ok" : "mismatch";
 }
 
 /* ------------------------------------------------------------------ *

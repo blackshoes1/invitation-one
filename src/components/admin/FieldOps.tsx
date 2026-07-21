@@ -103,6 +103,7 @@ export default function FieldOps() {
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [seatTab, setSeatTab] = useState(false);
+  const [commonUrl, setCommonUrl] = useState<string | null>(null);
 
   // 현장 등록 폼
   const [wOpen, setWOpen] = useState(false);
@@ -131,6 +132,7 @@ export default function FieldOps() {
     setCheckins(j.checkins ?? []);
     setTables(j.tables ?? []);
     setStats(j.stats ?? null);
+    setCommonUrl(j.commonCheckinUrl ?? null);
   }, []);
 
   useEffect(() => {
@@ -538,6 +540,21 @@ export default function FieldOps() {
           </button>
         </div>
         <div className="flex gap-1.5">
+          {commonUrl && (
+            <button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(commonUrl);
+                  flash("공용 QR 링크를 복사했어요 (인쇄용)");
+                } catch {
+                  prompt("공용 QR 링크", commonUrl);
+                }
+              }}
+              className="px-3 py-1.5 text-[11px] border border-wedding-gold/25 text-neutral-500 bg-white"
+            >
+              공용 QR 링크
+            </button>
+          )}
           <a href="/api/admin/rsvp-export?type=full" className="px-3 py-1.5 text-[11px] border border-wedding-gold/25 text-neutral-500 bg-white">
             CSV
           </a>
