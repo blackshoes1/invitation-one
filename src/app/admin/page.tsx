@@ -24,6 +24,7 @@ import {
   GALLERY_MAX,
   ALBUM_MAX,
 } from "@/lib/wedding";
+import type { TimeSlot } from "@/lib/wedding";
 
 /** 참여 시스템: 주문 + 참여자 목록 */
 type AdminDelivery = Delivery & { participants: Participant[] };
@@ -181,6 +182,14 @@ export default function AdminPage() {
   /** 기존 그룹의 제안 일정 편집 상태 */
   const [editOffer, setEditOffer] = useState<{
     gid: string;
+    date: string;
+    time: string;
+    location: string;
+  } | null>(null);
+
+  /** 주문(담당자 신청) 일정 수정 상태 — 그룹 담당자가 신청한 일자·시간·장소 조정 */
+  const [editSched, setEditSched] = useState<{
+    id: string;
     date: string;
     time: string;
     location: string;
@@ -599,6 +608,44 @@ export default function AdminPage() {
       setError(j.error ?? "단계 변경 실패");
       loadOrders();
     }
+  };
+
+  /** 주문 일정(일자·시간·장소) 저장 — 참여자 SMS 안내 여부 확인 후 PATCH */
+  const saveSchedule = async () => {
+    if (!editSched) return;
+    if (!editSched.date) return setError("날짜를 선택해주세요.");
+    if (!editSched.time) return setError("시간대를 선택해주세요.");
+    if (!editSched.location.trim()) return setError("장소를 입력해주세요.");
+    setError(null);
+    setNotice(null);
+
+    const notify = confirm(
+      "일정을 변경합니다.\n참여자에게 변경 안내 문자를 보낼까요?\n(취소를 눌러도 일정은 변경되며 문자만 생략됩니다)"
+    );
+    const res = await api(`/api/admin/deliveries/${editSched.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        date: editSched.date,
+        time_slot: editSched.time,
+        location: editSched.location.trim(),
+        notify,
+      }),
+    });
+    const j = await res.json();
+    if (!res.ok) return setError(j.error ?? "일정 변경 실패");
+
+    const sms = j.sms as { count: number; sent: number; skipped: boolean } | null;
+    setNotice(
+      !notify
+        ? "일정이 변경되었습니다 (문자 안내 생략)."
+        : !sms || sms.count === 0
+        ? "일정이 변경되었습니다 — 연락처 보유 참여자가 없어 SMS 미발송."
+        : sms.skipped
+        ? `일정이 변경되었습니다 — SMS는 솔라피 키 미설정으로 미발송 (${sms.count}명 대상).`
+        : `일정 변경 및 참여자 ${sms.sent}/${sms.count}명에게 안내 SMS 발송 완료.`
+    );
+    setEditSched(null);
+    loadOrders();
   };
 
   const createGroup = async () => {
@@ -1105,6 +1152,27 @@ export default function AdminPage() {
                     {/* 주문 합치기 (활성 주문만) */}
                     {r.status !== "취소" && r.status !== "완료" && (
                       <div className="flex justify-end gap-2 flex-wrap">
+                        <button
+                          onClick={() =>
+                            setEditSched((cur) =>
+                              cur?.id === r.id
+                                ? null
+                                : {
+                                    id: r.id,
+                                    date: r.date,
+                                    time: r.time_slot,
+                                    location: r.location ?? "",
+                                  }
+                            )
+                          }
+                          className={`px-3 py-1.5 text-xs border ${
+                            editSched?.id === r.id
+                              ? "border-sage-600 text-sage-700 bg-sage-50"
+                              : "border-neutral-300 text-neutral-500"
+                          }`}
+                        >
+                          {editSched?.id === r.id ? "수정 닫기" : "📝 일정 수정"}
+                        </button>
                         {mergeSource === null ? (
                           <button
                             onClick={() => setMergeSource(r.id)}
@@ -1127,6 +1195,78 @@ export default function AdminPage() {
                             여기로 합치기 ⤵
                           </button>
                         )}
+                      </div>
+                    )}
+
+                    {/* 일정 수정 폼 — 그룹 담당자가 신청한 일자·시간·장소를 관리자가 조정 */}
+                    {editSched?.id === r.id && (
+                      <div className="border-t border-wedding-gold/10 pt-2.5 space-y-2">
+                        <p className="text-[10px] text-neutral-400">
+                          일정 수정 — 저장 시 참여자 문자 안내 여부를 물어봅니다
+                        </p>
+                        <div className="flex gap-2 flex-wrap items-center">
+                          <input
+                            type="date"
+                            min="2026-07-06"
+                            max="2026-10-16"
+                            value={editSched.date}
+                            onChange={(e) =>
+                              setEditSched((cur) =>
+                                cur && {
+                                  ...cur,
+                                  date: e.target.value,
+                                  // 날짜가 바뀌면 해당 날짜에 없는 시간대는 초기화
+                                  time: slotsForDate(e.target.value).includes(
+                                    cur.time as TimeSlot
+                                  )
+                                    ? cur.time
+                                    : "",
+                                }
+                              )
+                            }
+                            className="p-2 text-xs border border-wedding-gold/20 bg-white"
+                          />
+                          <select
+                            value={editSched.time}
+                            onChange={(e) =>
+                              setEditSched((cur) => cur && { ...cur, time: e.target.value })
+                            }
+                            disabled={!editSched.date}
+                            className="p-2 text-xs border border-wedding-gold/20 bg-white"
+                          >
+                            <option value="">시간대</option>
+                            {(editSched.date ? slotsForDate(editSched.date) : []).map(
+                              (s) => (
+                                <option key={s} value={s}>
+                                  {s}
+                                </option>
+                              )
+                            )}
+                          </select>
+                          <input
+                            type="text"
+                            value={editSched.location}
+                            onChange={(e) =>
+                              setEditSched((cur) => cur && { ...cur, location: e.target.value })
+                            }
+                            placeholder="장소"
+                            className="flex-1 min-w-[140px] p-2 text-xs border border-wedding-gold/20 bg-white"
+                          />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => setEditSched(null)}
+                            className="px-3 py-1.5 text-xs border border-neutral-300 text-neutral-400"
+                          >
+                            취소
+                          </button>
+                          <button
+                            onClick={saveSchedule}
+                            className="px-3 py-1.5 text-xs bg-sage-700 text-white"
+                          >
+                            변경 저장
+                          </button>
+                        </div>
                       </div>
                     )}
 
