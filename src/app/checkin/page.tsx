@@ -2,89 +2,267 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  supabase,
-  isSupabaseConfigured,
-  type CheckinSummary,
-} from "@/lib/supabase";
 import { groom, bride } from "@/lib/wedding";
 
 /**
- * 현장 체크인 (GX-4) — 예식장에서 QR 로 진입, 참석 인원을 체크인.
- * 실시간 식수 합계를 함께 보여준다. (공개 페이지, 초대 키 불필요)
+ * 현장 체크인 v2 (docs/CHECKIN_SEATING_SPEC.md §4.2~4.4, §13)
+ * - ?t=<token> : 개인 QR — 예약 확인 → 실제 인원 → 체크인 → 좌석 안내
+ * - 토큰 없음  : 공용 QR — [RSVP 검색] / [현장 등록]
+ * 체크인 상태는 항상 서버 기록으로 판단. 레거시 localStorage 플래그는 제거만 한다.
  */
-type Side = "신랑" | "신부" | null;
+
+const SIDE_LABEL: Record<string, string> = { groom: "신랑측", bride: "신부측" };
+
+const WINDOW_MSG: Record<string, string> = {
+  checkin_not_enabled: "현장 체크인이 아직 준비 중이에요.\n안내데스크에 문의해 주세요.",
+  checkin_not_open: "체크인은 예식 당일에 열려요.\n조금만 기다려 주세요.",
+  checkin_closed: "현장 체크인이 종료되었습니다.\n안내데스크에 문의해 주세요.",
+};
+
+interface Guest {
+  displayName: string;
+  side: string | null;
+  expectedPartySize: number;
+  children?: number;
+}
+interface Seat {
+  tableName: string;
+  zone: string | null;
+  floor: string | null;
+  locationNote: string | null;
+}
+interface DoneInfo {
+  name: string;
+  actual: number;
+  seat: Seat | null;
+  already: boolean;
+  checkedInAt?: string | null;
+}
+interface Candidate {
+  rsvpId: string;
+  displayName: string;
+  side: string | null;
+  expectedPartySize: number;
+  alreadyCheckedIn: boolean;
+  maskedPhone: string | null;
+}
+
+type Mode =
+  | "loading"
+  | "personal"
+  | "invalid"
+  | "home"
+  | "search"
+  | "walkin"
+  | "done";
 
 export default function CheckinPage() {
-  const [name, setName] = useState("");
+  const [mode, setMode] = useState<Mode>("loading");
+  const [token, setToken] = useState<string | null>(null);
+  const [guest, setGuest] = useState<Guest | null>(null);
+  const [windowState, setWindowState] = useState<string>("ok");
   const [party, setParty] = useState(1);
-  const [side, setSide] = useState<Side>(null);
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<CheckinSummary | null>(null);
+  const [done, setDone] = useState<DoneInfo | null>(null);
 
-  const loadSummary = async () => {
-    if (!isSupabaseConfigured || !supabase) return;
-    const { data } = await supabase.rpc("get_checkin_summary");
-    if (Array.isArray(data) && data[0]) setSummary(data[0] as CheckinSummary);
-  };
+  // 공용 — RSVP 검색
+  const [sName, setSName] = useState("");
+  const [sLast4, setSLast4] = useState("");
+  const [candidates, setCandidates] = useState<Candidate[] | null>(null);
+  const [picked, setPicked] = useState<Candidate | null>(null);
 
-  // 이미 체크인한 기기면 완료 화면부터 + 실시간 합계 폴링
+  // 공용 — 현장 등록
+  const [wName, setWName] = useState("");
+  const [wSide, setWSide] = useState<"groom" | "bride" | null>(null);
+  const [wMeal, setWMeal] = useState<number | null>(null);
+
   useEffect(() => {
+    // 레거시 플래그 정리 (§13) — 상태 판단에 사용하지 않음
     try {
-      if (localStorage.getItem("checkin-done") === "1") setDone(true);
+      localStorage.removeItem("checkin-done");
     } catch {
       /* 무시 */
     }
-    loadSummary();
-    const t = setInterval(loadSummary, 15000);
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
-  const submit = async () => {
-    if (!isSupabaseConfigured || !supabase) {
-      setError("잠시 후 다시 시도해주세요 🙏");
+    const t = new URLSearchParams(window.location.search).get("t");
+    if (!t) {
+      setMode("home");
       return;
     }
-    setError(null);
-    setBusy(true);
-    try {
-      const { data, error } = await supabase.rpc("submit_checkin", {
-        p_name: name.trim() || null,
-        p_party: party,
-        p_side: side,
-      });
-      if (error) {
-        setError("체크인에 실패했어요. 다시 시도해주세요.");
-        return;
-      }
-      if (Array.isArray(data) && data[0]) {
-        setSummary((prev) => ({
-          total_checkins: data[0].total_checkins,
-          total_people: data[0].total_people,
-          groom: prev?.groom ?? 0,
-          bride: prev?.bride ?? 0,
-        }));
-      }
+    setToken(t);
+
+    (async () => {
       try {
-        localStorage.setItem("checkin-done", "1");
+        const res = await fetch(`/api/checkin/pass?t=${encodeURIComponent(t)}`);
+        const j = await res.json();
+        if (!j.valid) {
+          setMode("invalid");
+          return;
+        }
+        setWindowState(j.window ?? "ok");
+        setGuest(j.guest);
+        if (j.alreadyCheckedIn) {
+          setDone({
+            name: j.guest.displayName,
+            actual: j.checkin?.actualPartySize ?? j.guest.expectedPartySize,
+            seat: j.seat ?? null,
+            already: true,
+            checkedInAt: j.checkin?.checkedInAt ?? null,
+          });
+          setMode("done");
+        } else {
+          setParty(j.guest.expectedPartySize);
+          setMode("personal");
+        }
       } catch {
-        /* 무시 */
+        setMode("invalid");
       }
-      setDone(true);
-      loadSummary();
+    })();
+  }, []);
+
+  /** 개인 QR 체크인 */
+  const submitPersonal = async () => {
+    if (!token || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/checkin/pass", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, actualPartySize: party }),
+      });
+      const j = await res.json();
+      if (j.result === "checked_in" || j.result === "already_checked_in") {
+        setDone({
+          name: guest?.displayName ?? "",
+          actual: j.checkin?.actualPartySize ?? party,
+          seat: j.seat ?? null,
+          already: j.result === "already_checked_in",
+        });
+        setMode("done");
+      } else if (WINDOW_MSG[j.result]) {
+        setWindowState(j.result);
+      } else if (j.result === "not_attending") {
+        setError("불참으로 변경된 예약이에요. 안내데스크에 문의해 주세요.");
+      } else {
+        setError("체크인에 실패했어요. 다시 시도하거나 안내데스크에 문의해 주세요.");
+      }
     } catch {
-      setError("체크인 중 오류가 발생했어요.");
+      setError("연결이 원활하지 않아요. 다시 시도해 주세요.");
     } finally {
       setBusy(false);
     }
   };
 
+  /** 공용 — RSVP 검색 */
+  const submitSearch = async () => {
+    if (busy) return;
+    if (sName.trim().length < 2 || sLast4.replace(/\D/g, "").length !== 4) {
+      setError("성함과 전화번호 뒤 4자리를 입력해 주세요.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/checkin/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: sName.trim(), last4: sLast4 }),
+      });
+      const j = await res.json();
+      const list: Candidate[] = j.candidates ?? [];
+      setCandidates(list);
+      if (list.length === 0)
+        setError("예약을 찾지 못했어요. 현장 등록을 이용하거나 안내데스크에 문의해 주세요.");
+      if (list.length === 1 && !list[0].alreadyCheckedIn) {
+        setPicked(list[0]);
+        setParty(list[0].expectedPartySize);
+      }
+    } catch {
+      setError("검색에 실패했어요. 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** 공용 — 검색된 RSVP 체크인 */
+  const submitCommon = async () => {
+    if (!picked || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/checkin/common", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rsvpId: picked.rsvpId,
+          last4: sLast4,
+          actualPartySize: party,
+        }),
+      });
+      const j = await res.json();
+      if (j.result === "checked_in" || j.result === "already_checked_in") {
+        setDone({
+          name: picked.displayName,
+          actual: j.checkin?.actualPartySize ?? party,
+          seat: j.seat ?? null,
+          already: j.result === "already_checked_in",
+        });
+        setMode("done");
+      } else if (WINDOW_MSG[j.result]) {
+        setWindowState(j.result);
+      } else {
+        setError("체크인에 실패했어요. 안내데스크에 문의해 주세요.");
+      }
+    } catch {
+      setError("연결이 원활하지 않아요. 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** 공용 — 현장 등록 */
+  const submitWalkin = async () => {
+    if (busy) return;
+    if (wName.trim().length < 2) {
+      setError("성함을 입력해 주세요.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/checkin/walkin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: wName.trim(),
+          side: wSide,
+          actualPartySize: party,
+          mealCount: Math.min(wMeal ?? party, party),
+        }),
+      });
+      const j = await res.json();
+      if (j.result === "checked_in") {
+        setDone({ name: wName.trim(), actual: party, seat: null, already: false });
+        setMode("done");
+      } else if (WINDOW_MSG[j.result]) {
+        setWindowState(j.result);
+      } else {
+        setError("등록에 실패했어요. 안내데스크에 문의해 주세요.");
+      }
+    } catch {
+      setError("연결이 원활하지 않아요. 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const windowBlocked = windowState !== "ok";
+
   return (
-    <main className="min-h-screen bg-wedding-cream flex items-center justify-center px-6 py-10">
-      <div className="w-full max-w-xs bg-white border border-wedding-gold/20 rounded-2xl px-6 py-8 text-center space-y-6">
+    <main className="min-h-screen bg-wedding-cream flex items-center justify-center px-5 py-10">
+      <div className="w-full max-w-sm bg-white border border-wedding-gold/20 rounded-2xl px-6 py-8 text-center space-y-6">
         <div className="space-y-1">
           <p className="font-serif tracking-[0.3em] text-[11px] text-wedding-gold">
             CHECK-IN
@@ -92,112 +270,404 @@ export default function CheckinPage() {
           <h1 className="font-serif text-2xl font-light tracking-widest text-sage-700">
             현장 체크인
           </h1>
-          <p className="text-xs text-neutral-400 pt-1">
+          <p className="text-sm text-neutral-400 pt-1">
             {groom.name} <span className="text-wedding-gold">♥</span> {bride.name}
           </p>
         </div>
 
         <AnimatePresence mode="wait">
-          {done ? (
-            <motion.div
-              key="done"
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="space-y-4"
+          {mode === "loading" && (
+            <motion.p
+              key="loading"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-sm text-neutral-400 py-8"
             >
-              <div className="text-4xl">🎉</div>
-              <p className="text-sm text-sage-700 font-medium">
-                체크인 되었어요! 와주셔서 감사합니다 💐
-              </p>
-            </motion.div>
-          ) : (
+              예약 정보를 확인하고 있어요…
+            </motion.p>
+          )}
+
+          {mode === "invalid" && (
             <motion.div
-              key="form"
+              key="invalid"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="space-y-5 py-4"
+            >
+              <div className="text-4xl">🙏</div>
+              <p className="text-base text-sage-700 font-medium leading-relaxed">
+                QR 을 확인하지 못했어요.
+              </p>
+              <p className="text-sm text-neutral-500 leading-relaxed">
+                링크가 만료되었거나 잘못된 QR 일 수 있어요.
+                <br />
+                아래에서 이름으로 찾거나 안내데스크에 문의해 주세요.
+              </p>
+              <BigButton onClick={() => { setError(null); setMode("search"); }}>
+                이름으로 예약 찾기
+              </BigButton>
+            </motion.div>
+          )}
+
+          {mode === "personal" && guest && (
+            <motion.div
+              key="personal"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="space-y-6"
+            >
+              <div className="space-y-2">
+                <p className="text-xl font-medium text-sage-700">
+                  {guest.displayName}님, 환영합니다
+                </p>
+                <p className="text-sm text-neutral-500">
+                  {guest.side && `${SIDE_LABEL[guest.side] ?? ""} · `}예약 인원{" "}
+                  <b className="text-sage-700">{guest.expectedPartySize}명</b>
+                  {guest.children ? ` (어린이 ${guest.children}명 포함)` : ""}
+                </p>
+              </div>
+
+              {windowBlocked ? (
+                <WindowNotice state={windowState} />
+              ) : (
+                <>
+                  <Stepper
+                    label="오늘 함께 오신 인원이 맞나요?"
+                    value={party}
+                    setValue={setParty}
+                  />
+                  {error && <p className="text-sm text-red-400">{error}</p>}
+                  <BigButton onClick={submitPersonal} disabled={busy}>
+                    {busy ? "체크인 중…" : `${party}명 체크인하기`}
+                  </BigButton>
+                </>
+              )}
+            </motion.div>
+          )}
+
+          {mode === "home" && (
+            <motion.div
+              key="home"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="space-y-4 py-2"
+            >
+              <p className="text-sm text-neutral-500 leading-relaxed">
+                참석 확인을 도와드릴게요.
+                <br />
+                해당하는 버튼을 눌러주세요.
+              </p>
+              <BigButton onClick={() => { setError(null); setMode("search"); }}>
+                RSVP 를 제출했어요
+              </BigButton>
+              <BigButton
+                variant="outline"
+                onClick={() => { setError(null); setMode("walkin"); }}
+              >
+                현장에서 바로 등록할게요
+              </BigButton>
+            </motion.div>
+          )}
+
+          {mode === "search" && (
+            <motion.div
+              key="search"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="space-y-4 text-left"
             >
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="성함 (선택)"
-                className="w-full p-2.5 text-base border border-wedding-gold/20 bg-white rounded-none focus:outline-none focus:border-sage-600 text-center"
-              />
+              {!picked ? (
+                <>
+                  <input
+                    value={sName}
+                    onChange={(e) => setSName(e.target.value)}
+                    placeholder="성함"
+                    className="w-full p-3.5 text-base text-center border border-wedding-gold/25 bg-white rounded-md focus:outline-none focus:border-sage-600"
+                  />
+                  <input
+                    value={sLast4}
+                    inputMode="numeric"
+                    maxLength={4}
+                    onChange={(e) => setSLast4(e.target.value.replace(/\D/g, ""))}
+                    placeholder="전화번호 뒤 4자리"
+                    className="w-full p-3.5 text-base text-center border border-wedding-gold/25 bg-white rounded-md focus:outline-none focus:border-sage-600"
+                  />
+                  {error && (
+                    <p className="text-sm text-red-400 text-center">{error}</p>
+                  )}
+                  <BigButton onClick={submitSearch} disabled={busy}>
+                    {busy ? "찾는 중…" : "예약 찾기"}
+                  </BigButton>
 
-              {/* 신랑측 / 신부측 */}
-              <div className="grid grid-cols-2 gap-2">
-                {(["신랑", "신부"] as const).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setSide((cur) => (cur === s ? null : s))}
-                    className={`py-2 text-sm rounded-md border transition-colors ${
-                      side === s
-                        ? "bg-sage-600 text-white border-sage-600 font-bold"
-                        : "bg-white text-neutral-500 border-wedding-gold/20"
-                    }`}
-                  >
-                    {s}측
-                  </button>
-                ))}
-              </div>
-
-              {/* 인원 스텝퍼 */}
-              <div>
-                <p className="text-[11px] text-neutral-400 mb-1.5 text-center">
-                  함께 오신 인원
-                </p>
-                <div className="flex items-center justify-center gap-4">
-                  <button
-                    type="button"
-                    onClick={() => setParty((p) => Math.max(1, p - 1))}
-                    className="w-10 h-10 rounded-full border border-wedding-gold/30 text-lg text-sage-700"
-                    aria-label="인원 줄이기"
-                  >
-                    −
-                  </button>
-                  <span className="text-2xl font-bold text-sage-700 w-12 text-center">
-                    {party}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setParty((p) => Math.min(20, p + 1))}
-                    className="w-10 h-10 rounded-full border border-wedding-gold/30 text-lg text-sage-700"
-                    aria-label="인원 늘리기"
-                  >
-                    +
-                  </button>
+                  {candidates && candidates.length > 1 && (
+                    <div className="space-y-2 pt-1">
+                      <p className="text-xs text-neutral-400 text-center">
+                        같은 이름의 예약이 여러 건이에요. 본인 예약을 선택해 주세요.
+                      </p>
+                      {candidates.map((c) => (
+                        <button
+                          key={c.rsvpId}
+                          type="button"
+                          disabled={c.alreadyCheckedIn}
+                          onClick={() => {
+                            setPicked(c);
+                            setParty(c.expectedPartySize);
+                            setError(null);
+                          }}
+                          className="w-full p-3 border border-wedding-gold/20 rounded-md text-left text-sm disabled:opacity-50"
+                        >
+                          <b className="text-sage-700">{c.displayName}</b>
+                          <span className="text-neutral-400">
+                            {" "}
+                            · {c.side ? SIDE_LABEL[c.side] : "-"} ·{" "}
+                            {c.maskedPhone ?? ""}
+                            {c.alreadyCheckedIn && " · 체크인 완료"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {candidates?.length === 1 && candidates[0].alreadyCheckedIn && (
+                    <p className="text-sm text-sage-700 text-center leading-relaxed">
+                      이미 체크인된 예약이에요 🎉
+                      <br />
+                      인원 변경은 안내데스크에서 도와드려요.
+                    </p>
+                  )}
+                </>
+              ) : windowBlocked ? (
+                <WindowNotice state={windowState} />
+              ) : (
+                <div className="space-y-5 text-center">
+                  <p className="text-lg font-medium text-sage-700">
+                    {picked.displayName}님, 환영합니다
+                  </p>
+                  <p className="text-sm text-neutral-500">
+                    예약 인원{" "}
+                    <b className="text-sage-700">{picked.expectedPartySize}명</b>
+                  </p>
+                  <Stepper
+                    label="오늘 함께 오신 인원이 맞나요?"
+                    value={party}
+                    setValue={setParty}
+                  />
+                  {error && <p className="text-sm text-red-400">{error}</p>}
+                  <BigButton onClick={submitCommon} disabled={busy}>
+                    {busy ? "체크인 중…" : `${party}명 체크인하기`}
+                  </BigButton>
                 </div>
+              )}
+              <BackLink onClick={() => { setPicked(null); setCandidates(null); setError(null); setMode("home"); }} />
+            </motion.div>
+          )}
+
+          {mode === "walkin" && (
+            <motion.div
+              key="walkin"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="space-y-4 text-left"
+            >
+              {windowBlocked ? (
+                <WindowNotice state={windowState} />
+              ) : (
+                <>
+                  <input
+                    value={wName}
+                    onChange={(e) => setWName(e.target.value)}
+                    placeholder="성함"
+                    className="w-full p-3.5 text-base text-center border border-wedding-gold/25 bg-white rounded-md focus:outline-none focus:border-sage-600"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["groom", "bride"] as const).map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setWSide((cur) => (cur === s ? null : s))}
+                        className={`py-3 text-base rounded-md border transition-colors ${
+                          wSide === s
+                            ? "bg-sage-600 text-white border-sage-600 font-bold"
+                            : "bg-white text-neutral-500 border-wedding-gold/20"
+                        }`}
+                      >
+                        {SIDE_LABEL[s]}
+                      </button>
+                    ))}
+                  </div>
+                  <Stepper label="함께 오신 인원" value={party} setValue={setParty} />
+                  <Stepper
+                    label="식사하실 인원"
+                    value={wMeal ?? party}
+                    setValue={(f) =>
+                      setWMeal((cur) =>
+                        Math.min(party, Math.max(0, f(cur ?? party)))
+                      )
+                    }
+                    min={0}
+                  />
+                  {error && (
+                    <p className="text-sm text-red-400 text-center">{error}</p>
+                  )}
+                  <BigButton onClick={submitWalkin} disabled={busy}>
+                    {busy ? "등록 중…" : "체크인하기"}
+                  </BigButton>
+                </>
+              )}
+              <BackLink onClick={() => { setError(null); setMode("home"); }} />
+            </motion.div>
+          )}
+
+          {mode === "done" && done && (
+            <motion.div
+              key="done"
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="space-y-5"
+            >
+              <div className="text-4xl">🎉</div>
+              <p className="text-base text-sage-700 font-medium">
+                {done.already ? "이미 체크인되어 있어요" : "체크인이 완료되었습니다"}
+              </p>
+              <p className="text-sm text-neutral-500">
+                {done.name && (
+                  <>
+                    <b className="text-sage-700">{done.name}</b>님
+                    {done.actual > 1 && ` 외 ${done.actual - 1}명`}
+                  </>
+                )}
+                {done.checkedInAt &&
+                  ` · ${new Date(done.checkedInAt).toLocaleTimeString("ko-KR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })} 체크인`}
+              </p>
+
+              {/* 좌석 카드 — 스크린샷하기 쉽게, 테이블명을 가장 크게 (§13) */}
+              <div className="border border-wedding-gold/25 rounded-xl bg-wedding-cream/50 px-4 py-6 space-y-2">
+                {done.seat ? (
+                  <>
+                    {done.seat.zone && (
+                      <p className="text-sm text-neutral-500">{done.seat.zone}</p>
+                    )}
+                    <p className="text-3xl font-bold text-sage-700 tracking-wide">
+                      {done.seat.tableName}
+                    </p>
+                    {done.seat.floor && (
+                      <p className="text-sm text-neutral-500">{done.seat.floor}</p>
+                    )}
+                    {done.seat.locationNote && (
+                      <p className="text-sm text-neutral-500 leading-relaxed pt-1">
+                        {done.seat.locationNote}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-base text-sage-700 leading-relaxed">
+                    좌석은 안내데스크에서 안내해 드릴게요.
+                    <br />
+                    <span className="text-sm text-neutral-500">
+                      이 화면을 직원에게 보여주세요.
+                    </span>
+                  </p>
+                )}
               </div>
 
-              {error && (
-                <p className="text-xs text-red-400 text-center">{error}</p>
-              )}
-
-              <button
-                type="button"
-                onClick={submit}
-                disabled={busy}
-                className="w-full py-3.5 bg-sage-700 text-white text-sm font-medium tracking-wide disabled:opacity-60 rounded-md"
-              >
-                {busy ? "체크인 중…" : `${party}명 체크인하기`}
-              </button>
+              <p className="text-sm text-neutral-400">와주셔서 감사합니다 💐</p>
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* 실시간 식수 합계 */}
-        {summary && (
-          <div className="border-t border-wedding-gold/10 pt-4">
-            <p className="text-[11px] text-neutral-400">지금까지</p>
-            <p className="text-sm text-sage-700 mt-0.5">
-              <span className="font-bold text-lg">{summary.total_people}</span>명
-              참석 · {summary.total_checkins}팀 체크인
-            </p>
-          </div>
-        )}
       </div>
+
     </main>
+  );
+}
+
+function Stepper({
+  label,
+  value,
+  setValue,
+  min = 1,
+}: {
+  label: string;
+  value: number;
+  setValue: (f: (v: number) => number) => void;
+  min?: number;
+}) {
+  return (
+    <div>
+      <p className="text-sm text-neutral-500 mb-2 text-center">{label}</p>
+      <div className="flex items-center justify-center gap-5">
+        <button
+          type="button"
+          onClick={() => setValue((p) => Math.max(min, p - 1))}
+          className="w-12 h-12 rounded-full border border-wedding-gold/30 text-xl text-sage-700"
+          aria-label="줄이기"
+        >
+          −
+        </button>
+        <span className="text-3xl font-bold text-sage-700 w-14 text-center">
+          {value}
+        </span>
+        <button
+          type="button"
+          onClick={() => setValue((p) => Math.min(20, p + 1))}
+          className="w-12 h-12 rounded-full border border-wedding-gold/30 text-xl text-sage-700"
+          aria-label="늘리기"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function BigButton({
+  children,
+  onClick,
+  disabled,
+  variant = "solid",
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  variant?: "solid" | "outline";
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`w-full py-4 text-base font-medium tracking-wide rounded-md transition-colors disabled:opacity-60 ${
+        variant === "solid"
+          ? "bg-sage-700 text-white"
+          : "bg-white text-sage-700 border border-sage-600"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function WindowNotice({ state }: { state: string }) {
+  return (
+    <p className="text-base text-sage-700 leading-relaxed whitespace-pre-line py-4">
+      {WINDOW_MSG[state] ?? WINDOW_MSG.checkin_not_enabled}
+    </p>
+  );
+}
+
+function BackLink({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full text-center text-sm text-neutral-400 underline underline-offset-4 pt-1"
+    >
+      처음으로
+    </button>
   );
 }

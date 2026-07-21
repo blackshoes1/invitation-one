@@ -13,6 +13,7 @@ import type {
   RouteDay,
 } from "@/lib/supabase";
 import RouteMap from "@/components/RouteMap";
+import FieldOps from "@/components/admin/FieldOps";
 import { TRACKING_STAGES } from "@/lib/supabase";
 import {
   formatYmdKo,
@@ -75,7 +76,7 @@ const NEXT_ACTION: Record<DeliveryStatus, DeliveryStatus | null> = {
   완료: null,
   취소: null,
 };
-type View = "dashboard" | "orders" | "calendar" | "route" | "groups" | "waiting" | "messages" | "content" | "snap";
+type View = "dashboard" | "orders" | "calendar" | "route" | "groups" | "waiting" | "messages" | "content" | "snap" | "field";
 
 interface AdminStats {
   participants: { total: number; delivery: number; heart: number };
@@ -825,6 +826,7 @@ export default function AdminPage() {
               ["waiting", "대기자"],
               ["messages", "방명록"],
               ["snap", "하객스냅"],
+              ["field", "현장운영"],
               ["content", "콘텐츠"],
             ] as [View, string][]
           ).map(([v, label]) => (
@@ -872,6 +874,9 @@ export default function AdminPage() {
         {loading && (
           <p className="text-xs text-neutral-400 text-center">불러오는 중…</p>
         )}
+
+        {/* ===== 현장 운영 (체크인 v2) ===== */}
+        {view === "field" && <FieldOps />}
 
         {/* ===== 대시보드 (요약) ===== */}
         {view === "dashboard" && stats && (

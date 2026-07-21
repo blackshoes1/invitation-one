@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle } from "lucide-react";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { CheckCircle, Copy } from "lucide-react";
+import QRCode from "qrcode";
 import { formatPhone, isValidPhone } from "@/lib/wedding";
 import FadeIn from "@/components/FadeIn";
 
@@ -39,6 +39,10 @@ export default function Rsvp() {
   const [updated, setUpdated] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 개인 체크인 QR (신규 참석 제출 시에만 서버가 토큰을 일회 반환)
+  const [passUrl, setPassUrl] = useState<string | null>(null);
+  const [passQr, setPassQr] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -51,28 +55,56 @@ export default function Rsvp() {
     setError(null);
     setSending(true);
 
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.rpc("submit_rsvp", {
-        p_name: form.name.trim(),
-        p_phone: form.phone.trim(),
-        p_side: form.side,
-        p_attending: form.attending,
-        p_companions: form.attending ? form.companionCount : 0,
-        p_children: form.attending ? form.children : 0,
-        p_kids_meal: form.attending ? form.kidsMeal : false,
-        p_meal: form.attending ? form.eating : "no",
-        p_memo: form.memo.trim() || null,
+    try {
+      const res = await fetch("/api/rsvp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          phone: form.phone.trim(),
+          side: form.side,
+          attending: form.attending,
+          companionCount: form.companionCount,
+          children: form.children,
+          kidsMeal: form.kidsMeal,
+          eating: form.eating,
+          memo: form.memo.trim(),
+        }),
       });
-      if (error) {
+      const j = (await res.json().catch(() => ({}))) as {
+        result?: string;
+        passUrl?: string | null;
+        error?: string;
+      };
+      if (!res.ok) {
         setSending(false);
-        return setError("전송에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+        return setError(j.error ?? "전송에 실패했습니다. 잠시 후 다시 시도해 주세요.");
       }
-      setUpdated(data === "updated");
-    } else {
-      await new Promise((r) => setTimeout(r, 400));
+      setUpdated(j.result === "updated");
+      if (j.passUrl) {
+        const abs = `${window.location.origin}${j.passUrl}`;
+        setPassUrl(abs);
+        QRCode.toDataURL(abs, { margin: 1, width: 240 })
+          .then(setPassQr)
+          .catch(() => setPassQr(null));
+      }
+    } catch {
+      setSending(false);
+      return setError("전송에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     }
     setSending(false);
     setSubmitted(true);
+  };
+
+  const copyPass = async () => {
+    if (!passUrl) return;
+    try {
+      await navigator.clipboard.writeText(passUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* 클립보드 미지원 무시 */
+    }
   };
 
   return (
@@ -266,6 +298,42 @@ export default function Rsvp() {
               <br />
               결혼식에서 반갑게 맞이하겠습니다.
             </p>
+
+            {passUrl && (
+              <div className="pt-4 space-y-3 border-t border-wedding-gold/15">
+                <p className="text-[11px] tracking-[0.2em] text-wedding-gold font-medium">
+                  내 입장 QR
+                </p>
+                {passQr && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={passQr}
+                    alt="입장 체크인 QR"
+                    className="mx-auto w-36 h-36 border border-wedding-gold/15 bg-white p-1.5"
+                  />
+                )}
+                <p className="text-[11px] text-neutral-500 leading-relaxed font-light">
+                  예식 당일 이 QR 로 체크인하고 좌석을 안내받으세요.
+                  <br />
+                  화면을 캡처하거나 링크를 저장해 두시면 편해요.
+                </p>
+                <button
+                  type="button"
+                  onClick={copyPass}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 text-[11px] tracking-wider border border-sage-600 text-sage-700 hover:bg-sage-600 hover:text-white transition-colors"
+                >
+                  <Copy size={12} strokeWidth={1.5} />
+                  {copied ? "복사되었어요!" : "체크인 링크 복사"}
+                </button>
+              </div>
+            )}
+            {updated && form.attending && (
+              <p className="pt-2 text-[11px] text-neutral-400 leading-relaxed font-light">
+                이전에 받으신 입장 QR 은 계속 사용하실 수 있어요.
+                <br />
+                링크를 잃어버리셨다면 예식장 안내데스크에서 도와드릴게요.
+              </p>
+            )}
           </motion.div>
         )}
       </div>

@@ -10,6 +10,10 @@ const ALLOWED_KEYS = [
   "heart_video_url",
   "confirm_sms", // 확정 시 감사 문자 템플릿 (LC-2) — 공개 RPC 에는 없음(관리자 전용)
   "review_sms", // 완료 시 리뷰요청 문자 템플릿 (DL-3) — 관리자 전용
+  // 체크인 v2 운영 시간 (서버 전용 — get_site_settings 공개 화이트리스트에 없음)
+  "checkin_enabled",
+  "checkin_open_at",
+  "checkin_close_at",
 ];
 
 function guard(req: Request) {
