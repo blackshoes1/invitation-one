@@ -12,6 +12,7 @@ import {
 import { groom, bride, DELIVERY_CAPACITY } from "@/lib/wedding";
 import MenuSelect, { type DeliveryMode } from "@/components/delivery/MenuSelect";
 import BikeIcon from "@/components/delivery/BikeIcon";
+import IntroAnimation from "@/components/delivery/IntroAnimation";
 import DeliveryForm from "@/components/delivery/DeliveryForm";
 import JoinForm from "@/components/delivery/JoinForm";
 import OrderList from "@/components/delivery/OrderList";
@@ -76,32 +77,41 @@ function GroupPageInner() {
   const remaining = Math.max(0, DELIVERY_CAPACITY - taken);
   const closed = remaining <= 0;
 
+  // 인트로는 세 분기 모두 같은 트리 위치(루트 div 첫 번째 자식)에 두어
+  // 로딩 → 본문 전환 시 리마운트 없이 영상이 끊기지 않게 한다.
   if (group === undefined) {
     return (
-      <div className="h-[60vh] flex items-center justify-center text-neutral-400 text-sm">
-        불러오는 중…
+      <div>
+        <IntroAnimation />
+        <div className="h-[60vh] flex items-center justify-center text-neutral-400 text-sm">
+          불러오는 중…
+        </div>
       </div>
     );
   }
 
   if (group === null) {
     return (
-      <div className="h-[70vh] flex flex-col items-center justify-center text-center px-8 gap-3">
-        <div className="text-5xl">🔍</div>
-        <p className="font-bold text-neutral-700">그룹을 찾을 수 없어요</p>
-        <p className="text-xs text-neutral-400">링크를 다시 확인해 주세요.</p>
-        <Link
-          href="/delivery"
-          className="mt-3 px-5 py-2.5 rounded-full bg-delivery text-white text-sm font-bold"
-        >
-          배달 메인으로
-        </Link>
+      <div>
+        <IntroAnimation />
+        <div className="h-[70vh] flex flex-col items-center justify-center text-center px-8 gap-3">
+          <div className="text-5xl">🔍</div>
+          <p className="font-bold text-neutral-700">그룹을 찾을 수 없어요</p>
+          <p className="text-xs text-neutral-400">링크를 다시 확인해 주세요.</p>
+          <Link
+            href="/delivery"
+            className="mt-3 px-5 py-2.5 rounded-full bg-delivery text-white text-sm font-bold"
+          >
+            배달 메인으로
+          </Link>
+        </div>
       </div>
     );
   }
 
   return (
     <div>
+      <IntroAnimation />
       <header className="sticky top-0 z-20 bg-delivery text-white px-5 py-3 flex items-center shadow-sm">
         <span className="font-serif font-bold tracking-tight flex items-center gap-2">
           <BikeIcon className="w-6 h-6 text-white" />
