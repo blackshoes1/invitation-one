@@ -48,6 +48,24 @@ export default function GuestSnap() {
     }
   }, []);
 
+  // 모달(라이트박스·프레임 선택) 열림: ESC 로 닫기 + 배경 스크롤 잠금
+  const modalOpen = lightbox !== null || pendingFile !== null;
+  useEffect(() => {
+    if (!modalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setLightbox(null);
+      if (!uploading) setPendingFile(null);
+    };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [modalOpen, uploading]);
+
   const load = () => {
     if (!isSupabaseConfigured || !supabase) return;
     supabase.rpc("get_guest_photos").then(({ data }) => {
@@ -275,12 +293,16 @@ export default function GuestSnap() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setLightbox(null)}
+            role="dialog"
+            aria-modal="true"
+            aria-label="사진 크게 보기"
             className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4"
           >
             <button
               type="button"
               aria-label="닫기"
-              className="absolute top-4 right-4 text-white/80"
+              onClick={() => setLightbox(null)}
+              className="absolute top-4 right-4 p-2 -m-2 text-white/80"
             >
               <X size={24} />
             </button>

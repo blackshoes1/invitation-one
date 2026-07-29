@@ -117,6 +117,7 @@ export default function FindOrder() {
             booked={EMPTY_SET}
             onSelect={setDate}
             selectedClass="bg-delivery text-white font-bold"
+            allowPast
           />
           {date && (
             <p className="text-xs text-delivery font-bold text-center">

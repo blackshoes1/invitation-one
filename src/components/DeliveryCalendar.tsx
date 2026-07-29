@@ -8,21 +8,26 @@ const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
 const FIRST_MONTH = 6; // 7월 (0-base)
 const LAST_MONTH = 9; // 10월
 const YEAR = 2026;
-const todayYmd = toYmd(new Date());
 
 export default function DeliveryCalendar({
   selected,
   booked,
   onSelect,
   selectedClass = "bg-sage-600 text-white font-medium",
+  allowPast = false,
 }: {
   selected: string | null;
   booked: Set<string>;
   onSelect: (ymd: string) => void;
   /** 선택된 날짜 강조 스타일 (톤에 맞게 교체) */
   selectedClass?: string;
+  /** 과거 날짜 선택 허용 — "내 신청 찾기"처럼 지난 배송일을 조회할 때 사용 */
+  allowPast?: boolean;
 }) {
   const [month, setMonth] = useState(FIRST_MONTH);
+  // 마운트 시점 기준 오늘 (모듈 스코프에 두면 탭을 오래 열어두거나
+  // 서버 모듈 재사용 시 stale 해지므로 컴포넌트 마운트마다 계산)
+  const [todayYmd] = useState(() => toYmd(new Date()));
 
   const cells = useMemo(() => {
     const offset = new Date(YEAR, month, 1).getDay();
@@ -33,7 +38,10 @@ export default function DeliveryCalendar({
   }, [month]);
 
   const isDisabled = (ymd: string) =>
-    ymd < DELIVERY_START || ymd > DELIVERY_END || ymd < todayYmd || booked.has(ymd);
+    ymd < DELIVERY_START ||
+    ymd > DELIVERY_END ||
+    (!allowPast && ymd < todayYmd) ||
+    booked.has(ymd);
 
   return (
     <div className="border border-wedding-gold/15 bg-white p-4">

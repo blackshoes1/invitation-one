@@ -32,6 +32,19 @@ export async function POST(req: Request) {
   if (ageMs > 10 * 60 * 1000)
     return NextResponse.json({ skipped: true });
 
+  // 원자적 1회 발송 클레임 — notified_at 이 비어있을 때만 선점 (v24).
+  // 같은 participant_id 로 반복 호출해도(동시 요청 포함) 알림은 한 번만 나간다.
+  const { data: claimed, error: claimErr } = await supabaseAdmin
+    .from("participants")
+    .update({ notified_at: new Date().toISOString() })
+    .eq("id", participant_id)
+    .is("notified_at", null)
+    .select("id")
+    .maybeSingle();
+  if (claimErr)
+    return NextResponse.json({ error: claimErr.message }, { status: 500 });
+  if (!claimed) return NextResponse.json({ skipped: true });
+
   let text: string;
   if (p.type === "마음배송") {
     text = `💌 마음 배송 도착!\n${p.name} (${p.region ?? "지역 미상"})\n"${(p.message ?? "").slice(0, 60)}"`;

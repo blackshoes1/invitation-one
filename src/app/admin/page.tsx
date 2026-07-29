@@ -156,6 +156,8 @@ export default function AdminPage() {
 
   const [tab, setTab] = useState<DeliveryStatus>("대기중");
   const [groupFilter, setGroupFilter] = useState("");
+  /** 상태 변경 요청 진행 중인 주문 id — 확정/취소 연타로 인한 SMS 중복 발송 방지 */
+  const [acting, setActing] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState<AdminDelivery[]>([]);
   const [allRows, setAllRows] = useState<AdminDelivery[]>([]);
@@ -570,27 +572,35 @@ export default function AdminPage() {
   };
 
   const changeStatus = async (id: string, status: DeliveryStatus) => {
+    if (acting) return; // 진행 중 연타 방지 — SMS 중복 발송 가드
+    setActing(id);
     setNotice(null);
-    const res = await api(`/api/admin/deliveries/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ status }),
-    });
-    const j = await res.json();
-    if (!res.ok) return setError(j.error ?? "변경 실패");
-    if (status === "확정" || status === "취소") {
-      const sms = j.sms as
-        | { count: number; sent: number; skipped: boolean }
-        | null;
-      const label = status === "확정" ? "확정" : "취소";
-      setNotice(
-        !sms || sms.count === 0
-          ? `${label} 처리됨 — 연락처 보유 참여자가 없어 SMS 미발송.`
-          : sms.skipped
-          ? `${label} 처리됨 — SMS는 솔라피 키 미설정으로 미발송 (${sms.count}명 대상).`
-          : `${label} 처리 및 참여자 ${sms.sent}/${sms.count}명에게 SMS 발송 완료.`
-      );
+    try {
+      const res = await api(`/api/admin/deliveries/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      const j = await res.json();
+      if (!res.ok) return setError(j.error ?? "변경 실패");
+      if (status === "확정" || status === "취소") {
+        const sms = j.sms as
+          | { count: number; sent: number; skipped: boolean }
+          | null;
+        const label = status === "확정" ? "확정" : "취소";
+        setNotice(
+          !sms || sms.count === 0
+            ? `${label} 처리됨 — 연락처 보유 참여자가 없어 SMS 미발송.`
+            : sms.skipped
+            ? `${label} 처리됨 — SMS는 솔라피 키 미설정으로 미발송 (${sms.count}명 대상).`
+            : `${label} 처리 및 참여자 ${sms.sent}/${sms.count}명에게 SMS 발송 완료.`
+        );
+      }
+      loadOrders();
+    } catch {
+      setError("변경 요청에 실패했습니다. 네트워크를 확인해주세요.");
+    } finally {
+      setActing(null);
     }
-    loadOrders();
   };
 
   const changeStage = async (id: string, stage: TrackingStage) => {
@@ -1275,7 +1285,8 @@ export default function AdminPage() {
                         {cancelable && (
                           <button
                             onClick={() => changeStatus(r.id, "취소")}
-                            className="px-3 py-1.5 text-xs border border-red-200 text-red-400"
+                            disabled={acting !== null}
+                            className="px-3 py-1.5 text-xs border border-red-200 text-red-400 disabled:opacity-40"
                           >
                             취소 (SMS)
                           </button>
@@ -1283,10 +1294,11 @@ export default function AdminPage() {
                         {nextAction && (
                           <button
                             onClick={() => changeStatus(r.id, nextAction)}
-                            className="px-3 py-1.5 text-xs bg-sage-600 text-white tracking-wide"
+                            disabled={acting !== null}
+                            className="px-3 py-1.5 text-xs bg-sage-600 text-white tracking-wide disabled:opacity-40"
                           >
-                            {nextAction}으로 변경
-                            {nextAction === "확정" ? " (SMS)" : ""}
+                            {acting === r.id ? "처리 중…" : `${nextAction}으로 변경`}
+                            {acting !== r.id && nextAction === "확정" ? " (SMS)" : ""}
                           </button>
                         )}
                       </div>

@@ -25,9 +25,12 @@ export default function BgmToggle() {
     audio.loop = true;
     audio.volume = 0.4;
     audio.preload = "auto";
-    audio.addEventListener("error", () => setFailed(true));
-    audio.addEventListener("play", () => setPlaying(true));
-    audio.addEventListener("pause", () => setPlaying(false));
+    const onError = () => setFailed(true);
+    const onPlay = () => setPlaying(true);
+    const onPause = () => setPlaying(false);
+    audio.addEventListener("error", onError);
+    audio.addEventListener("play", onPlay);
+    audio.addEventListener("pause", onPause);
     audioRef.current = audio;
 
     // 이전에 켰던 하객이라면 첫 상호작용에서 재생을 이어감(자동재생 차단 우회)
@@ -56,6 +59,11 @@ export default function BgmToggle() {
 
     return () => {
       detach();
+      // 리스너를 먼저 떼야 src 해제가 error 이벤트로 이어져
+      // failed=true 가 되는(버튼 영구 숨김) 것을 막을 수 있음
+      audio.removeEventListener("error", onError);
+      audio.removeEventListener("play", onPlay);
+      audio.removeEventListener("pause", onPause);
       audio.pause();
       audio.src = "";
       audioRef.current = null;

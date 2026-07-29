@@ -132,20 +132,60 @@ export async function PATCH(
     return NextResponse.json({ error: "nothing to update" }, { status: 400 });
   }
 
-  const { data, error } = await supabaseAdmin
-    .from("deliveries")
-    .update(patch)
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  // 상태 변경은 "실제 전이"일 때만 반영·발송 (멱등).
+  // 같은 상태로 재요청(더블탭·네트워크 재시도)해도 SMS 가 중복 발송되지 않도록
+  // .neq("status", …) 로 원자적으로 가드한다. 매치 0행이면 이미 그 상태이거나 없는 id.
+  let statusChanged = false;
+  let data: Record<string, unknown> & { date: string; time_slot: string; location: string | null };
+  if (patch.status !== undefined) {
+    const upd = await supabaseAdmin
+      .from("deliveries")
+      .update(patch)
+      .eq("id", id)
+      .neq("status", patch.status)
+      .select()
+      .maybeSingle();
+    if (upd.error) {
+      return NextResponse.json({ error: upd.error.message }, { status: 500 });
+    }
+    if (upd.data) {
+      statusChanged = true;
+      data = upd.data;
+    } else {
+      // 이미 해당 상태(중복 요청)거나 존재하지 않는 id — 현재 행으로 구분
+      const cur = await supabaseAdmin
+        .from("deliveries")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+      if (cur.error) {
+        return NextResponse.json({ error: cur.error.message }, { status: 500 });
+      }
+      if (!cur.data) {
+        return NextResponse.json({ error: "not found" }, { status: 404 });
+      }
+      data = cur.data;
+    }
+  } else {
+    // 추적 단계만 변경
+    const upd = await supabaseAdmin
+      .from("deliveries")
+      .update(patch)
+      .eq("id", id)
+      .select()
+      .maybeSingle();
+    if (upd.error) {
+      return NextResponse.json({ error: upd.error.message }, { status: 500 });
+    }
+    if (!upd.data) {
+      return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
+    data = upd.data;
   }
 
-  // 상태 변경 시 참여자 전원에게 SMS (참여 시스템 — 연락처 보유자 대상, 키 없으면 자동 skip)
+  // 상태 전이 시 참여자 전원에게 SMS (참여 시스템 — 연락처 보유자 대상, 키 없으면 자동 skip)
   let sms: unknown = null;
-  if (data && (patch.status === "확정" || patch.status === "취소")) {
+  if (statusChanged && (patch.status === "확정" || patch.status === "취소")) {
     const { data: parts } = await supabaseAdmin
       .from("participants")
       .select("name, phone")
@@ -190,8 +230,8 @@ export async function PATCH(
     };
   }
 
-  // 배송 완료 → 리뷰요청 문자 (DL-3) — 개인 리뷰 링크(manage) 포함
-  if (data && patch.status === "완료") {
+  // 배송 완료 전이 → 리뷰요청 문자 (DL-3) — 개인 리뷰 링크(manage) 포함
+  if (statusChanged && patch.status === "완료") {
     const { data: parts } = await supabaseAdmin
       .from("participants")
       .select("id, name, phone")
