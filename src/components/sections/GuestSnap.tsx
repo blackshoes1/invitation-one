@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Camera, X } from "lucide-react";
 import { supabase, isSupabaseConfigured, type GuestPhoto } from "@/lib/supabase";
@@ -272,12 +273,13 @@ export default function GuestSnap() {
                   onClick={() => setLightbox(p.url)}
                   className="relative aspect-square overflow-hidden bg-sage-50"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  {/* 3열 그리드 썸네일 — next/image 로 축소본 서빙 (원본 2000px 그대로 받지 않도록) */}
+                  <Image
                     src={p.url}
                     alt={p.name ? `${p.name}님의 스냅` : "하객 스냅"}
-                    loading="lazy"
-                    className="w-full h-full object-cover"
+                    fill
+                    sizes="(max-width: 448px) 33vw, 150px"
+                    className="object-cover"
                   />
                 </button>
               ))}

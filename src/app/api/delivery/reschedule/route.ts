@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
 import { sendSms } from "@/lib/sms";
 import { formatYmdKo } from "@/lib/wedding";
+import { siteOrigin } from "@/lib/siteUrl";
 
 /**
  * 주문 대표의 일정 변경 요청 (참여자 본인 링크 = participantId 가 인증 토큰 역할).
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
     .eq("pending_delivery_id", row.new_delivery)
     .not("phone", "is", null);
 
-  const origin = new URL(req.url).origin;
+  const origin = siteOrigin(req); // Host 헤더 조작 방지 — env 고정 URL 우선
   const targets = (parts ?? []) as { id: string; name: string; phone: string }[];
   const results = await Promise.all(
     targets.map((p) => {

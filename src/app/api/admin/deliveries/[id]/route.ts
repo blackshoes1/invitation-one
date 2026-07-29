@@ -10,6 +10,7 @@ import {
 } from "@/lib/wedding";
 import type { TimeSlot } from "@/lib/wedding";
 import type { DeliveryStatus, TrackingStage } from "@/lib/supabase";
+import { siteOrigin } from "@/lib/siteUrl";
 
 const VALID: DeliveryStatus[] = ["대기중", "확정", "완료", "취소"];
 const VALID_STAGE: TrackingStage[] = ["주문접수", "준비중", "배송출발", "배송완료"];
@@ -246,7 +247,7 @@ export async function PATCH(
       .maybeSingle();
     if (typeof st?.value === "string") reviewTpl = st.value.trim();
 
-    const origin = new URL(req.url).origin;
+    const origin = siteOrigin(req);
     const dateK = formatYmdKo(data.date);
     const targets = (parts ?? []) as { id: string; name: string; phone: string }[];
     const results = await Promise.all(

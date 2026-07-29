@@ -67,8 +67,14 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
     let first = true;
 
     const fetchNow = async () => {
-      const { data } = await supabase!.rpc("get_celebrations");
-      if (!alive || !Array.isArray(data)) return;
+      const { data, error } = await supabase!.rpc("get_celebrations");
+      if (!alive) return;
+      if (error || !Array.isArray(data)) {
+        // RPC 실패 시에도 로딩 표시는 해제 — "불러오는 중…" 영구 표시 방지.
+        // (빈 상태로 폴백, 25초 폴링이 재시도)
+        setLoaded(true);
+        return;
+      }
       const list = data as Celebration[];
       // 최초 로드 이후 새로 들어온 항목 감지 → 토스트
       if (!first) {

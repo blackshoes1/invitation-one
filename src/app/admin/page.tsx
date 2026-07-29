@@ -217,22 +217,34 @@ export default function AdminPage() {
   const groupName = (id: string | null) =>
     id ? groups.find((g) => g.id === id)?.name ?? "그룹" : "—";
 
-  // 쿠키 세션으로 인증 — 비밀번호는 로그인 시 1회만 전송
-  const api = (path: string, init?: RequestInit) =>
-    fetch(path, {
+  // 쿠키 세션으로 인증 — 비밀번호는 로그인 시 1회만 전송.
+  // 401(세션 만료)은 여기서 중앙 감지해 어느 탭에서든 로그인 화면으로 되돌린다
+  // (탭별 로더가 만료를 빈 목록으로 오인해 "0건"을 표시하던 문제 방지).
+  const api = async (path: string, init?: RequestInit) => {
+    const res = await fetch(path, {
       ...init,
       headers: {
         ...(init?.body ? { "Content-Type": "application/json" } : {}),
         ...(init?.headers ?? {}),
       },
     });
+    if (res.status === 401) {
+      setAuthed(false);
+      setError("세션이 만료되었습니다. 다시 로그인해주세요.");
+    }
+    return res;
+  };
 
   const loadGroups = async () => {
-    const res = await api("/api/admin/groups");
-    if (res.ok) {
-      const j = await res.json();
-      setGroups(j.groups ?? []);
-      setTotalMembers(typeof j.total_members === "number" ? j.total_members : null);
+    try {
+      const res = await api("/api/admin/groups");
+      if (res.ok) {
+        const j = await res.json();
+        setGroups(j.groups ?? []);
+        setTotalMembers(typeof j.total_members === "number" ? j.total_members : null);
+      }
+    } catch {
+      setError("그룹 목록을 불러오지 못했습니다.");
     }
   };
 
@@ -247,14 +259,12 @@ export default function AdminPage() {
       const qs = new URLSearchParams({ status });
       if (gid) qs.set("group_id", gid);
       const res = await api(`/api/admin/deliveries?${qs}`);
-      if (res.status === 401) {
-        setError("세션이 만료되었습니다. 다시 로그인해주세요.");
-        setAuthed(false);
-        return;
-      }
+      if (res.status === 401) return; // api() 가 중앙 처리
       const j = await res.json();
       if (!res.ok) return setError(j.error ?? "불러오기 실패");
       setRows(j.deliveries ?? []);
+    } catch {
+      setError("주문 목록을 불러오지 못했습니다. 네트워크를 확인해주세요.");
     } finally {
       setLoading(false);
     }
@@ -262,14 +272,19 @@ export default function AdminPage() {
 
   const loadCalendar = async () => {
     setLoading(true);
-    const [res, blockedRes] = await Promise.all([
-      api("/api/admin/deliveries"),
-      api("/api/admin/blocked"),
-    ]);
-    if (res.ok) setAllRows((await res.json()).deliveries ?? []);
-    if (blockedRes.ok)
-      setBlocked(new Set(((await blockedRes.json()).dates ?? []) as string[]));
-    setLoading(false);
+    try {
+      const [res, blockedRes] = await Promise.all([
+        api("/api/admin/deliveries"),
+        api("/api/admin/blocked"),
+      ]);
+      if (res.ok) setAllRows((await res.json()).deliveries ?? []);
+      if (blockedRes.ok)
+        setBlocked(new Set(((await blockedRes.json()).dates ?? []) as string[]));
+    } catch {
+      setError("캘린더를 불러오지 못했습니다. 네트워크를 확인해주세요.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   /** 날짜 선택 토글 (다중 선택 → 일괄 차단/해제) */
@@ -311,100 +326,147 @@ export default function AdminPage() {
 
   const loadWaiting = async () => {
     setLoading(true);
-    const res = await api("/api/admin/waiting");
-    const j = await res.json();
-    setWaiting(res.ok ? j.waiting ?? [] : []);
-    setLoading(false);
+    try {
+      const res = await api("/api/admin/waiting");
+      const j = await res.json();
+      setWaiting(res.ok ? j.waiting ?? [] : []);
+    } catch {
+      setError("대기자 목록을 불러오지 못했습니다.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadMessages = async () => {
     setLoading(true);
-    const res = await api("/api/admin/messages");
-    const j = await res.json();
-    setMessages(res.ok ? j.messages ?? [] : []);
-    setLoading(false);
+    try {
+      const res = await api("/api/admin/messages");
+      const j = await res.json();
+      setMessages(res.ok ? j.messages ?? [] : []);
+    } catch {
+      setError("방명록을 불러오지 못했습니다.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   /** 방명록 공개 답글 저장/삭제 (LC-3) — 빈 문자열이면 답글 삭제 */
   const saveReply = async (id: string, reply: string) => {
     setReplySaving(id);
-    const res = await api("/api/admin/messages", {
-      method: "PATCH",
-      body: JSON.stringify({ id, reply }),
-    });
-    if (res.ok) {
-      const j = await res.json();
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === id
-            ? { ...m, reply: j.participant?.reply ?? null, replied_at: j.participant?.replied_at ?? null }
-            : m
-        )
-      );
+    try {
+      const res = await api("/api/admin/messages", {
+        method: "PATCH",
+        body: JSON.stringify({ id, reply }),
+      });
+      if (res.ok) {
+        const j = await res.json();
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === id
+              ? { ...m, reply: j.participant?.reply ?? null, replied_at: j.participant?.replied_at ?? null }
+              : m
+          )
+        );
+      } else {
+        setError("답글 저장에 실패했습니다. 다시 시도해주세요.");
+      }
+    } catch {
+      setError("답글 저장 요청이 실패했습니다. 네트워크를 확인해주세요.");
+    } finally {
+      setReplySaving(null);
     }
-    setReplySaving(null);
   };
 
   const loadStats = async () => {
     setLoading(true);
-    const res = await api("/api/admin/stats");
-    const j = await res.json();
-    setStats(res.ok ? j : null);
-    setLoading(false);
+    try {
+      const res = await api("/api/admin/stats");
+      const j = await res.json();
+      setStats(res.ok ? j : null);
+    } catch {
+      setError("요약을 불러오지 못했습니다. 네트워크를 확인해주세요.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadRoute = async () => {
     setLoading(true);
     setError(null);
-    const res = await api("/api/admin/route");
-    const j = await res.json();
-    if (res.ok) {
-      const days = (j.days ?? []) as RouteDay[];
-      setRouteDays(days);
-      setRouteOrigin(j.origin ?? null);
-      setRouteDate((prev) =>
-        prev && days.some((d) => d.date === prev) ? prev : days[0]?.date ?? ""
-      );
-    } else setError(j.error ?? "경로 불러오기 실패");
-    setLoading(false);
+    try {
+      const res = await api("/api/admin/route");
+      const j = await res.json();
+      if (res.ok) {
+        const days = (j.days ?? []) as RouteDay[];
+        setRouteDays(days);
+        setRouteOrigin(j.origin ?? null);
+        setRouteDate((prev) =>
+          prev && days.some((d) => d.date === prev) ? prev : days[0]?.date ?? ""
+        );
+      } else setError(j.error ?? "경로 불러오기 실패");
+    } catch {
+      setError("경로를 불러오지 못했습니다. 네트워크를 확인해주세요.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadSnaps = async () => {
     setLoading(true);
-    const res = await api("/api/admin/guest-photos");
-    const j = await res.json();
-    setSnaps(res.ok ? j.photos ?? [] : []);
-    setLoading(false);
+    try {
+      const res = await api("/api/admin/guest-photos");
+      const j = await res.json();
+      setSnaps(res.ok ? j.photos ?? [] : []);
+    } catch {
+      setError("하객 스냅을 불러오지 못했습니다.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleSnap = async (id: string, approved: boolean) => {
-    const res = await api("/api/admin/guest-photos", {
-      method: "PATCH",
-      body: JSON.stringify({ id, approved }),
-    });
-    if (res.ok)
-      setSnaps((s) => s.map((p) => (p.id === id ? { ...p, approved } : p)));
+    try {
+      const res = await api("/api/admin/guest-photos", {
+        method: "PATCH",
+        body: JSON.stringify({ id, approved }),
+      });
+      if (res.ok)
+        setSnaps((s) => s.map((p) => (p.id === id ? { ...p, approved } : p)));
+      else if (res.status !== 401) setError("사진 상태 변경에 실패했습니다.");
+    } catch {
+      setError("사진 상태 변경 요청이 실패했습니다.");
+    }
   };
 
   const deleteSnap = async (id: string) => {
     if (!confirm("이 사진을 삭제할까요? (되돌릴 수 없어요)")) return;
-    const res = await api(`/api/admin/guest-photos?id=${id}`, { method: "DELETE" });
-    if (res.ok) setSnaps((s) => s.filter((p) => p.id !== id));
+    try {
+      const res = await api(`/api/admin/guest-photos?id=${id}`, { method: "DELETE" });
+      if (res.ok) setSnaps((s) => s.filter((p) => p.id !== id));
+      else if (res.status !== 401) setError("사진 삭제에 실패했습니다.");
+    } catch {
+      setError("사진 삭제 요청이 실패했습니다.");
+    }
   };
 
   const loadContent = async () => {
     setLoading(true);
-    const res = await api("/api/admin/settings");
-    if (res.ok) {
-      const j = await res.json();
-      const s = (j.settings ?? {}) as SiteSettingsState;
-      setSiteSettings(s);
-      setVideoInput(s.video_url ?? "");
-      setHeartVideoInput(s.heart_video_url ?? "");
-      setConfirmSms(s.confirm_sms ?? "");
-      setReviewSms(s.review_sms ?? "");
+    try {
+      const res = await api("/api/admin/settings");
+      if (res.ok) {
+        const j = await res.json();
+        const s = (j.settings ?? {}) as SiteSettingsState;
+        setSiteSettings(s);
+        setVideoInput(s.video_url ?? "");
+        setHeartVideoInput(s.heart_video_url ?? "");
+        setConfirmSms(s.confirm_sms ?? "");
+        setReviewSms(s.review_sms ?? "");
+      }
+    } catch {
+      setError("콘텐츠 설정을 불러오지 못했습니다.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   /** 설정 저장 (value null = 삭제 → 기본값 폴백) */
@@ -758,37 +820,70 @@ export default function AdminPage() {
     }
   };
 
+  /** 그룹 카드의 명단 인원(roster_count)을 로컬로 ±n 반영 (재조회 없이 배지 동기화) */
+  const bumpRoster = (gid: string, delta: number) =>
+    setGroups((gs) =>
+      gs.map((g) =>
+        g.id === gid
+          ? { ...g, roster_count: Math.max(0, (g.roster_count ?? 0) + delta) }
+          : g
+      )
+    );
+
   const addMember = async (gid: string) => {
     if (!newMember.trim()) return;
-    const res = await api(`/api/admin/groups/${gid}/members`, {
-      method: "POST",
-      body: JSON.stringify({ name: newMember.trim() }),
-    });
-    if (res.ok) {
+    try {
+      const res = await api(`/api/admin/groups/${gid}/members`, {
+        method: "POST",
+        body: JSON.stringify({ name: newMember.trim() }),
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        if (res.status !== 401) setError(j.error ?? "명단 추가에 실패했습니다.");
+        return;
+      }
       setNewMember("");
+      bumpRoster(gid, 1);
       const list = await api(`/api/admin/groups/${gid}/members`);
       if (list.ok) {
         const j = await list.json();
         setMembers((m) => ({ ...m, [gid]: j.members ?? [] }));
       }
+    } catch {
+      setError("명단 추가 요청이 실패했습니다. 네트워크를 확인해주세요.");
     }
   };
 
   const removeMember = async (gid: string, memberId: string) => {
-    const res = await api(
-      `/api/admin/groups/${gid}/members?member_id=${memberId}`,
-      { method: "DELETE" }
-    );
-    if (res.ok)
+    if (!confirm("명단에서 삭제할까요?")) return;
+    try {
+      const res = await api(
+        `/api/admin/groups/${gid}/members?member_id=${memberId}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        if (res.status !== 401) setError("명단 삭제에 실패했습니다.");
+        return;
+      }
+      bumpRoster(gid, -1);
       setMembers((m) => ({
         ...m,
         [gid]: (m[gid] ?? []).filter((x) => x.id !== memberId),
       }));
+    } catch {
+      setError("명단 삭제 요청이 실패했습니다. 네트워크를 확인해주세요.");
+    }
   };
 
   const deleteWaiting = async (id: string) => {
-    const res = await api(`/api/admin/waiting/${id}`, { method: "DELETE" });
-    if (res.ok) setWaiting((w) => w.filter((x) => x.id !== id));
+    if (!confirm("이 대기자를 삭제할까요? (되돌릴 수 없어요)")) return;
+    try {
+      const res = await api(`/api/admin/waiting/${id}`, { method: "DELETE" });
+      if (res.ok) setWaiting((w) => w.filter((x) => x.id !== id));
+      else if (res.status !== 401) setError("대기자 삭제에 실패했습니다.");
+    } catch {
+      setError("대기자 삭제 요청이 실패했습니다.");
+    }
   };
 
   const notifyWaiting = async (id?: string) => {

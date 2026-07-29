@@ -14,6 +14,8 @@
  *        &redirect_uri={등록한 URI}&response_type=code&scope=talk_message
  *   2) 받은 code 로 https://kauth.kakao.com/oauth/token 호출 → refresh_token
  */
+import { siteOrigin } from "@/lib/siteUrl";
+
 const REST_KEY = process.env.KAKAO_REST_API_KEY;
 const REFRESH_TOKEN = process.env.KAKAO_REFRESH_TOKEN;
 
@@ -42,8 +44,12 @@ async function getAccessToken(): Promise<string | null> {
   }
   const j = (await res.json()) as { access_token?: string; refresh_token?: string };
   if (j.refresh_token) {
-    // 카카오가 새 refresh token 을 내려주면 환경변수 갱신 필요
-    console.warn("[kakao] 새 refresh token 발급됨 — .env 갱신 필요:", j.refresh_token);
+    // 카카오가 새 refresh token 을 내려줌 = 기존 토큰 만료 임박.
+    // 시크릿이므로 값 자체는 로그에 남기지 않는다 (Vercel 로그 잔존 방지).
+    // 재발급 절차는 파일 상단 주석 참고 — 만료 여부는 admin 패널(AD-4)에서 감지됨.
+    console.warn(
+      "[kakao] 새 refresh token 이 발급되었습니다 — 만료 임박. KAKAO_REFRESH_TOKEN 재발급 필요."
+    );
   }
   return j.access_token ?? null;
 }
@@ -76,7 +82,7 @@ export async function sendToMe(text: string, linkUrl?: string): Promise<SendResu
       text: text.slice(0, 190), // 텍스트 템플릿 200자 제한
       link: linkUrl
         ? { web_url: linkUrl, mobile_web_url: linkUrl }
-        : { web_url: "https://invitation-one-three.vercel.app/admin" },
+        : { web_url: `${siteOrigin()}/admin` },
       button_title: "관리자 열기",
     };
 

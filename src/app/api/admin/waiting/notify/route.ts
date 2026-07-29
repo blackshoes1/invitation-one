@@ -3,6 +3,7 @@ import { checkAdmin } from "@/lib/adminAuth";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
 import { sendSms } from "@/lib/sms";
 import type { WaitingEntry } from "@/lib/supabase";
+import { siteOrigin } from "@/lib/siteUrl";
 
 /**
  * 취소로 빈 자리가 생겼을 때 대기자에게 안내 SMS 발송.
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
   if (entries.length === 0)
     return NextResponse.json({ error: "대기자가 없습니다." }, { status: 400 });
 
-  const link = `${new URL(req.url).origin}/delivery`;
+  const link = `${siteOrigin(req)}/delivery`;
   const results = await Promise.all(
     entries.map((w) =>
       sendSms(

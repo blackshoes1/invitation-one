@@ -37,6 +37,13 @@ export default function CompletePage({
 }) {
   const [shareMsg, setShareMsg] = useState<string | null>(null);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  // 배송기사 표기 — 화면 카드와 저장용 PNG 주문서에서 공용 (신부/커플 주문도 정확히)
+  const riderLabel =
+    rider === "신랑+신부"
+      ? `${groom.name}·${bride.name} (신랑+신부)`
+      : rider === "신부"
+      ? `${bride.name} (신부)`
+      : `${groom.name} (신랑)`;
   // Admin 설정 영상 우선, 없으면 env(VIDEO_URL) 폴백
   const [videoUrl, setVideoUrl] = useState(VIDEO_URL);
   useEffect(() => {
@@ -93,7 +100,7 @@ export default function CompletePage({
         ["배송 예정", `${formatYmdKo(date)} ${slot}`],
         ["받는 분", name],
         ["함께 받는 분", `${memberCount}명`],
-        ["배송기사", `${groom.name} (신랑)`],
+        ["배송기사", riderLabel],
       ];
       let y = card.y + 150;
       for (const [label, value] of rows) {
@@ -204,10 +211,10 @@ export default function CompletePage({
             label="배송기사"
             value={
               rider === "신랑+신부"
-                ? `${groom.name}·${bride.name} (신랑+신부) 💑`
+                ? `${riderLabel} 💑`
                 : rider === "신부"
-                ? `${bride.name} (신부) 👰`
-                : `${groom.name} (신랑)`
+                ? `${riderLabel} 👰`
+                : riderLabel
             }
             highlight
           />
