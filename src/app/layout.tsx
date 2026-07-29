@@ -16,7 +16,7 @@ const description = `${formatFullDate()} ${formatTime()}, 서울 ${venue.name}. 
 
 // 배포 도메인 (카카오톡/SNS 공유 미리보기의 절대 URL 기준). 필요 시 env 로 override.
 const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://invitation-one-three.vercel.app";
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://kkachi.vercel.app";
 const ogImageAlt = `${groom.name} ♥ ${bride.name} 웨딩`;
 
 export const metadata: Metadata = {

@@ -6,7 +6,7 @@
  * env 고정값(NEXT_PUBLIC_SITE_URL)을 우선 사용하고,
  * 개발 환경에서만 요청 origin(localhost)으로 폴백한다.
  */
-const FALLBACK = "https://invitation-one-three.vercel.app";
+const FALLBACK = "https://kkachi.vercel.app";
 
 export function siteOrigin(req?: Request): string {
   const env = process.env.NEXT_PUBLIC_SITE_URL;
