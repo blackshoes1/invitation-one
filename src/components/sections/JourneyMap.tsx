@@ -18,14 +18,50 @@ const { w: VB_W, h: VB_H } = KOREA_VIEW;
 const OVERSEAS_POS = { x: 12, y: VB_H - 18 };
 
 /**
+ * 시/군/구 단독명 → 좌표. 전국에서 이름이 유일한 것만 수록 ("동구"처럼
+ * 여러 시/도에 있는 이름은 제외). "경주시" → "경주" 축약형도 등록해
+ * 자유입력 배송지("경주")의 토큰 매칭에 사용.
+ */
+const SUB_POS: Record<string, { x: number; y: number }> = (() => {
+  const cand: Record<string, { x: number; y: number }[]> = {};
+  const put = (name: string, pos: { x: number; y: number }) =>
+    (cand[name] ??= []).push(pos);
+  for (const [full, pos] of Object.entries(REGION_POS)) {
+    const sub = full.split(/\s+/)[1];
+    if (!sub) continue;
+    put(sub, pos);
+    const short = sub.replace(/(시|군|구)$/, "");
+    // 축약형이 시/도명과 겹치면 제외 (예: "광주시"→"광주"는 광역시와 충돌)
+    if (short && short !== sub && !(short in SIDO_POS)) put(short, pos);
+  }
+  const out: Record<string, { x: number; y: number }> = {};
+  for (const [k, v] of Object.entries(cand)) if (v.length === 1) out[k] = v[0];
+  return out;
+})();
+
+/** 자유입력 지역/배송지 문자열에서 좌표 탐색 — 토큰별로 시/도 → 유일 시/군/구 순 */
+function lookupLoose(key: string): { x: number; y: number } | null {
+  for (const tok of key.split(/\s+/)) {
+    // "서울시"·"부산광역시" 류 접미사 정규화
+    const t = tok.replace(/(특별시|광역시|특별자치시|특별자치도|도|시)$/, "");
+    if (SIDO_POS[tok]) return SIDO_POS[tok];
+    if (t && SIDO_POS[t]) return SIDO_POS[t];
+    if (SUB_POS[tok]) return SUB_POS[tok];
+    if (t && SUB_POS[t]) return SUB_POS[t];
+  }
+  return null;
+}
+
+/**
  * 핀 좌표(viewBox 단위): 지역(시/도)의 실제 지도 위치 + 소량 지터(같은 지역 겹침 방지).
  */
 function pinXY(area: string | null, seed: string): { x: number; y: number } {
-  // 전체 지역명(예: "서울 강동구")이 있으면 자치구 좌표 우선, 없으면 시/도 중심으로 폴백
+  // 전체 지역명(예: "서울 강동구", "충남 서산시")이 있으면 정확 좌표 우선,
+  // 다음 시/도 중심, 마지막으로 자유입력 배송지("경주")의 토큰 탐색으로 폴백
   const key = area?.trim() ?? "";
   const exact = REGION_POS[key];
   const sido = sidoOf(area);
-  const base = exact ?? (sido ? SIDO_POS[sido] : OVERSEAS_POS);
+  const base = exact ?? (sido ? SIDO_POS[sido] : lookupLoose(key) ?? OVERSEAS_POS);
   // 정확한 좌표가 있으면 지터 최소(겹침만 분산), 시/도 폴백이면 살짝 더
   const spread = exact ? 0.25 : 0.5;
   const h = hash(seed + (area ?? ""));
