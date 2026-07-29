@@ -27,7 +27,7 @@ export default function OrdersTab({
   groups: Group[];
   groupName: (id: string | null) => string;
 }) {
-  const [tab, setTab] = useState<DeliveryStatus>("대기중");
+  const [tab, setTab] = useState<DeliveryStatus | "전체">("전체");
   const [groupFilter, setGroupFilter] = useState("");
   /** 상태 변경 요청 진행 중인 주문 id — 확정/취소 연타로 인한 SMS 중복 발송 방지 */
   const [acting, setActing] = useState<string | null>(null);
@@ -44,14 +44,15 @@ export default function OrdersTab({
   const [loading, setLoading] = useState(true);
 
   const loadOrders = async (
-    status: DeliveryStatus = tab,
+    status: DeliveryStatus | "전체" = tab,
     gid: string = groupFilter
   ) => {
     setLoading(true);
     setError(null);
     setNotice(null);
     try {
-      const qs = new URLSearchParams({ status });
+      const qs = new URLSearchParams();
+      if (status !== "전체") qs.set("status", status);
       if (gid) qs.set("group_id", gid);
       const res = await api(`/api/admin/deliveries?${qs}`);
       if (res.status === 401) return; // api() 가 중앙 처리
@@ -65,15 +66,13 @@ export default function OrdersTab({
     }
   };
 
-  // 마운트 시 1회 로드 (탭 전환 시 컴포넌트가 다시 마운트됨).
+  // 마운트 시 1회 로드 — 기본 "전체" (탭 전환 시 컴포넌트가 다시 마운트됨).
   // loading 초기값이 true 라 여기서는 setLoading(true) 없이 결과만 반영.
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const res = await api(
-          `/api/admin/deliveries?${new URLSearchParams({ status: "대기중" })}`
-        );
+        const res = await api("/api/admin/deliveries");
         if (!alive || res.status === 401) return;
         const j = await res.json();
         if (!res.ok) return setError(j.error ?? "불러오기 실패");
@@ -211,7 +210,7 @@ export default function OrdersTab({
   return (
     <>
       <div className="flex flex-wrap justify-center gap-2">
-        {STATUS_TABS.map((t) => (
+        {(["전체", ...STATUS_TABS] as (DeliveryStatus | "전체")[]).map((t) => (
           <button
             key={t}
             onClick={() => {
@@ -376,8 +375,8 @@ export default function OrdersTab({
                 </div>
               )}
 
-              {/* 주문 합치기 (활성 주문만) */}
-              {r.status !== "취소" && r.status !== "완료" && (
+              {/* 일정 수정(취소 외 모든 주문 — 완료 후 정정 포함) + 합치기(활성 주문만) */}
+              {r.status !== "취소" && (
                 <div className="flex justify-end gap-2 flex-wrap">
                   <button
                     onClick={() =>
@@ -400,28 +399,29 @@ export default function OrdersTab({
                   >
                     {editSched?.id === r.id ? "수정 닫기" : "📝 일정 수정"}
                   </button>
-                  {mergeSource === null ? (
-                    <button
-                      onClick={() => setMergeSource(r.id)}
-                      className="px-3 py-1.5 text-xs border border-neutral-300 text-neutral-500"
-                    >
-                      이 주문을 다른 주문과 합치기 🔗
-                    </button>
-                  ) : mergeSource === r.id ? (
-                    <button
-                      onClick={() => setMergeSource(null)}
-                      className="px-3 py-1.5 text-xs border border-neutral-300 text-neutral-400"
-                    >
-                      합치기 취소
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => doMerge(r.id)}
-                      className="px-3 py-1.5 text-xs bg-delivery text-white font-bold"
-                    >
-                      여기로 합치기 ⤵
-                    </button>
-                  )}
+                  {r.status !== "완료" &&
+                    (mergeSource === null ? (
+                      <button
+                        onClick={() => setMergeSource(r.id)}
+                        className="px-3 py-1.5 text-xs border border-neutral-300 text-neutral-500"
+                      >
+                        이 주문을 다른 주문과 합치기 🔗
+                      </button>
+                    ) : mergeSource === r.id ? (
+                      <button
+                        onClick={() => setMergeSource(null)}
+                        className="px-3 py-1.5 text-xs border border-neutral-300 text-neutral-400"
+                      >
+                        합치기 취소
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => doMerge(r.id)}
+                        className="px-3 py-1.5 text-xs bg-delivery text-white font-bold"
+                      >
+                        여기로 합치기 ⤵
+                      </button>
+                    ))}
                 </div>
               )}
 
