@@ -1,18 +1,13 @@
 import { NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/adminAuth";
-import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
+import { adminGuard } from "@/lib/adminAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 /** 마음 배송 목록 — participants(type=마음배송) 기준 (v7 참여 시스템) */
 export async function GET(req: Request) {
-  if (!checkAdmin(req))
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!isAdminConfigured || !supabaseAdmin)
-    return NextResponse.json(
-      { error: "Supabase service role key 가 설정되지 않았습니다." },
-      { status: 503 }
-    );
+  const bad = adminGuard(req);
+  if (bad) return bad;
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin!
     .from("participants")
     .select("*")
     .eq("type", "마음배송")
@@ -23,13 +18,8 @@ export async function GET(req: Request) {
 
 /** 공개 답글 저장/삭제 (LC-3) — 신랑·신부가 방명록 메시지에 남기는 답글 */
 export async function PATCH(req: Request) {
-  if (!checkAdmin(req))
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!isAdminConfigured || !supabaseAdmin)
-    return NextResponse.json(
-      { error: "Supabase service role key 가 설정되지 않았습니다." },
-      { status: 503 }
-    );
+  const bad = adminGuard(req);
+  if (bad) return bad;
 
   const body = (await req.json().catch(() => null)) as {
     id?: string;
@@ -41,7 +31,7 @@ export async function PATCH(req: Request) {
   const trimmed = (body.reply ?? "").trim();
   const hasReply = trimmed.length > 0;
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin!
     .from("participants")
     .update({
       reply: hasReply ? trimmed : null,

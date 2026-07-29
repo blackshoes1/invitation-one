@@ -1,17 +1,12 @@
 import { NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/adminAuth";
-import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
+import { adminGuard } from "@/lib/adminAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function GET(req: Request) {
-  if (!checkAdmin(req))
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!isAdminConfigured || !supabaseAdmin)
-    return NextResponse.json(
-      { error: "Supabase service role key 가 설정되지 않았습니다." },
-      { status: 503 }
-    );
+  const bad = adminGuard(req);
+  if (bad) return bad;
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin!
     .from("waiting_list")
     .select("*")
     .order("created_at", { ascending: true });

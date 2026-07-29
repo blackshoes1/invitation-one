@@ -1,25 +1,14 @@
 import { NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/adminAuth";
-import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
+import { adminGuard } from "@/lib/adminAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { parseOffer } from "@/lib/groupOffer";
-
-function guard(req: Request) {
-  if (!checkAdmin(req))
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!isAdminConfigured || !supabaseAdmin)
-    return NextResponse.json(
-      { error: "Supabase service role key 가 설정되지 않았습니다." },
-      { status: 503 }
-    );
-  return null;
-}
 
 /** 그룹명 수정 + 제안 일정 설정/수정/해제 */
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const bad = guard(req);
+  const bad = adminGuard(req);
   if (bad) return bad;
   const { id } = await params;
 

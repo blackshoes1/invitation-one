@@ -1,25 +1,14 @@
 import { NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/adminAuth";
-import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
+import { adminGuard } from "@/lib/adminAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { parseOffer } from "@/lib/groupOffer";
-
-function guard(req: Request) {
-  if (!checkAdmin(req))
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!isAdminConfigured || !supabaseAdmin)
-    return NextResponse.json(
-      { error: "Supabase service role key 가 설정되지 않았습니다." },
-      { status: 503 }
-    );
-  return null;
-}
 
 function makeSlug() {
   return Math.random().toString(36).slice(2, 8);
 }
 
 export async function GET(req: Request) {
-  const bad = guard(req);
+  const bad = adminGuard(req);
   if (bad) return bad;
 
   // 그룹 목록 + 인원 집계
@@ -72,7 +61,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const bad = guard(req);
+  const bad = adminGuard(req);
   if (bad) return bad;
 
   const body = (await req.json()) as {

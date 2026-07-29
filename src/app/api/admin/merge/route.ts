@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/adminAuth";
-import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
+import { adminGuard } from "@/lib/adminAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 /**
  * 주문 합치기 — source 주문의 참여자를 target 주문으로 이동하고 source 는 취소.
@@ -8,13 +8,8 @@ import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
  * body: { source_id: string, target_id: string }
  */
 export async function POST(req: Request) {
-  if (!checkAdmin(req))
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!isAdminConfigured || !supabaseAdmin)
-    return NextResponse.json(
-      { error: "Supabase service role key 가 설정되지 않았습니다." },
-      { status: 503 }
-    );
+  const bad = adminGuard(req);
+  if (bad) return bad;
 
   const { source_id, target_id } = (await req.json().catch(() => ({}))) as {
     source_id?: string;
@@ -25,7 +20,7 @@ export async function POST(req: Request) {
 
   // 참여자 이동 + source 취소를 단일 트랜잭션으로 (v25 RPC).
   // 검사~이동 사이 race 와 "이동됐는데 취소 실패" 반쪽 상태를 방지.
-  const { data: moved, error } = await supabaseAdmin.rpc(
+  const { data: moved, error } = await supabaseAdmin!.rpc(
     "admin_merge_deliveries",
     { p_source: source_id, p_target: target_id }
   );

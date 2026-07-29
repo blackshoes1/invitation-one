@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/adminAuth";
-import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
+import { adminGuard } from "@/lib/adminAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isUuid } from "@/lib/checkinServer";
 
 /**
@@ -12,10 +12,8 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!checkAdmin(req))
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!isAdminConfigured || !supabaseAdmin)
-    return NextResponse.json({ error: "설정이 필요합니다." }, { status: 503 });
+  const bad = adminGuard(req);
+  if (bad) return bad;
 
   const { id } = await params;
   const body = (await req.json().catch(() => ({}))) as {
@@ -25,7 +23,7 @@ export async function PATCH(
     return NextResponse.json({ error: "bad_request" }, { status: 400 });
 
   if (body.tableId) {
-    const { data: tbl } = await supabaseAdmin
+    const { data: tbl } = await supabaseAdmin!
       .from("seating_tables")
       .select("id, active")
       .eq("id", body.tableId)
@@ -39,7 +37,7 @@ export async function PATCH(
       );
   }
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin!
     .from("rsvp")
     .update({ table_id: body.tableId, updated_at: new Date().toISOString() })
     .eq("id", id)
@@ -51,12 +49,12 @@ export async function PATCH(
   let overCapacity = false;
   if (body.tableId) {
     const [{ data: tbl }, { data: mates }] = await Promise.all([
-      supabaseAdmin
+      supabaseAdmin!
         .from("seating_tables")
         .select("capacity")
         .eq("id", body.tableId)
         .maybeSingle(),
-      supabaseAdmin
+      supabaseAdmin!
         .from("rsvp")
         .select("companion_count")
         .eq("table_id", body.tableId)

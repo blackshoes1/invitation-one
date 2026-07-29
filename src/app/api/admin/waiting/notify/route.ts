@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/adminAuth";
-import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
+import { adminGuard } from "@/lib/adminAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendSms } from "@/lib/sms";
 import type { WaitingEntry } from "@/lib/supabase";
 import { siteOrigin } from "@/lib/siteUrl";
@@ -10,17 +10,12 @@ import { siteOrigin } from "@/lib/siteUrl";
  * body: { id?: string }  — id 있으면 해당 1명, 없으면 대기자 전체.
  */
 export async function POST(req: Request) {
-  if (!checkAdmin(req))
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!isAdminConfigured || !supabaseAdmin)
-    return NextResponse.json(
-      { error: "Supabase service role key 가 설정되지 않았습니다." },
-      { status: 503 }
-    );
+  const bad = adminGuard(req);
+  if (bad) return bad;
 
   const body = (await req.json().catch(() => ({}))) as { id?: string };
 
-  let query = supabaseAdmin
+  let query = supabaseAdmin!
     .from("waiting_list")
     .select("*")
     .order("created_at", { ascending: true });

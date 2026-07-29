@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/adminAuth";
-import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
+import { adminGuard } from "@/lib/adminAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 /**
  * 관리자 — 체크인 v2 CSV (§15)
@@ -44,14 +44,12 @@ function csvResponse(header: string[], rows: string[][], filename: string) {
 }
 
 export async function GET(req: Request) {
-  if (!checkAdmin(req))
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!isAdminConfigured || !supabaseAdmin)
-    return NextResponse.json({ error: "설정이 필요합니다." }, { status: 503 });
+  const bad = adminGuard(req);
+  if (bad) return bad;
 
   const type = new URL(req.url).searchParams.get("type") ?? "full";
 
-  const { data: rsvps, error } = await supabaseAdmin
+  const { data: rsvps, error } = await supabaseAdmin!
     .from("rsvp")
     .select(
       "id, name, phone, side, attending, companion_count, kids_meal, eating, table_id, checkin_token, checkin_token_active, qr_issued_at, created_at"
@@ -80,12 +78,12 @@ export async function GET(req: Request) {
 
   // 통합 CSV — 토큰·패스 URL 제외 (§15)
   const [{ data: checkins }, { data: tables }] = await Promise.all([
-    supabaseAdmin
+    supabaseAdmin!
       .from("checkins")
       .select("rsvp_id, actual_party_size, meal_count, expected_party_size, source, created_at")
       .eq("status", "active")
       .not("rsvp_id", "is", null),
-    supabaseAdmin.from("seating_tables").select("id, name, zone"),
+    supabaseAdmin!.from("seating_tables").select("id, name, zone"),
   ]);
   const ckByRsvp = new Map((checkins ?? []).map((c) => [c.rsvp_id as string, c]));
   const tblById = new Map((tables ?? []).map((t) => [t.id, t]));

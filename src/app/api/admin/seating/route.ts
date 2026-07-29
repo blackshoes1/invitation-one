@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/adminAuth";
-import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
+import { adminGuard } from "@/lib/adminAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 /**
  * 관리자 — 테이블 관리 (§5)
@@ -8,16 +8,8 @@ import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
  * POST : 테이블 생성
  */
 
-function guard(req: Request) {
-  if (!checkAdmin(req))
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!isAdminConfigured || !supabaseAdmin)
-    return NextResponse.json({ error: "설정이 필요합니다." }, { status: 503 });
-  return null;
-}
-
 export async function GET(req: Request) {
-  const bad = guard(req);
+  const bad = adminGuard(req);
   if (bad) return bad;
 
   const [tblRes, rsvpRes, ckRes] = await Promise.all([
@@ -71,7 +63,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const bad = guard(req);
+  const bad = adminGuard(req);
   if (bad) return bad;
 
   const body = (await req.json().catch(() => ({}))) as {

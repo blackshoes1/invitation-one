@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/adminAuth";
-import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
+import { adminGuard } from "@/lib/adminAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 /**
  * 관리자 — 체크인 수정·취소 (§6, §9-11)
@@ -8,19 +8,11 @@ import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
  * DELETE : 취소 — 삭제하지 않고 status='canceled' 로 보존
  */
 
-function guard(req: Request) {
-  if (!checkAdmin(req))
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!isAdminConfigured || !supabaseAdmin)
-    return NextResponse.json({ error: "설정이 필요합니다." }, { status: 503 });
-  return null;
-}
-
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const bad = guard(req);
+  const bad = adminGuard(req);
   if (bad) return bad;
   const { id } = await params;
 
@@ -80,7 +72,7 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const bad = guard(req);
+  const bad = adminGuard(req);
   if (bad) return bad;
   const { id } = await params;
 

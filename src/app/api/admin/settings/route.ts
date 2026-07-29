@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/adminAuth";
-import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
+import { adminGuard } from "@/lib/adminAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const ALLOWED_KEYS = [
   "hero_image",
@@ -16,20 +16,9 @@ const ALLOWED_KEYS = [
   "checkin_close_at",
 ];
 
-function guard(req: Request) {
-  if (!checkAdmin(req))
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!isAdminConfigured || !supabaseAdmin)
-    return NextResponse.json(
-      { error: "Supabase service role key 가 설정되지 않았습니다." },
-      { status: 503 }
-    );
-  return null;
-}
-
 /** 콘텐츠 설정 조회 */
 export async function GET(req: Request) {
-  const bad = guard(req);
+  const bad = adminGuard(req);
   if (bad) return bad;
 
   const { data, error } = await supabaseAdmin!
@@ -44,7 +33,7 @@ export async function GET(req: Request) {
 
 /** 콘텐츠 설정 저장 — body: { key, value } (value null 이면 삭제 = 폴백으로 복귀) */
 export async function PUT(req: Request) {
-  const bad = guard(req);
+  const bad = adminGuard(req);
   if (bad) return bad;
 
   const { key, value } = (await req.json()) as { key?: string; value?: unknown };

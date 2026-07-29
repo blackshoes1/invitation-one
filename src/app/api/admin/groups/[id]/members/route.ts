@@ -1,23 +1,12 @@
 import { NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/adminAuth";
-import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
-
-function guard(req: Request) {
-  if (!checkAdmin(req))
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!isAdminConfigured || !supabaseAdmin)
-    return NextResponse.json(
-      { error: "Supabase service role key 가 설정되지 않았습니다." },
-      { status: 503 }
-    );
-  return null;
-}
+import { adminGuard } from "@/lib/adminAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const bad = guard(req);
+  const bad = adminGuard(req);
   if (bad) return bad;
   const { id } = await params;
 
@@ -34,7 +23,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const bad = guard(req);
+  const bad = adminGuard(req);
   if (bad) return bad;
   const { id } = await params;
 
@@ -55,7 +44,7 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const bad = guard(req);
+  const bad = adminGuard(req);
   if (bad) return bad;
   await params; // id 는 사용하지 않지만 시그니처 유지
 

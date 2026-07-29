@@ -1,24 +1,17 @@
 import { NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/adminAuth";
-import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
+import { adminGuard } from "@/lib/adminAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function GET(req: Request) {
-  if (!checkAdmin(req)) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-  if (!isAdminConfigured || !supabaseAdmin) {
-    return NextResponse.json(
-      { error: "Supabase service role key 가 설정되지 않았습니다." },
-      { status: 503 }
-    );
-  }
+  const bad = adminGuard(req);
+  if (bad) return bad;
 
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status"); // 대기중 | 확정 | 완료 | null(전체)
   const groupId = searchParams.get("group_id"); // 그룹 필터 | null(전체)
 
   // 참여 시스템: 주문 + 참여자 목록을 함께 조회
-  let query = supabaseAdmin
+  let query = supabaseAdmin!
     .from("deliveries")
     .select("*, participants!delivery_id(*)")
     .order("date", { ascending: true });

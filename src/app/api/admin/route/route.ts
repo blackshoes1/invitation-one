@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/adminAuth";
-import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
+import { adminGuard } from "@/lib/adminAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { venue } from "@/lib/wedding";
 
 const KAKAO_REST = process.env.KAKAO_REST_API_KEY;
@@ -41,15 +41,10 @@ interface Row {
 
 /** 배송 경로 — 미완료 주문을 날짜별로 묶고, 식장 기준 최근접 순서로 정렬 (AD-1) */
 export async function GET(req: Request) {
-  if (!checkAdmin(req))
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!isAdminConfigured || !supabaseAdmin)
-    return NextResponse.json(
-      { error: "Supabase service role key 가 설정되지 않았습니다." },
-      { status: 503 }
-    );
+  const bad = adminGuard(req);
+  if (bad) return bad;
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin!
     .from("deliveries")
     .select(
       "id, location, date, time_slot, status, tracking_stage, lat, lng, geo_query, participants!delivery_id(name, phone, is_owner)"
@@ -67,7 +62,7 @@ export async function GET(req: Request) {
       r.lat = geo?.lat ?? null;
       r.lng = geo?.lng ?? null;
       r.geo_query = r.location;
-      await supabaseAdmin
+      await supabaseAdmin!
         .from("deliveries")
         .update({ lat: r.lat, lng: r.lng, geo_query: r.location })
         .eq("id", r.id);

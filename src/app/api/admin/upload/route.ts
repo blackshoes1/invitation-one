@@ -1,25 +1,14 @@
 import { NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/adminAuth";
-import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
+import { adminGuard } from "@/lib/adminAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const BUCKET = "invitation-media";
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 const KINDS = ["hero", "gallery", "album"];
 
-function guard(req: Request) {
-  if (!checkAdmin(req))
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!isAdminConfigured || !supabaseAdmin)
-    return NextResponse.json(
-      { error: "Supabase service role key 가 설정되지 않았습니다." },
-      { status: 503 }
-    );
-  return null;
-}
-
 /** 사진 업로드 (multipart form: file, kind=hero|gallery) → { url, path } */
 export async function POST(req: Request) {
-  const bad = guard(req);
+  const bad = adminGuard(req);
   if (bad) return bad;
 
   const form = await req.formData();
@@ -53,7 +42,7 @@ export async function POST(req: Request) {
 
 /** 업로드한 사진 삭제 — ?path=gallery/... */
 export async function DELETE(req: Request) {
-  const bad = guard(req);
+  const bad = adminGuard(req);
   if (bad) return bad;
 
   const path = new URL(req.url).searchParams.get("path");

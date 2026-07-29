@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/adminAuth";
-import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
+import { adminGuard } from "@/lib/adminAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 /**
  * 관리자 — QR 재발급 (§6 고정 의미)
@@ -11,14 +11,12 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!checkAdmin(req))
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!isAdminConfigured || !supabaseAdmin)
-    return NextResponse.json({ error: "설정이 필요합니다." }, { status: 503 });
+  const bad = adminGuard(req);
+  if (bad) return bad;
 
   const { id } = await params;
 
-  const { data: rsvp } = await supabaseAdmin
+  const { data: rsvp } = await supabaseAdmin!
     .from("rsvp")
     .select("id, attending")
     .eq("id", id)
@@ -31,7 +29,7 @@ export async function POST(
     );
 
   const token = crypto.randomUUID();
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin!
     .from("rsvp")
     .update({
       checkin_token: token,
@@ -45,7 +43,7 @@ export async function POST(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // 재발급 경고용 — 이미 체크인했는지 병기 (§6: 기록은 유지된다)
-  const { data: existing } = await supabaseAdmin
+  const { data: existing } = await supabaseAdmin!
     .from("checkins")
     .select("id")
     .eq("rsvp_id", id)

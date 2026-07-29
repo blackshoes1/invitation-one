@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/adminAuth";
-import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
+import { adminGuard } from "@/lib/adminAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendSms } from "@/lib/sms";
 import {
   formatYmdKo,
@@ -19,15 +19,8 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!checkAdmin(req)) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-  if (!isAdminConfigured || !supabaseAdmin) {
-    return NextResponse.json(
-      { error: "Supabase service role key 가 설정되지 않았습니다." },
-      { status: 503 }
-    );
-  }
+  const bad = adminGuard(req);
+  if (bad) return bad;
 
   const { id } = await params;
   const body = (await req.json()) as {
@@ -64,7 +57,7 @@ export async function PATCH(
           { status: 400 }
         );
       // 차단일 검사 — 관리자가 직접 막아둔 날이므로 실수 예약을 방지
-      const { data: blocked } = await supabaseAdmin
+      const { data: blocked } = await supabaseAdmin!
         .from("blocked_dates")
         .select("date")
         .eq("date", body.date)
@@ -75,7 +68,7 @@ export async function PATCH(
           { status: 409 }
         );
       // 하루 1건 원칙 — 다른 활성 주문과 충돌 검사 (자기 자신 제외)
-      const { data: clash } = await supabaseAdmin
+      const { data: clash } = await supabaseAdmin!
         .from("deliveries")
         .select("id")
         .eq("date", body.date)
@@ -139,7 +132,7 @@ export async function PATCH(
   let statusChanged = false;
   let data: Record<string, unknown> & { date: string; time_slot: string; location: string | null };
   if (patch.status !== undefined) {
-    const upd = await supabaseAdmin
+    const upd = await supabaseAdmin!
       .from("deliveries")
       .update(patch)
       .eq("id", id)
@@ -154,7 +147,7 @@ export async function PATCH(
       data = upd.data;
     } else {
       // 이미 해당 상태(중복 요청)거나 존재하지 않는 id — 현재 행으로 구분
-      const cur = await supabaseAdmin
+      const cur = await supabaseAdmin!
         .from("deliveries")
         .select("*")
         .eq("id", id)
@@ -169,7 +162,7 @@ export async function PATCH(
     }
   } else {
     // 추적 단계만 변경
-    const upd = await supabaseAdmin
+    const upd = await supabaseAdmin!
       .from("deliveries")
       .update(patch)
       .eq("id", id)
@@ -187,7 +180,7 @@ export async function PATCH(
   // 상태 전이 시 참여자 전원에게 SMS (참여 시스템 — 연락처 보유자 대상, 키 없으면 자동 skip)
   let sms: unknown = null;
   if (statusChanged && (patch.status === "확정" || patch.status === "취소")) {
-    const { data: parts } = await supabaseAdmin
+    const { data: parts } = await supabaseAdmin!
       .from("participants")
       .select("name, phone")
       .eq("delivery_id", id)
@@ -196,7 +189,7 @@ export async function PATCH(
     // 확정 감사 문자 커스텀 템플릿 (LC-2) — 관리자가 콘텐츠 탭에서 설정, 없으면 기본
     let confirmTpl = "";
     if (patch.status === "확정") {
-      const { data: st } = await supabaseAdmin
+      const { data: st } = await supabaseAdmin!
         .from("site_settings")
         .select("value")
         .eq("key", "confirm_sms")
@@ -233,14 +226,14 @@ export async function PATCH(
 
   // 배송 완료 전이 → 리뷰요청 문자 (DL-3) — 개인 리뷰 링크(manage) 포함
   if (statusChanged && patch.status === "완료") {
-    const { data: parts } = await supabaseAdmin
+    const { data: parts } = await supabaseAdmin!
       .from("participants")
       .select("id, name, phone")
       .eq("delivery_id", id)
       .not("phone", "is", null);
 
     let reviewTpl = "";
-    const { data: st } = await supabaseAdmin
+    const { data: st } = await supabaseAdmin!
       .from("site_settings")
       .select("value")
       .eq("key", "review_sms")
@@ -276,7 +269,7 @@ export async function PATCH(
 
   // 일정 변경 → 참여자 전원에게 변경 안내 SMS (notify=false 로 생략 가능)
   if (data && scheduleChange && body.notify !== false) {
-    const { data: parts } = await supabaseAdmin
+    const { data: parts } = await supabaseAdmin!
       .from("participants")
       .select("name, phone")
       .eq("delivery_id", id)

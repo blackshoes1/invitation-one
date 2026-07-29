@@ -1,15 +1,13 @@
 import { NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/adminAuth";
-import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
+import { adminGuard } from "@/lib/adminAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 /** 참여자 연락처 CSV 내보내기 (AD-3) — 감사 문자·재발송용 */
 export async function GET(req: Request) {
-  if (!checkAdmin(req))
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!isAdminConfigured || !supabaseAdmin)
-    return NextResponse.json({ error: "설정이 필요합니다." }, { status: 503 });
+  const bad = adminGuard(req);
+  if (bad) return bad;
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin!
     .from("participants")
     .select(
       "name, phone, type, region, is_owner, created_at, delivery:deliveries!delivery_id(date, time_slot, location, status)"

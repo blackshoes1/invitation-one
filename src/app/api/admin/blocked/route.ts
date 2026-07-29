@@ -1,21 +1,10 @@
 import { NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/adminAuth";
-import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
-
-function guard(req: Request) {
-  if (!checkAdmin(req))
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!isAdminConfigured || !supabaseAdmin)
-    return NextResponse.json(
-      { error: "Supabase service role key 가 설정되지 않았습니다." },
-      { status: 503 }
-    );
-  return null;
-}
+import { adminGuard } from "@/lib/adminAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 /** 차단된 날짜 목록 */
 export async function GET(req: Request) {
-  const bad = guard(req);
+  const bad = adminGuard(req);
   if (bad) return bad;
 
   const { data, error } = await supabaseAdmin!
@@ -34,7 +23,7 @@ export async function GET(req: Request) {
  * - 주문이 있는 날짜도 마감 가능 (신규 신청만 막힘, 기존 주문은 유지)
  */
 export async function POST(req: Request) {
-  const bad = guard(req);
+  const bad = adminGuard(req);
   if (bad) return bad;
 
   const { dates, block } = (await req.json()) as {
