@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
-import { sessionToken } from "@/lib/adminAuth";
+import { sessionToken, checkAdmin } from "@/lib/adminAuth";
 
 /**
  * 관리자 로그인 — 브루트포스 방어:
@@ -86,4 +86,11 @@ export async function DELETE() {
   const res = NextResponse.json({ ok: true });
   res.cookies.set("admin_session", "", { path: "/", maxAge: 0 });
   return res;
+}
+
+/** 세션 확인 — 쿠키가 유효하면 200. 새로고침 시 재로그인 생략용 (비밀번호 불필요) */
+export async function GET(req: Request) {
+  if (!checkAdmin(req))
+    return NextResponse.json({ ok: false }, { status: 401 });
+  return NextResponse.json({ ok: true });
 }

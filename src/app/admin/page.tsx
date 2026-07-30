@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Group } from "@/lib/supabase";
 import FieldOps from "@/components/admin/FieldOps";
 import OrdersTab from "@/components/admin/OrdersTab";
@@ -76,6 +76,34 @@ export default function AdminPage() {
     }
   };
 
+  /** 로그인 성공/세션 확인 후 공통 진입 처리 */
+  const enter = async () => {
+    setAuthed(true);
+    await loadGroups(); // 주문 필터·그룹명 표시 공용 (주문 목록은 OrdersTab 이 자체 로드)
+    // 카카오 알림 연결 상태 (만료 사전 경고)
+    api("/api/admin/kakao-status")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => j && setKakao(j.status));
+  };
+
+  // 새로고침 시 세션 쿠키(8시간)가 살아 있으면 재로그인 없이 바로 진입
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        // api() 는 401 에 "세션 만료" 안내를 띄우므로 최초 확인은 raw fetch
+        const res = await fetch("/api/admin/login");
+        if (alive && res.ok) await enter();
+      } catch {
+        /* 미로그인/네트워크 오류 → 로그인 화면 유지 */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const login = async () => {
     setLoading(true);
     setError(null);
@@ -85,15 +113,11 @@ export default function AdminPage() {
         body: JSON.stringify({ password }),
       });
       if (!res.ok) {
-        setError("비밀번호가 올바르지 않습니다.");
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(j.error ?? "비밀번호가 올바르지 않습니다.");
         return;
       }
-      setAuthed(true);
-      await loadGroups(); // 주문 필터·그룹명 표시 공용 (주문 목록은 OrdersTab 이 자체 로드)
-      // 카카오 알림 연결 상태 (만료 사전 경고)
-      api("/api/admin/kakao-status")
-        .then((r) => (r.ok ? r.json() : null))
-        .then((j) => j && setKakao(j.status));
+      await enter();
     } finally {
       setLoading(false);
     }

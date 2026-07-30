@@ -54,7 +54,17 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" className={`${notoSerif.variable} h-full antialiased`}>
-      <body className="min-h-full bg-wedding-cream">{children}</body>
+      <body className="min-h-full bg-wedding-cream">
+        {/* Pretendard 다이나믹 서브셋 — CSS @import 대신 head 링크로 로드해
+            HTML 파싱 시점에 preconnect·병렬 다운로드 (React 19 가 head 로 호이스팅) */}
+        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          precedence="default"
+          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+        />
+        {children}
+      </body>
     </html>
   );
 }
