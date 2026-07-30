@@ -5,7 +5,6 @@ import Gallery from "@/components/sections/Gallery";
 import Album from "@/components/sections/Album";
 import Location from "@/components/sections/Location";
 import NewlywedNews from "@/components/sections/NewlywedNews";
-import Rsvp from "@/components/sections/Rsvp";
 import Guestbook from "@/components/sections/Guestbook";
 import GuestSnap from "@/components/sections/GuestSnap";
 import Account from "@/components/sections/Account";
@@ -15,14 +14,15 @@ import BgmToggle from "@/components/BgmToggle";
 import PostWeddingBanner from "@/components/PostWeddingBanner";
 import LockedGate from "@/components/LockedGate";
 import { INVITATION_KEY } from "@/lib/wedding";
-import { rsvpSubmitToken } from "@/lib/checkinServer";
 
 /**
  * 모바일 청첩장
  * Hero → Greeting → Gallery → Album(세이브 더 데이트) → Location
  * → 💝 축하해준 사람들 → 마음 전하기
  * (Album 은 admin 콘텐츠 탭에서 사진을 넣어야 표시.
- *  D-Day 섹션은 제거 — 컴포넌트 Dday.tsx 는 보존, 필요 시 한 줄로 복구)
+ *  D-Day 섹션은 제거 — 컴포넌트 Dday.tsx 는 보존, 필요 시 한 줄로 복구.
+ *  RSVP 섹션은 숨김 — 배달 신청과 이중 입력이라 제외. 좌석/개인 QR 체크인을
+ *  쓰기로 하면 Rsvp.tsx·rsvpSubmitToken import 와 아래 주석 한 줄로 복구)
  *
  * 접근 제어: ?key=xxxx — QR을 찍어야 열리는 컨셉이 핵심이므로
  * 키가 일치할 때만 공개. 환경변수 미설정 시에도 잠금(fail-closed).
@@ -58,8 +58,7 @@ export default async function Home({
       <Gallery />
       <Album />
       <Location />
-      {/* 참석 의사 (RSVP) — 제출 토큰은 서버 전용 값에서 파생, 키 게이트 통과 페이지만 내려줌 */}
-      <Rsvp submitToken={rsvpSubmitToken()} />
+      {/* RSVP 복구 시: <Rsvp submitToken={rsvpSubmitToken()} /> */}
       <NewlywedNews />
       <Guestbook qrEntry={qrEntry} />
       <GuestSnap />
