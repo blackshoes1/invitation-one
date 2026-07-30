@@ -10,6 +10,8 @@ import { daysUntil } from "@/lib/wedding";
 export default function PostWeddingBanner() {
   const [past, setPast] = useState(false);
   useEffect(() => {
+    // 날짜 판정은 클라이언트 시각 기준 (서버 TZ와의 하이드레이션 mismatch 방지)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPast(daysUntil() < 0);
   }, []);
 

@@ -96,7 +96,10 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
     };
 
     fetchNow();
-    const timer = setInterval(fetchNow, 25000);
+    // 백그라운드 탭에서는 폴링 스킵 (배터리/요청 절약)
+    const timer = setInterval(() => {
+      if (!document.hidden) fetchNow();
+    }, 25000);
     return () => {
       alive = false;
       clearInterval(timer);

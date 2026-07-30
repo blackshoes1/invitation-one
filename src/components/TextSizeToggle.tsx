@@ -14,6 +14,8 @@ export default function TextSizeToggle() {
 
   useEffect(() => {
     const saved = localStorage.getItem(KEY) === "1";
+    // localStorage 복원 — SSR 과 초기 렌더 일치를 위해 마운트 후 반영
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setBig(saved);
     document.documentElement.style.fontSize = saved ? "118%" : "";
   }, []);

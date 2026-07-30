@@ -1,4 +1,3 @@
-/* eslint-disable */
 // 자동 생성 (db/../scripts) — datamaps kor.topo.json 을 등장방형 투영으로 변환.
 // 본토 + 제주 + 주요 섬. 시/도 경계 포함. viewBox: 0 0 100 145.2
 // 손으로 수정하지 마세요. 마음 지도(JourneyMap)용 정밀 대한민국 지도.

@@ -136,6 +136,8 @@ export default function FieldOps() {
   }, []);
 
   useEffect(() => {
+    // 마운트 즉시 1회 로드 (외부 데이터 → 상태 동기화)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
     const t = setInterval(load, 15000); // 새로고침 없이 통계 반영 (§13)
     return () => clearInterval(t);

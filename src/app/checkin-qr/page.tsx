@@ -15,6 +15,8 @@ export default function CheckinQrPage() {
 
   useEffect(() => {
     const base = window.location.origin;
+    // 브라우저 전용 값(origin) → SSR 과 초기 렌더 일치를 위해 마운트 후 반영
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOrigin(base);
     QRCode.toDataURL(`${base}/checkin`, {
       margin: 1,

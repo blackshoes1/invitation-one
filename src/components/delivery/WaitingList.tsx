@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { formatPhone, isValidPhone } from "@/lib/wedding";
 
 /** 마감 시 대기자 등록 폼 */
 export default function WaitingList() {
@@ -15,6 +16,9 @@ export default function WaitingList() {
     if (!name.trim() || !phone.trim()) {
       return setError("이름과 연락처를 입력해주세요 🙏");
     }
+    // 취소 자리가 나면 SMS 로 연락할 번호 — 다른 폼과 동일하게 형식 검증
+    if (!isValidPhone(phone))
+      return setError("연락처 형식을 확인해주세요 (010-0000-0000) 📞");
     setError(null);
     setSending(true);
     if (isSupabaseConfigured && supabase) {
@@ -55,7 +59,7 @@ export default function WaitingList() {
       <input
         type="tel"
         value={phone}
-        onChange={(e) => setPhone(e.target.value)}
+        onChange={(e) => setPhone(formatPhone(e.target.value))}
         placeholder="연락처 010-0000-0000"
         className="dform-input"
       />

@@ -12,14 +12,17 @@ import {
 } from "@/lib/wedding";
 import { getSiteSettings } from "@/lib/settings";
 
-export default function Hero() {
-  // Admin 에서 업로드한 메인 사진 (없으면 정적 파일 폴백)
-  const [heroSrc, setHeroSrc] = useState("/pic/wedding_main.jpg");
+export default function Hero({ heroUrl }: { heroUrl?: string | null }) {
+  // Admin 업로드 메인 사진 — 서버(page.tsx)가 미리 조회해 내려주면 그 값으로
+  // 즉시 렌더 (정적 폴백 → 교체로 인한 이중 다운로드/플래시 방지).
+  // prop 이 없을 때만 클라이언트 조회로 폴백.
+  const [heroSrc, setHeroSrc] = useState(heroUrl ?? "/pic/wedding_main.jpg");
   useEffect(() => {
+    if (heroUrl) return;
     getSiteSettings().then((s) => {
       if (s.hero_image) setHeroSrc(s.hero_image);
     });
-  }, []);
+  }, [heroUrl]);
 
   return (
     <section className="relative w-full min-h-[90vh] flex flex-col justify-between py-16 px-6 overflow-hidden bg-sage-50">

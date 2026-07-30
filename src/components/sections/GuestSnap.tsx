@@ -43,6 +43,8 @@ export default function GuestSnap() {
   useEffect(() => {
     try {
       const raw = localStorage.getItem("snap-missions-done");
+      // SSR 과 클라이언트의 초기 렌더를 일치시키려 마운트 후 복원 (하이드레이션 mismatch 방지)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (raw) setDoneMissions(JSON.parse(raw));
     } catch {
       /* 무시 */
@@ -123,6 +125,8 @@ export default function GuestSnap() {
   // 선택한 프레임으로 미리보기 갱신 (원본은 그대로 미리보기)
   useEffect(() => {
     if (!pendingFile) {
+      // 파일 선택 해제 시 미리보기 즉시 정리 (파생 상태 리셋)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPreview(null);
       return;
     }

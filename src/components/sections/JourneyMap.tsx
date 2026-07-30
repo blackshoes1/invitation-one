@@ -122,6 +122,8 @@ export default function JourneyMap({
 
   // 데이터가 준비되면 최초 1회 자동 재생
   useEffect(() => {
+    // 데이터가 준비된 시점에 1회만 자동재생 시작 (외부 데이터 → 상태 동기화)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (route.length >= 2) setPlayKey((k) => (k === 0 ? 1 : k));
   }, [route.length]);
 

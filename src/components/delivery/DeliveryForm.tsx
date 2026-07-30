@@ -139,7 +139,11 @@ export default function DeliveryForm({
     setStep((s) => Math.min(TOTAL - 1, Math.max(0, s + delta)));
   };
 
+  /** 합석 제안 조회(RPC) 진행 중 — 다음 버튼 연타 방지 */
+  const [checking, setChecking] = useState(false);
+
   const next = async () => {
+    if (checking) return;
     if (step === 0) {
       if (name.trim().length < 2) return setError("성함을 입력해주세요 🙏");
       if (!isValidPhone(phone))
@@ -151,15 +155,20 @@ export default function DeliveryForm({
       if (!date) return setError("배송 희망일을 골라주세요 📅");
       // 같은 날 먼저 신청한 주문이 있으면 합석 제안 (본인 주문·정원 초과 주문 제외)
       if (isSupabaseConfigured && supabase) {
-        const { data } = await supabase.rpc("get_orders_on_date", {
-          p_date: date,
-          p_phone: phone.trim(),
-        });
-        const orders = Array.isArray(data) ? (data as DateOrder[]) : [];
-        if (orders.length > 0) {
-          setError(null);
-          setJoinOffer(orders);
-          return;
+        setChecking(true);
+        try {
+          const { data } = await supabase.rpc("get_orders_on_date", {
+            p_date: date,
+            p_phone: phone.trim(),
+          });
+          const orders = Array.isArray(data) ? (data as DateOrder[]) : [];
+          if (orders.length > 0) {
+            setError(null);
+            setJoinOffer(orders);
+            return;
+          }
+        } finally {
+          setChecking(false);
         }
       }
     }
@@ -594,9 +603,12 @@ export default function DeliveryForm({
         <button
           type="button"
           onClick={next}
-          className="flex-1 flex items-center justify-center gap-1 py-4 rounded-full bg-delivery text-white text-sm font-bold shadow-sm active:scale-95 transition-transform"
+          disabled={checking}
+          className="flex-1 flex items-center justify-center gap-1 py-4 rounded-full bg-delivery text-white text-sm font-bold shadow-sm active:scale-95 transition-transform disabled:opacity-60"
         >
-          {step < TOTAL - 1 ? (
+          {checking ? (
+            "확인 중…"
+          ) : step < TOTAL - 1 ? (
             <>
               다음 <ArrowRight size={16} />
             </>

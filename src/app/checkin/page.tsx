@@ -79,6 +79,8 @@ export default function CheckinPage() {
     const params = new URLSearchParams(window.location.search);
     const t = params.get("t");
     const ev = params.get("event");
+    // URL 쿼리(브라우저 전용) → 마운트 후 상태 반영
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (ev) setEventKey(ev);
 
     if (!t) {
