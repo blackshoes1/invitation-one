@@ -26,7 +26,10 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 
 const esc = (v: unknown) => {
-  const s = v == null ? "" : String(v);
+  let s = v == null ? "" : String(v);
+  // CSV 수식 인젝션 방어 — 하객 입력(이름/메모)이 =, +, -, @, 탭으로
+  // 시작하면 Excel 이 수식으로 실행할 수 있으므로 ' 를 앞에 붙여 무력화
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 

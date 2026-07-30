@@ -15,11 +15,52 @@
  *   2) 받은 code 로 https://kauth.kakao.com/oauth/token 호출 → refresh_token
  */
 import { siteOrigin } from "@/lib/siteUrl";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const REST_KEY = process.env.KAKAO_REST_API_KEY;
 const REFRESH_TOKEN = process.env.KAKAO_REFRESH_TOKEN;
 
 export const isKakaoConfigured = Boolean(REST_KEY && REFRESH_TOKEN);
+
+/**
+ * refresh token 자동 회전 저장 (site_settings).
+ * 카카오는 만료 임박(~1개월 전) 갱신 요청에 새 refresh token 을 내려주는데,
+ * 이를 저장해 계속 사용하면 알림이 도는 한 토큰이 무한 연장된다
+ * (env 재발급 불필요). 공개 RPC(get_site_settings)는 키 화이트리스트라
+ * 이 키가 하객에게 노출되지 않는다.
+ */
+const TOKEN_KEY = "kakao_refresh_token";
+
+async function currentRefreshToken(): Promise<string | null> {
+  try {
+    if (supabaseAdmin) {
+      const { data } = await supabaseAdmin
+        .from("site_settings")
+        .select("value")
+        .eq("key", TOKEN_KEY)
+        .maybeSingle();
+      if (typeof data?.value === "string" && data.value) return data.value;
+    }
+  } catch {
+    /* 저장소 조회 실패 → env 폴백 */
+  }
+  return REFRESH_TOKEN ?? null;
+}
+
+async function saveRotatedToken(token: string): Promise<void> {
+  try {
+    if (!supabaseAdmin) throw new Error("no admin client");
+    await supabaseAdmin.from("site_settings").upsert({
+      key: TOKEN_KEY,
+      value: token,
+      updated_at: new Date().toISOString(),
+    });
+    console.warn("[kakao] 새 refresh token 발급 → site_settings 에 자동 저장됨 (재발급 불필요)");
+  } catch {
+    // 값은 보안상 로그에 남기지 않음 — 저장 실패 시 기존 토큰이 만료 전까지는 동작
+    console.warn("[kakao] 회전 토큰 저장 실패 — 만료 전 KAKAO_REFRESH_TOKEN 수동 재발급 필요");
+  }
+}
 
 interface SendResult {
   ok: boolean;
@@ -29,13 +70,15 @@ interface SendResult {
 
 /** refresh token → access token (매 발송 시 갱신, 저빈도라 충분) */
 async function getAccessToken(): Promise<string | null> {
+  const refresh = await currentRefreshToken(); // 회전 저장 토큰 우선, 없으면 env
+  if (!refresh) return null;
   const res = await fetch("https://kauth.kakao.com/oauth/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "refresh_token",
       client_id: REST_KEY as string,
-      refresh_token: REFRESH_TOKEN as string,
+      refresh_token: refresh,
     }),
   });
   if (!res.ok) {
@@ -44,12 +87,8 @@ async function getAccessToken(): Promise<string | null> {
   }
   const j = (await res.json()) as { access_token?: string; refresh_token?: string };
   if (j.refresh_token) {
-    // 카카오가 새 refresh token 을 내려줌 = 기존 토큰 만료 임박.
-    // 시크릿이므로 값 자체는 로그에 남기지 않는다 (Vercel 로그 잔존 방지).
-    // 재발급 절차는 파일 상단 주석 참고 — 만료 여부는 admin 패널(AD-4)에서 감지됨.
-    console.warn(
-      "[kakao] 새 refresh token 이 발급되었습니다 — 만료 임박. KAKAO_REFRESH_TOKEN 재발급 필요."
-    );
+    // 카카오가 새 refresh token 을 내려줌 = 기존 토큰 만료 임박 → 자동 회전 저장
+    await saveRotatedToken(j.refresh_token);
   }
   return j.access_token ?? null;
 }

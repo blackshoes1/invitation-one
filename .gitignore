@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# DB 백업 덤프 (scripts/backup-db.mjs 출력)
+backups/
