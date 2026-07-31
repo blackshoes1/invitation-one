@@ -62,12 +62,14 @@ export const venue = {
   },
 };
 
-export const groomAccounts: Account[] = [
-  { role: "신랑", name: "성근영", bank: "신한은행", number: "110-123-456789" },
-];
-
-export const brideAccounts: Account[] = [
-  { role: "신부", name: "김아영", bank: "우리은행", number: "1002-123-456789" },
+/** 마음 전하기 계좌 — 신랑·신부 통합 (카카오뱅크) */
+export const accounts: Account[] = [
+  {
+    role: "신랑 · 신부",
+    name: `${groom.name} · ${bride.name}`,
+    bank: "카카오뱅크",
+    number: "3333-37-8660608",
+  },
 ];
 
 /* ----------------------- 갤러리 ----------------------- */

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
-import { groomAccounts, brideAccounts, type Account as Acct } from "@/lib/wedding";
+import { accounts, type Account as Acct } from "@/lib/wedding";
 import FadeIn from "@/components/FadeIn";
 
 async function copyText(text: string): Promise<boolean> {
@@ -175,8 +175,8 @@ export default function Account() {
         </FadeIn>
 
         <FadeIn className="space-y-3">
-          <AccountAccordion title="신랑측 마음 전하기" accounts={groomAccounts} />
-          <AccountAccordion title="신부측 마음 전하기" accounts={brideAccounts} />
+          {/* 신랑·신부 통합 계좌 — 아코디언 하나로 안내 */}
+          <AccountAccordion title="마음 전하기 · 계좌 보기" accounts={accounts} />
         </FadeIn>
       </div>
     </section>

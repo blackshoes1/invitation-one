@@ -6,8 +6,7 @@ import {
   groom,
   bride,
   venue,
-  groomAccounts,
-  brideAccounts,
+  accounts,
   formatFullDate,
   formatTime,
   type Account as Acct,
@@ -110,7 +109,7 @@ export default function LockedGate() {
           </button>
           {accountsOpen && (
             <div className="mt-4 space-y-3 text-left">
-              {[...groomAccounts, ...brideAccounts].map((a) => (
+              {accounts.map((a) => (
                 <div
                   key={a.number}
                   className="flex items-center justify-between gap-2 border border-wedding-gold/15 px-3 py-2.5"
