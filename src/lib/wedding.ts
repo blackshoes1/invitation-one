@@ -81,6 +81,21 @@ export const parkingLot = {
     )}`,
     tmapWeb: "https://tmap.life/ko",
   },
+  /** 주차장 → 예식장 도보 경로 약도 (지도 점선용 근사 웨이포인트, [lat, lng]) */
+  walkPath: [
+    [37.5235, 126.9778],
+    [37.5229, 126.9793],
+    [37.5223, 126.9812],
+    [37.5218, 126.9825],
+    [37.521135, 126.983812],
+  ] as [number, number][],
+  /** 주차장 → 예식장 도보 길찾기 (카카오맵 도보 모드, 앱 미설치 시 목적지 안내로 폴백) */
+  walkNav: {
+    kakaoApp: "kakaomap://route?sp=37.5235,126.9778&ep=37.521135,126.983812&by=FOOT",
+    kakaoWeb: `https://map.kakao.com/link/to/${encodeURIComponent(
+      "용산가족공원 야외예식장"
+    )},37.521135,126.983812`,
+  },
 };
 
 /** 마음 전하기 계좌 — 신랑·신부 통합 (카카오뱅크) */

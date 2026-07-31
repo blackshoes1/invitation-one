@@ -4,6 +4,7 @@ import { Phone, Navigation, CalendarPlus, UserPlus, CircleParking } from "lucide
 import { venue, parkingLot, weddingIcs, weddingVcard } from "@/lib/wedding";
 import FadeIn from "@/components/FadeIn";
 import KakaoMap from "@/components/KakaoMap";
+import ParkingRouteMap from "@/components/ParkingRouteMap";
 
 /** 텍스트를 파일로 내려받기 (Blob 다운로드 공통 헬퍼) */
 function downloadFile(content: string, filename: string, mime: string) {
@@ -137,12 +138,15 @@ export default function Location() {
               </span>
             </p>
           </div>
-          <KakaoMap
-            lat={parkingLot.lat}
-            lng={parkingLot.lng}
-            name={parkingLot.name}
-            address={parkingLot.address}
-          />
+          <ParkingRouteMap />
+          <button
+            type="button"
+            onClick={() => openNav(parkingLot.walkNav.kakaoApp, parkingLot.walkNav.kakaoWeb)}
+            className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 border border-wedding-gold/30 text-xs text-sage-700 tracking-wide hover:bg-sage-50 transition-colors"
+          >
+            🚶 주차장 → 예식장 도보 길찾기
+            <Navigation size={11} className="text-wedding-gold rotate-45" />
+          </button>
           <div className="grid grid-cols-3 gap-3">
             {PARKING_NAV_APPS.map(({ title, app, web }) => (
               <button
