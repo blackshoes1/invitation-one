@@ -52,11 +52,10 @@ const NAV_APPS: { title: string; app: string; web: string }[] = [
   { title: "티맵", app: venue.nav.tmapApp, web: venue.nav.tmapWeb },
 ];
 
-/** 주차장(자차) 길찾기 — 국립중앙박물관 주차장 목적지 */
-const PARKING_NAV_APPS: { title: string; app: string; web: string }[] = [
-  { title: "네이버 지도", app: parkingLot.nav.naverApp, web: parkingLot.nav.naverWeb },
-  { title: "카카오맵", app: parkingLot.nav.kakaoApp, web: parkingLot.nav.kakaoWeb },
-  { title: "티맵", app: parkingLot.nav.tmapApp, web: parkingLot.nav.tmapWeb },
+/** 주차장 → 예식장 도보 길찾기 — 출발지(주차장) 고정 · 도보 모드 기본 */
+const WALK_NAV_APPS: { title: string; app: string; web: string }[] = [
+  { title: "카카오맵", app: parkingLot.walkNav.kakaoApp, web: parkingLot.walkNav.kakaoWeb },
+  { title: "네이버 지도", app: parkingLot.walkNav.naverApp, web: parkingLot.walkNav.naverWeb },
 ];
 
 export default function Location() {
@@ -139,16 +138,11 @@ export default function Location() {
             </p>
           </div>
           <ParkingRouteMap />
-          <button
-            type="button"
-            onClick={() => openNav(parkingLot.walkNav.kakaoApp, parkingLot.walkNav.kakaoWeb)}
-            className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 border border-wedding-gold/30 text-xs text-sage-700 tracking-wide hover:bg-sage-50 transition-colors"
-          >
+          <p className="text-[11px] text-neutral-400 tracking-wide">
             🚶 주차장 → 예식장 도보 길찾기
-            <Navigation size={11} className="text-wedding-gold rotate-45" />
-          </button>
-          <div className="grid grid-cols-3 gap-3">
-            {PARKING_NAV_APPS.map(({ title, app, web }) => (
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            {WALK_NAV_APPS.map(({ title, app, web }) => (
               <button
                 key={title}
                 type="button"

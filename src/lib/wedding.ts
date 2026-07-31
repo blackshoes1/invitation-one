@@ -89,8 +89,9 @@ export const parkingLot = {
     [37.52189, 126.98252],
     [37.521135, 126.983812],
   ] as [number, number][],
-  /** 주차장 → 예식장 도보 길찾기 (카카오맵 도보 모드).
-   *  웹 폴백은 /link/from/../to/.. — 출발·도착이 모두 채워진 길찾기 화면이 열림 */
+  /** 주차장 → 예식장 도보 길찾기 — 출발지(주차장) 고정 · 도보 모드 기본.
+   *  카카오 웹 폴백만 예외로 /link/from/../to/.. (웹 카카오맵에 도보 모드
+   *  파라미터가 없어 출발·도착 채움까지만 지원 — 앱에서는 도보로 열림) */
   walkNav: {
     kakaoApp: "kakaomap://route?sp=37.5235,126.9778&ep=37.521135,126.983812&by=FOOT",
     kakaoWeb: `https://map.kakao.com/link/from/${encodeURIComponent(
@@ -98,6 +99,16 @@ export const parkingLot = {
     )},37.5235,126.9778/to/${encodeURIComponent(
       "용산가족공원야외예식장"
     )},37.521135,126.983812`,
+    naverApp: `nmap://route/walk?slat=37.5235&slng=126.9778&sname=${encodeURIComponent(
+      "국립중앙박물관 주차장"
+    )}&dlat=37.521135&dlng=126.983812&dname=${encodeURIComponent(
+      "용산가족공원 야외예식장"
+    )}&appname=kkachi.vercel.app`,
+    naverWeb: `https://map.naver.com/p/directions/126.9778,37.5235,${encodeURIComponent(
+      "국립중앙박물관주차장"
+    )}/126.983812,37.521135,${encodeURIComponent(
+      "용산가족공원야외예식장"
+    )}/-/walk`,
   },
 };
 
