@@ -1,7 +1,7 @@
 "use client";
 
-import { Phone, Navigation, CalendarPlus, UserPlus } from "lucide-react";
-import { venue, weddingIcs, weddingVcard } from "@/lib/wedding";
+import { Phone, Navigation, CalendarPlus, UserPlus, CircleParking } from "lucide-react";
+import { venue, parkingLot, weddingIcs, weddingVcard } from "@/lib/wedding";
 import FadeIn from "@/components/FadeIn";
 import KakaoMap from "@/components/KakaoMap";
 
@@ -49,6 +49,13 @@ const NAV_APPS: { title: string; app: string; web: string }[] = [
   { title: "네이버 지도", app: venue.nav.naverApp, web: venue.nav.naverWeb },
   { title: "카카오맵", app: venue.nav.kakaoApp, web: venue.nav.kakaoWeb },
   { title: "티맵", app: venue.nav.tmapApp, web: venue.nav.tmapWeb },
+];
+
+/** 주차장(자차) 길찾기 — 국립중앙박물관 주차장 목적지 */
+const PARKING_NAV_APPS: { title: string; app: string; web: string }[] = [
+  { title: "네이버 지도", app: parkingLot.nav.naverApp, web: parkingLot.nav.naverWeb },
+  { title: "카카오맵", app: parkingLot.nav.kakaoApp, web: parkingLot.nav.kakaoWeb },
+  { title: "티맵", app: parkingLot.nav.tmapApp, web: parkingLot.nav.tmapWeb },
 ];
 
 export default function Location() {
@@ -111,6 +118,44 @@ export default function Location() {
               <Navigation size={11} className="text-wedding-gold rotate-45" />
             </button>
           ))}
+        </FadeIn>
+
+        {/* 🚗 주차 안내 — 국립중앙박물관 주차장 (자차 하객) */}
+        <FadeIn className="space-y-3 pt-2">
+          <div className="space-y-2">
+            <p className="inline-flex items-center gap-1.5 font-serif text-sm text-sage-700 tracking-widest">
+              <CircleParking size={15} className="text-wedding-gold" />
+              주차 안내
+            </p>
+            <p className="text-xs text-neutral-500 leading-relaxed font-light tracking-wide">
+              <span className="font-normal text-sage-700 border-b border-wedding-gold/40 pb-0.5">
+                {venue.parking}
+              </span>
+              <br />
+              <span className="text-[11px] text-neutral-400">
+                ({parkingLot.address} · 주차 후 예식장까지 도보 이동)
+              </span>
+            </p>
+          </div>
+          <KakaoMap
+            lat={parkingLot.lat}
+            lng={parkingLot.lng}
+            name={parkingLot.name}
+            address={parkingLot.address}
+          />
+          <div className="grid grid-cols-3 gap-3">
+            {PARKING_NAV_APPS.map(({ title, app, web }) => (
+              <button
+                key={title}
+                type="button"
+                onClick={() => openNav(app, web)}
+                className="flex flex-col items-center justify-center py-3 border border-wedding-gold/20 bg-white hover:bg-sage-50 transition-colors gap-1 text-[11px] text-neutral-600 font-light tracking-wider"
+              >
+                <span>{title}</span>
+                <Navigation size={11} className="text-wedding-gold rotate-45" />
+              </button>
+            ))}
+          </div>
         </FadeIn>
       </div>
     </section>

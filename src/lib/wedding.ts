@@ -42,8 +42,8 @@ export const venue = {
   name: "용산가족공원",
   address: "서울 용산구 서빙고로 185 (용산가족공원 야외예식장)",
   tel: "02-792-5661",
-  /** 주차 안내 (잠금 화면·오시는 길에 노출) — 실제 안내문으로 수정하세요 */
-  parking: "공원 주차장 이용 가능 · 만차 시 국립중앙박물관 주차장을 이용해주세요",
+  /** 주차 안내 (잠금 화면·오시는 길에 노출) */
+  parking: "주차는 국립중앙박물관 주차장을 이용해주세요",
   // 용산가족공원 야외예식장 POI (카카오 장소검색 좌표, 용산동6가 93-6)
   lat: 37.521135,
   lng: 126.983812,
@@ -57,6 +57,27 @@ export const venue = {
     kakaoWeb: "https://map.kakao.com/?q=용산가족공원 야외예식장",
     tmapApp: `tmap://route?goalx=126.983812&goaly=37.521135&goalname=${encodeURIComponent(
       "용산가족공원 야외예식장"
+    )}`,
+    tmapWeb: "https://tmap.life/ko",
+  },
+};
+
+/** 주차장 — 국립중앙박물관 주차장 (예식장 옆, 자차 하객용) */
+export const parkingLot = {
+  name: "국립중앙박물관 주차장",
+  address: "서울 용산구 서빙고로 137",
+  lat: 37.5235,
+  lng: 126.9778,
+  /** 자차 길찾기 딥링크 (앱 미설치 시 web 폴백) */
+  nav: {
+    naverApp: `nmap://route/car?dlat=37.5235&dlng=126.9778&dname=${encodeURIComponent(
+      "국립중앙박물관 주차장"
+    )}`,
+    naverWeb: "https://map.naver.com/p/search/국립중앙박물관 주차장",
+    kakaoApp: "kakaomap://route?ep=37.5235,126.9778&by=CAR",
+    kakaoWeb: "https://map.kakao.com/?q=국립중앙박물관 주차장",
+    tmapApp: `tmap://route?goalx=126.9778&goaly=37.5235&goalname=${encodeURIComponent(
+      "국립중앙박물관 주차장"
     )}`,
     tmapWeb: "https://tmap.life/ko",
   },
