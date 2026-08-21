@@ -103,6 +103,7 @@ export default function FindOrder() {
             }
           }}
           enterKeyHint="next"
+          autoComplete="name"
           placeholder="성함"
           className="dform-input"
         />

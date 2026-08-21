@@ -136,6 +136,11 @@ export default function Location() {
                 ({parkingLot.address} · 주차 후 예식장까지 도보 이동)
               </span>
             </p>
+            <p className="text-[11px] text-neutral-500 leading-relaxed font-light tracking-wide">
+              ※ 국립중앙박물관 사정에 따라 주차가 어려울 수 있으니
+              <br />
+              가급적 대중교통 이용을 권장드립니다
+            </p>
           </div>
           <ParkingRouteMap />
           <p className="text-[11px] text-neutral-400 tracking-wide">

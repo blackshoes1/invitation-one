@@ -58,6 +58,7 @@ export default function WaitingList() {
       />
       <input
         type="tel"
+        autoComplete="tel"
         value={phone}
         onChange={(e) => setPhone(formatPhone(e.target.value))}
         placeholder="연락처 010-0000-0000"

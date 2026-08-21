@@ -189,6 +189,7 @@ export default function HeartForm({
       <div className="space-y-1.5">
         <input
           type="tel"
+          autoComplete="tel"
           value={phone}
           onChange={(e) => setPhone(formatPhone(e.target.value))}
           onKeyDown={(e) => e.key === "Enter" && submit()}

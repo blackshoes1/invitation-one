@@ -33,12 +33,14 @@ export default function StepContact({
             }
           }}
           enterKeyHint="next"
+          autoComplete="name"
           placeholder="성함"
           className="dform-input"
         />
         <input
           ref={phoneRef}
           type="tel"
+          autoComplete="tel"
           value={phone}
           onChange={(e) => onPhoneChange(formatPhone(e.target.value))}
           onKeyDown={(e) => e.key === "Enter" && onNext()}
