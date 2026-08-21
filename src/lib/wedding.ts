@@ -8,7 +8,6 @@ export interface Person {
   name: string;
   father?: string;
   mother?: string;
-  /** 장남, 차녀 등 */
   relation: string;
   phone?: string;
 }
@@ -29,13 +28,14 @@ export const WEDDING_DATE = new Date(2026, 9, 18, 11, 0); // 2026-10-18 11:00 (�
 export const groom: Person = {
   name: "성근영",
   mother: "김도윤",
-  relation: "장남",
+  relation: "외아들",
 };
 
 export const bride: Person = {
   name: "김아영",
-  father: "이동희",
-  relation: "차녀",
+  father: "김정중",
+  mother: "이동희",
+  relation: "둘째 딸",
 };
 
 export const venue = {

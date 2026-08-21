@@ -44,8 +44,8 @@ export default function Greeting() {
       </FadeIn>
 
       <FadeIn className="space-y-3 text-sm font-light tracking-wide">
-        <ParentLine label="신랑" person={groom} />
-        <ParentLine label="신부" person={bride} />
+        <ParentLine label="" person={groom} />
+        <ParentLine label="" person={bride} />
       </FadeIn>
     </section>
   );
