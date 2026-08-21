@@ -3,7 +3,7 @@ import { adminGuard } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function GET(req: Request) {
-  const bad = adminGuard(req);
+  const bad = await adminGuard(req);
   if (bad) return bad;
 
   const { data, error } = await supabaseAdmin!

@@ -1,41 +1,25 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
-import { sessionToken, checkAdmin } from "@/lib/adminAuth";
+import {
+  ADMIN_COOKIE,
+  adminCookieOptions,
+  checkAdmin,
+  createAdminSession,
+  revokeAdminSession,
+} from "@/lib/adminAuth";
+import { rateLimitAllow, clientIp } from "@/lib/rateLimit";
+import { isAdminConfigured } from "@/lib/supabaseAdmin";
 
 /**
- * 관리자 로그인 — 브루트포스 방어:
- * - IP당 10분 창에 10회 실패 제한 (서버리스 인스턴스별 메모리라 완전하진
- *   않지만 무차별 대입 비용을 크게 올림)
+ * 관리자 로그인 — 브루트포스 방어 (P1-2):
+ * - DB 기반 rate limit(rl_hit): IP당 10분 창 10회 시도 + 전체 10분 100회
+ *   (서버리스 인스턴스와 무관하게 유지, DB 장애 시 fail-closed)
  * - 실패 시 400ms 지연 (온라인 대입 속도 제한)
  * - 해시 후 timingSafeEqual 비교 (타이밍 누출 방지, 길이 상이도 안전)
- * - 프로덕션에서 secure 쿠키
+ * - 성공 시 무작위 세션 토큰 발급 → httpOnly·SameSite=Lax·(prod) Secure 쿠키, 8시간
  */
-const WINDOW_MS = 10 * 60 * 1000;
-const MAX_FAILS = 10;
-const fails = new Map<string, { count: number; resetAt: number }>();
-
-function ipOf(req: Request): string {
-  return (
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
-  );
-}
-
-function tooMany(ip: string): boolean {
-  const e = fails.get(ip);
-  if (!e || Date.now() > e.resetAt) return false;
-  return e.count >= MAX_FAILS;
-}
-
-function recordFail(ip: string) {
-  const now = Date.now();
-  const e = fails.get(ip);
-  if (!e || now > e.resetAt) fails.set(ip, { count: 1, resetAt: now + WINDOW_MS });
-  else e.count++;
-  // 메모리 누수 방지 — 만료 엔트리 정리
-  if (fails.size > 1000) {
-    for (const [k, v] of fails) if (now > v.resetAt) fails.delete(k);
-  }
-}
+const PER_IP = { limit: 10, windowSec: 600 };
+const GLOBAL = { limit: 100, windowSec: 600 };
 
 function safeEqual(a: string, b: string): boolean {
   const ha = crypto.createHash("sha256").update(a).digest();
@@ -47,9 +31,15 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function POST(req: Request) {
   const expected = process.env.ADMIN_PASSWORD;
-  const ip = ipOf(req);
+  if (!expected || !isAdminConfigured)
+    return NextResponse.json({ error: "서버 설정이 필요합니다." }, { status: 503 });
 
-  if (tooMany(ip)) {
+  const ip = clientIp(req);
+  const [okIp, okGlobal] = await Promise.all([
+    rateLimitAllow(`admin-login:${ip}`, PER_IP.limit, PER_IP.windowSec),
+    rateLimitAllow("admin-login:global", GLOBAL.limit, GLOBAL.windowSec),
+  ]);
+  if (!okIp || !okGlobal) {
     return NextResponse.json(
       { error: "시도가 너무 많습니다. 10분 후 다시 시도해주세요." },
       { status: 429 }
@@ -61,8 +51,7 @@ export async function POST(req: Request) {
   } | null;
   const password = body?.password;
 
-  if (!expected || typeof password !== "string" || !safeEqual(password, expected)) {
-    recordFail(ip);
+  if (typeof password !== "string" || !safeEqual(password, expected)) {
     await sleep(400);
     return NextResponse.json(
       { error: "비밀번호가 올바르지 않습니다." },
@@ -70,27 +59,25 @@ export async function POST(req: Request) {
     );
   }
 
-  fails.delete(ip);
+  const token = await createAdminSession(req);
+  if (!token)
+    return NextResponse.json({ error: "세션을 만들지 못했습니다." }, { status: 503 });
   const res = NextResponse.json({ ok: true });
-  res.cookies.set("admin_session", sessionToken()!, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 8, // 8시간
-  });
+  res.cookies.set(ADMIN_COOKIE, token, adminCookieOptions());
   return res;
 }
 
-export async function DELETE() {
+/** 로그아웃 — 서버 세션 철회 + 쿠키 삭제 */
+export async function DELETE(req: Request) {
+  await revokeAdminSession(req);
   const res = NextResponse.json({ ok: true });
-  res.cookies.set("admin_session", "", { path: "/", maxAge: 0 });
+  res.cookies.set(ADMIN_COOKIE, "", { ...adminCookieOptions(), maxAge: 0 });
   return res;
 }
 
 /** 세션 확인 — 쿠키가 유효하면 200. 새로고침 시 재로그인 생략용 (비밀번호 불필요) */
 export async function GET(req: Request) {
-  if (!checkAdmin(req))
+  if (!(await checkAdmin(req)))
     return NextResponse.json({ ok: false }, { status: 401 });
   return NextResponse.json({ ok: true });
 }

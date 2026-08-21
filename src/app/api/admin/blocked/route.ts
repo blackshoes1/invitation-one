@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 /** 차단된 날짜 목록 */
 export async function GET(req: Request) {
-  const bad = adminGuard(req);
+  const bad = await adminGuard(req);
   if (bad) return bad;
 
   const { data, error } = await supabaseAdmin!
@@ -23,7 +23,7 @@ export async function GET(req: Request) {
  * - 주문이 있는 날짜도 마감 가능 (신규 신청만 막힘, 기존 주문은 유지)
  */
 export async function POST(req: Request) {
-  const bad = adminGuard(req);
+  const bad = await adminGuard(req);
   if (bad) return bad;
 
   const { dates, block } = (await req.json()) as {

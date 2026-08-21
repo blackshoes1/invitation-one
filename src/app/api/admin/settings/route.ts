@@ -18,7 +18,7 @@ const ALLOWED_KEYS = [
 
 /** 콘텐츠 설정 조회 */
 export async function GET(req: Request) {
-  const bad = adminGuard(req);
+  const bad = await adminGuard(req);
   if (bad) return bad;
 
   const { data, error } = await supabaseAdmin!
@@ -33,7 +33,7 @@ export async function GET(req: Request) {
 
 /** 콘텐츠 설정 저장 — body: { key, value } (value null 이면 삭제 = 폴백으로 복귀) */
 export async function PUT(req: Request) {
-  const bad = adminGuard(req);
+  const bad = await adminGuard(req);
   if (bad) return bad;
 
   const { key, value } = (await req.json()) as { key?: string; value?: unknown };

@@ -6,7 +6,7 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const bad = adminGuard(req);
+  const bad = await adminGuard(req);
   if (bad) return bad;
 
   const { id } = await params;

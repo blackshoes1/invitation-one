@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 /** 마음 배송 목록 — participants(type=마음배송) 기준 (v7 참여 시스템) */
 export async function GET(req: Request) {
-  const bad = adminGuard(req);
+  const bad = await adminGuard(req);
   if (bad) return bad;
 
   const { data, error } = await supabaseAdmin!
@@ -18,7 +18,7 @@ export async function GET(req: Request) {
 
 /** 공개 답글 저장/삭제 (LC-3) — 신랑·신부가 방명록 메시지에 남기는 답글 */
 export async function PATCH(req: Request) {
-  const bad = adminGuard(req);
+  const bad = await adminGuard(req);
   if (bad) return bad;
 
   const body = (await req.json().catch(() => null)) as {

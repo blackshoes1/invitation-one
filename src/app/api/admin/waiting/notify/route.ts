@@ -10,7 +10,7 @@ import { siteOrigin } from "@/lib/siteUrl";
  * body: { id?: string }  — id 있으면 해당 1명, 없으면 대기자 전체.
  */
 export async function POST(req: Request) {
-  const bad = adminGuard(req);
+  const bad = await adminGuard(req);
   if (bad) return bad;
 
   const body = (await req.json().catch(() => ({}))) as { id?: string };

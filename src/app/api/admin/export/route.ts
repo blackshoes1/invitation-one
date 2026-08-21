@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 /** 참여자 연락처 CSV 내보내기 (AD-3) — 감사 문자·재발송용 */
 export async function GET(req: Request) {
-  const bad = adminGuard(req);
+  const bad = await adminGuard(req);
   if (bad) return bad;
 
   const { data, error } = await supabaseAdmin!

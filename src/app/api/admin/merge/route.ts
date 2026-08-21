@@ -8,7 +8,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
  * body: { source_id: string, target_id: string }
  */
 export async function POST(req: Request) {
-  const bad = adminGuard(req);
+  const bad = await adminGuard(req);
   if (bad) return bad;
 
   const { source_id, target_id } = (await req.json().catch(() => ({}))) as {

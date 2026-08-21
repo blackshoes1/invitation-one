@@ -11,7 +11,7 @@ import { insertCheckin, isUuid } from "@/lib/checkinServer";
  */
 
 export async function GET(req: Request) {
-  const bad = adminGuard(req);
+  const bad = await adminGuard(req);
   if (bad) return bad;
 
   const [rsvpRes, ckRes, tblRes] = await Promise.all([
@@ -112,7 +112,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const bad = adminGuard(req);
+  const bad = await adminGuard(req);
   if (bad) return bad;
 
   const body = (await req.json().catch(() => ({}))) as {

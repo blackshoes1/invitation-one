@@ -41,7 +41,7 @@ interface Row {
 
 /** 배송 경로 — 미완료 주문을 날짜별로 묶고, 식장 기준 최근접 순서로 정렬 (AD-1) */
 export async function GET(req: Request) {
-  const bad = adminGuard(req);
+  const bad = await adminGuard(req);
   if (bad) return bad;
 
   const { data, error } = await supabaseAdmin!

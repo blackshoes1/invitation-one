@@ -47,7 +47,7 @@ function csvResponse(header: string[], rows: string[][], filename: string) {
 }
 
 export async function GET(req: Request) {
-  const bad = adminGuard(req);
+  const bad = await adminGuard(req);
   if (bad) return bad;
 
   const type = new URL(req.url).searchParams.get("type") ?? "full";

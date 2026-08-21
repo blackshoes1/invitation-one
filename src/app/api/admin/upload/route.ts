@@ -8,7 +8,7 @@ const KINDS = ["hero", "gallery", "album"];
 
 /** 사진 업로드 (multipart form: file, kind=hero|gallery) → { url, path } */
 export async function POST(req: Request) {
-  const bad = adminGuard(req);
+  const bad = await adminGuard(req);
   if (bad) return bad;
 
   const form = await req.formData();
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
 
 /** 업로드한 사진 삭제 — ?path=gallery/... */
 export async function DELETE(req: Request) {
-  const bad = adminGuard(req);
+  const bad = await adminGuard(req);
   if (bad) return bad;
 
   const path = new URL(req.url).searchParams.get("path");
