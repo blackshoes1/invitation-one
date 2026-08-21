@@ -10,6 +10,7 @@ import {
   type GroupOrder,
 } from "@/lib/supabase";
 import { groom, bride, DELIVERY_CAPACITY } from "@/lib/wedding";
+import type { InvitePrefill } from "@/lib/invite";
 import MenuSelect, { type DeliveryMode } from "@/components/delivery/MenuSelect";
 import BikeIcon from "@/components/delivery/BikeIcon";
 import IntroAnimation from "@/components/delivery/IntroAnimation";
@@ -36,6 +37,20 @@ function GroupPageInner() {
   const slug = params.groupId;
   /** 마음배송 → 직접배달 전환으로 들어온 참여자 id (?convert=) */
   const convertId = search.get("convert");
+  /** 개인 초대 링크 토큰 (?i=) — 이름·마스킹 번호 프리필, 제출 시 서버가 실제 번호 채움 */
+  const inviteToken = search.get("i");
+  const [invite, setInvite] = useState<InvitePrefill | null>(null);
+  const [inviteReady, setInviteReady] = useState(!inviteToken);
+  useEffect(() => {
+    if (!inviteToken) return;
+    fetch(`/api/delivery/invite?i=${encodeURIComponent(inviteToken)}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { invite?: InvitePrefill } | null) => {
+        if (j?.invite && j.invite.groupSlug === slug) setInvite(j.invite);
+      })
+      .catch(() => {})
+      .finally(() => setInviteReady(true));
+  }, [inviteToken, slug]);
 
   const [group, setGroup] = useState<Group | null | undefined>(undefined);
   const [orders, setOrders] = useState<GroupOrder[]>([]);
@@ -79,7 +94,7 @@ function GroupPageInner() {
 
   // 인트로는 세 분기 모두 같은 트리 위치(루트 div 첫 번째 자식)에 두어
   // 로딩 → 본문 전환 시 리마운트 없이 영상이 끊기지 않게 한다.
-  if (group === undefined) {
+  if (group === undefined || !inviteReady) {
     return (
       <div>
         <IntroAnimation />
@@ -189,6 +204,8 @@ function GroupPageInner() {
               group={group}
               slug={slug}
               convertId={convertId}
+              invite={invite}
+              inviteToken={invite ? inviteToken : null}
               onBack={() => setView({ kind: "menu" })}
               onJoined={loadOrders}
             />
@@ -198,6 +215,8 @@ function GroupPageInner() {
               order={view.order}
               groupSlug={slug}
               convertId={convertId}
+              invite={invite}
+              inviteToken={invite ? inviteToken : null}
               onBack={() => setView({ kind: "menu" })}
               onJoined={loadOrders}
             />
@@ -207,12 +226,15 @@ function GroupPageInner() {
               group={{ id: group.id, name: group.name }}
               groupSlug={slug}
               convertId={convertId}
+              invite={invite}
+              inviteToken={invite ? inviteToken : null}
               onSubmitted={loadOrders}
             />
           )}
           {view.kind === "heart" && (
             <HeartForm
               group={{ id: group.id, name: group.name }}
+              inviteName={invite?.name ?? null}
               onSwitchToDelivery={() => setView({ kind: "new" })}
             />
           )}

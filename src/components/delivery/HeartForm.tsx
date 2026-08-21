@@ -21,14 +21,17 @@ const invitationHref = INVITATION_KEY ? `/?key=${INVITATION_KEY}` : "/";
 
 export default function HeartForm({
   group = null,
+  inviteName = null,
   onSwitchToDelivery,
 }: {
   group?: { id: string; name: string } | null;
+  /** 개인 초대 링크로 들어온 경우 이름 프리필 */
+  inviteName?: string | null;
   /** "역시 직접 만나고 싶어요" — 같은 페이지에서 직접 배달 폼으로 전환 */
   onSwitchToDelivery?: () => void;
 }) {
   const [stamp, setStamp] = useState<string>(STAMPS[0]);
-  const [name, setName] = useState("");
+  const [name, setName] = useState(inviteName ?? "");
   const [sido, setSido] = useState("");
   const [sub, setSub] = useState("");
   const [message, setMessage] = useState("");

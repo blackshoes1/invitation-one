@@ -232,6 +232,10 @@ export interface GroupMemberRow {
   id: string;
   group_id: string;
   name: string;
+  /** 개인 초대 링크용 연락처 (관리자만 조회) */
+  phone?: string | null;
+  /** 개인 초대 링크 발급 시각 (재발급 시 갱신) */
+  invited_at?: string | null;
   created_at: string;
 }
 

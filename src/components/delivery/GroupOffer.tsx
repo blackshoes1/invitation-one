@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
+import type { InvitePrefill } from "@/lib/invite";
+import InvitePhoneBox from "@/components/delivery/InvitePhoneBox";
 import { motion } from "framer-motion";
 import { supabase, isSupabaseConfigured, type Group } from "@/lib/supabase";
 import { formatYmdKo, formatPhone, isValidPhone, groom } from "@/lib/wedding";
@@ -60,6 +62,8 @@ export function AcceptOfferForm({
   group,
   slug,
   convertId = null,
+  invite = null,
+  inviteToken = null,
   onBack,
   onJoined,
 }: {
@@ -67,11 +71,16 @@ export function AcceptOfferForm({
   slug: string;
   /** 마음배송 → 직접배달 전환 시 기존 참여자 id */
   convertId?: string | null;
+  /** 개인 초대 링크 프리필 (이름 + 마스킹 번호) */
+  invite?: InvitePrefill | null;
+  /** 개인 초대 토큰 — 제출 시 서버가 실제 연락처를 채움 */
+  inviteToken?: string | null;
   onBack: () => void;
   onJoined?: () => void;
 }) {
-  const [name, setName] = useState("");
+  const [name, setName] = useState(invite?.name ?? "");
   const [phone, setPhone] = useState("");
+  const [useInvitePhone, setUseInvitePhone] = useState(Boolean(invite?.phoneMasked && inviteToken));
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -81,7 +90,7 @@ export function AcceptOfferForm({
 
   const submit = async () => {
     if (name.trim().length < 2) return setError("성함을 입력해주세요 🙏");
-    if (!isValidPhone(phone))
+    if (!useInvitePhone && !isValidPhone(phone))
       return setError("연락처 형식을 확인해주세요 (010-0000-0000) 📞");
     setError(null);
     setSending(true);
@@ -90,8 +99,9 @@ export function AcceptOfferForm({
       const { data, error } = await supabase.rpc("accept_group_offer_v2", {
         p_slug: slug,
         p_name: name.trim(),
-        p_phone: phone.trim(),
+        p_phone: useInvitePhone ? "" : phone.trim(),
         p_convert_token: convertId,
+        p_invite_token: useInvitePhone ? inviteToken : null,
       });
       setSending(false);
       if (error) return setError("신청에 실패했어요. 잠시 후 다시 시도해주세요 🛠️");
@@ -167,17 +177,24 @@ export function AcceptOfferForm({
           placeholder="성함 📋"
           className="dform-input"
         />
-        <input
-          ref={phoneRef}
-          type="tel"
-          autoComplete="tel"
-          value={phone}
-          onChange={(e) => setPhone(formatPhone(e.target.value))}
-          onKeyDown={(e) => e.key === "Enter" && submit()}
-          enterKeyHint="done"
-          placeholder="연락처 📞 010-0000-0000"
-          className="dform-input"
-        />
+        {useInvitePhone && invite?.phoneMasked ? (
+          <InvitePhoneBox
+            phoneMasked={invite.phoneMasked}
+            onUseOther={() => setUseInvitePhone(false)}
+          />
+        ) : (
+          <input
+            ref={phoneRef}
+            type="tel"
+            autoComplete="tel"
+            value={phone}
+            onChange={(e) => setPhone(formatPhone(e.target.value))}
+            onKeyDown={(e) => e.key === "Enter" && submit()}
+            enterKeyHint="done"
+            placeholder="연락처 📞 010-0000-0000"
+            className="dform-input"
+          />
+        )}
       </div>
 
       {error && <p className="text-sm text-delivery-dark text-center">{error}</p>}

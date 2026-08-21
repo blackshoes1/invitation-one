@@ -3,6 +3,7 @@
 import type { RefObject } from "react";
 import { formatPhone } from "@/lib/wedding";
 import Q from "./Q";
+import InvitePhoneBox from "@/components/delivery/InvitePhoneBox";
 
 export default function StepContact({
   name,
@@ -10,6 +11,8 @@ export default function StepContact({
   phoneRef,
   onNameChange,
   onPhoneChange,
+  phoneMasked = null,
+  onUseOtherPhone,
   onNext,
 }: {
   name: string;
@@ -17,6 +20,9 @@ export default function StepContact({
   phoneRef: RefObject<HTMLInputElement | null>;
   onNameChange: (v: string) => void;
   onPhoneChange: (v: string) => void;
+  /** 개인 초대 링크로 확인된 번호(마스킹) — 있으면 입력 대신 확인 박스 표시 */
+  phoneMasked?: string | null;
+  onUseOtherPhone?: () => void;
   onNext: () => void;
 }) {
   return (
@@ -37,17 +43,21 @@ export default function StepContact({
           placeholder="성함"
           className="dform-input"
         />
-        <input
-          ref={phoneRef}
-          type="tel"
-          autoComplete="tel"
-          value={phone}
-          onChange={(e) => onPhoneChange(formatPhone(e.target.value))}
-          onKeyDown={(e) => e.key === "Enter" && onNext()}
-          enterKeyHint="done"
-          placeholder="배송 완료 후 연락드릴 번호 📞"
-          className="dform-input"
-        />
+        {phoneMasked ? (
+          <InvitePhoneBox phoneMasked={phoneMasked} onUseOther={onUseOtherPhone} />
+        ) : (
+          <input
+            ref={phoneRef}
+            type="tel"
+            autoComplete="tel"
+            value={phone}
+            onChange={(e) => onPhoneChange(formatPhone(e.target.value))}
+            onKeyDown={(e) => e.key === "Enter" && onNext()}
+            enterKeyHint="done"
+            placeholder="배송 완료 후 연락드릴 번호 📞"
+            className="dform-input"
+          />
+        )}
       </div>
     </Q>
   );

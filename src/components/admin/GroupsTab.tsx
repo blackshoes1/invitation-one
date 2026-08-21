@@ -152,6 +152,68 @@ export default function GroupsTab({
     }
   };
 
+  /** 명단 연락처 저장 (blur 시) — 개인 초대 링크용 */
+  const savePhone = async (gid: string, mem: GroupMemberRow, phone: string) => {
+    if ((mem.phone ?? "") === phone.trim()) return;
+    try {
+      const res = await api(`/api/admin/groups/${gid}/members`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ member_id: mem.id, phone }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status !== 401) setError(j.error ?? "연락처 저장에 실패했습니다.");
+        return;
+      }
+      setMembers((m) => ({
+        ...m,
+        [gid]: (m[gid] ?? []).map((x) => (x.id === mem.id ? { ...x, ...j.member } : x)),
+      }));
+    } catch {
+      setError("연락처 저장 요청이 실패했습니다. 네트워크를 확인해주세요.");
+    }
+  };
+
+  /** 개인 초대 링크 발급 + 클립보드 복사 (member 없으면 그룹 전체) */
+  const issueInvite = async (gid: string, mem?: GroupMemberRow) => {
+    if (mem?.invited_at && !confirm(`${mem.name} 님 링크를 다시 만들까요? 이전 링크는 무효가 됩니다.`)) return;
+    if (!mem && !confirm("명단 전체의 개인 링크를 (다시) 만들까요? 이전에 보낸 링크는 모두 무효가 됩니다.")) return;
+    try {
+      const res = await api(`/api/admin/groups/${gid}/members/invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(mem ? { member_id: mem.id } : { all: true }),
+      });
+      const j = (await res.json().catch(() => ({}))) as {
+        links?: { id: string; name: string; url: string }[];
+        error?: string;
+      };
+      if (!res.ok || !j.links) {
+        if (res.status !== 401) setError(j.error ?? "개인 링크 발급에 실패했습니다.");
+        return;
+      }
+      const text = mem
+        ? j.links[0].url
+        : j.links.map((l) => `${l.name}: ${l.url}`).join("\n");
+      try {
+        await navigator.clipboard.writeText(text);
+        setNotice(mem ? `${mem.name} 님 개인 링크를 복사했어요 (1:1 로 보내주세요)` : `${j.links.length}명 개인 링크를 복사했어요 (이름: 링크)`);
+      } catch {
+        setNotice("링크를 만들었어요. 복사가 막혀 있어 아래 목록에서 다시 발급해 복사해주세요.");
+      }
+      const now = new Date().toISOString();
+      setMembers((m) => ({
+        ...m,
+        [gid]: (m[gid] ?? []).map((x) =>
+          j.links!.some((l) => l.id === x.id) ? { ...x, invited_at: now } : x
+        ),
+      }));
+    } catch {
+      setError("개인 링크 발급 요청이 실패했습니다. 네트워크를 확인해주세요.");
+    }
+  };
+
   const removeMember = async (gid: string, memberId: string) => {
     if (!confirm("명단에서 삭제할까요?")) return;
     try {
@@ -429,13 +491,40 @@ export default function GroupsTab({
                     추가
                   </button>
                 </div>
+                {(members[g.id] ?? []).length > 0 && (
+                  <div className="flex items-center justify-between text-[11px] text-neutral-400 px-1">
+                    <span>연락처를 넣고 개인 링크를 1:1 로 보내면 이름·번호가 자동 입력돼요</span>
+                    <button
+                      onClick={() => issueInvite(g.id)}
+                      className="text-sage-700 underline underline-offset-2 whitespace-nowrap"
+                    >
+                      전체 개인 링크 복사
+                    </button>
+                  </div>
+                )}
                 <ul className="space-y-1">
                   {(members[g.id] ?? []).map((mem) => (
                     <li
                       key={mem.id}
-                      className="flex items-center justify-between text-sm text-neutral-600 px-1"
+                      className="flex items-center gap-2 text-sm text-neutral-600 px-1"
                     >
-                      <span>{mem.name}</span>
+                      <span className="shrink-0 min-w-[3.5rem]">{mem.name}</span>
+                      <input
+                        key={`${mem.id}-${mem.phone ?? ""}`}
+                        type="tel"
+                        inputMode="tel"
+                        defaultValue={mem.phone ?? ""}
+                        placeholder="010-0000-0000"
+                        onBlur={(e) => savePhone(g.id, mem, e.target.value)}
+                        className="flex-1 min-w-0 border border-neutral-200 px-2 py-1 text-xs"
+                      />
+                      <button
+                        onClick={() => issueInvite(g.id, mem)}
+                        className={`text-xs whitespace-nowrap ${mem.invited_at ? "text-neutral-400" : "text-sage-700"}`}
+                        title={mem.invited_at ? "발급됨 — 누르면 재발급(이전 링크 무효)" : "개인 링크 발급·복사"}
+                      >
+                        {mem.invited_at ? "링크 ✓" : "개인 링크"}
+                      </button>
                       <button
                         onClick={() => removeMember(g.id, mem.id)}
                         className="text-xs text-red-400"

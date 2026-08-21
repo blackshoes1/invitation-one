@@ -30,6 +30,7 @@ db/rsvp.sql → db/deliveries.sql → db/groups.sql → db/group_members.sql
 | `20260731000200_revoke_anon_participant_rpc.sql` | P0-2 2단계 — participant UUID 를 받는 구 RPC 의 anon 실행 권한 회수 (앱 배포 후 적용) |
 | `20260821000100_admin_sessions.sql` | P1-1 관리자 세션 테이블 (토큰 해시만 저장) |
 | `20260821000200_notification_outbox.sql` | P1-3 카카오 알림 아웃박스 + participants insert 트리거 + `claim_notifications()` |
+| `20260821000300_group_member_invites.sql` | 개인 초대 링크 — `group_members.phone/invite_token_hash/invited_at`, `_invite_phone()`, `create_delivery_v3`·`join_delivery_v2`·`accept_group_offer_v2` 에 `p_invite_token` 추가(구 시그니처 drop 후 재생성, 기존 호출 호환) |
 
 ## 적용 확인
 

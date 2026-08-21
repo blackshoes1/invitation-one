@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { type TimeSlot, isValidPhone, slotsForDate } from "@/lib/wedding";
+import type { InvitePrefill } from "@/lib/invite";
 import { notifyAdmin } from "@/lib/notify";
 import StepIndicator from "@/components/delivery/StepIndicator";
 import OrderSummary from "@/components/delivery/OrderSummary";
@@ -25,6 +26,8 @@ export default function DeliveryForm({
   group = null,
   groupSlug = null,
   convertId = null,
+  invite = null,
+  inviteToken = null,
   onSubmitted,
 }: {
   group?: { id: string; name: string } | null;
@@ -32,14 +35,20 @@ export default function DeliveryForm({
   groupSlug?: string | null;
   /** 마음배송 → 직접배달 전환 시 기존 참여자 id */
   convertId?: string | null;
+  /** 개인 초대 링크 프리필 (이름 + 마스킹 번호) */
+  invite?: InvitePrefill | null;
+  /** 개인 초대 토큰 — 제출 시 서버가 실제 연락처를 채움 */
+  inviteToken?: string | null;
   onSubmitted?: () => void;
 }) {
   const [step, setStep] = useState(0);
   const [dir, setDir] = useState(1);
   const [summary, setSummary] = useState(false);
 
-  const [name, setName] = useState("");
+  const [name, setName] = useState(invite?.name ?? "");
   const [phone, setPhone] = useState("");
+  /** 초대 링크의 (마스킹된) 연락처를 그대로 쓰는 중 — 서버가 토큰으로 실제 번호를 채움 */
+  const [useInvitePhone, setUseInvitePhone] = useState(Boolean(invite?.phoneMasked && inviteToken));
   const [location, setLocation] = useState("");
 
   const [booked, setBooked] = useState<Set<string>>(new Set());
@@ -97,7 +106,7 @@ export default function DeliveryForm({
     if (checking) return;
     if (step === 0) {
       if (name.trim().length < 2) return setError("성함을 입력해주세요 🙏");
-      if (!isValidPhone(phone))
+      if (!useInvitePhone && !isValidPhone(phone))
         return setError("연락처 형식을 확인해주세요 (010-0000-0000) 📞");
     }
     if (step === 1 && location.trim().length < 2)
@@ -110,7 +119,7 @@ export default function DeliveryForm({
         try {
           const { data } = await supabase.rpc("get_orders_on_date", {
             p_date: date,
-            p_phone: phone.trim(),
+            p_phone: useInvitePhone ? "" : phone.trim(),
           });
           const orders = Array.isArray(data) ? (data as DateOrder[]) : [];
           if (orders.length > 0) {
@@ -141,8 +150,9 @@ export default function DeliveryForm({
       const { data, error } = await supabase.rpc("join_delivery_v2", {
         p_delivery: order.id,
         p_name: name.trim(),
-        p_phone: phone.trim(),
+        p_phone: useInvitePhone ? "" : phone.trim(),
         p_convert_token: convertId,
+        p_invite_token: useInvitePhone ? inviteToken : null,
       });
       setSending(false);
       if (error) return setError("합석 처리에 실패했어요. 다시 시도해주세요 🛠️");
@@ -178,13 +188,14 @@ export default function DeliveryForm({
       const { data, error } = await supabase.rpc("create_delivery_v3", {
         p_group_id: group?.id ?? null,
         p_name: name.trim(),
-        p_phone: phone.trim(),
+        p_phone: useInvitePhone ? "" : phone.trim(),
         p_location: location.trim(),
         p_date: date,
         p_time: slot,
         p_message: message.trim() || null,
         p_convert_token: convertId,
         p_rider: rider ?? "신랑",
+        p_invite_token: useInvitePhone ? inviteToken : null,
       });
       if (error) {
         setSending(false);
@@ -296,6 +307,8 @@ export default function DeliveryForm({
             phoneRef={phoneRef}
             onNameChange={setName}
             onPhoneChange={setPhone}
+            phoneMasked={useInvitePhone ? invite?.phoneMasked ?? null : null}
+            onUseOtherPhone={() => setUseInvitePhone(false)}
             onNext={next}
           />
         );
