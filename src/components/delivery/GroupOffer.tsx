@@ -106,7 +106,7 @@ export function AcceptOfferForm({
         return setError("제안된 일정이 없어요. 새로고침 후 다시 시도해주세요 🙏");
       setManageToken((row?.manage_token as string) ?? null);
       setMemberCount((row?.member_count as number) ?? 1);
-      notifyAdmin(row?.participant_id as string);
+      notifyAdmin();
     } else {
       await new Promise((r) => setTimeout(r, 400));
       setSending(false);

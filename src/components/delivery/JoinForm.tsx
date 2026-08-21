@@ -60,7 +60,7 @@ export default function JoinForm({
       if (row?.result === "closed")
         return setError("이 주문은 마감됐어요 😢 다른 주문을 골라주세요");
       setManageToken((row?.manage_token as string) ?? null);
-      notifyAdmin(row?.participant_id as string);
+      notifyAdmin();
     } else {
       await new Promise((r) => setTimeout(r, 400));
       setSending(false);

@@ -208,7 +208,7 @@ export default function DeliveryForm({
         return setError("방금 그 주문이 마감됐어요 😢 새로 신청해주세요");
       }
       setManageToken((row?.manage_token as string) ?? null);
-      notifyAdmin(row?.participant_id as string);
+      notifyAdmin();
     } else {
       await new Promise((r) => setTimeout(r, 400));
       setSending(false);
@@ -257,7 +257,7 @@ export default function DeliveryForm({
       const row = Array.isArray(data) ? data[0] : data;
       if (row?.participant_id) {
         setManageToken((row.manage_token as string) ?? null);
-        notifyAdmin(row.participant_id as string);
+        notifyAdmin();
       }
     } else {
       console.info("[delivery demo]", { group, name, phone, location, date, slot, message });

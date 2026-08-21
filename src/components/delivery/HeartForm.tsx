@@ -58,7 +58,7 @@ export default function HeartForm({
     setSending(true);
 
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.rpc("send_heart_v2", {
+      const { error } = await supabase.rpc("send_heart_v2", {
         p_group_id: group?.id ?? null,
         p_name: name.trim(),
         p_region: joinRegion(sido, sub.trim()),
@@ -70,8 +70,7 @@ export default function HeartForm({
         setSending(false);
         return setError("전송에 실패했어요. 잠시 후 다시 시도해주세요 🛠️");
       }
-      const row = Array.isArray(data) ? data[0] : data;
-      if (row?.participant_id) notifyAdmin(row.participant_id as string);
+      notifyAdmin();
     } else {
       await new Promise((r) => setTimeout(r, 400));
     }
