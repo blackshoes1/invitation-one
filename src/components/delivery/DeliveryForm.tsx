@@ -85,7 +85,8 @@ export default function DeliveryForm({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [orderNo, setOrderNo] = useState("001");
-  const [participantId, setParticipantId] = useState<string | null>(null);
+  /** 완료 화면 관리 링크용 토큰 (생성 RPC 가 1회 반환) */
+  const [manageToken, setManageToken] = useState<string | null>(null);
 
   // 합석 제안 — 같은 날 기존 주문이 있을 때
   const [joinOffer, setJoinOffer] = useState<DateOrder[] | null>(null);
@@ -187,11 +188,11 @@ export default function DeliveryForm({
     setSending(true);
     setError(null);
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.rpc("join_delivery", {
+      const { data, error } = await supabase.rpc("join_delivery_v2", {
         p_delivery: order.id,
         p_name: name.trim(),
         p_phone: phone.trim(),
-        p_convert: convertId,
+        p_convert_token: convertId,
       });
       setSending(false);
       if (error) return setError("합석 처리에 실패했어요. 다시 시도해주세요 🛠️");
@@ -206,7 +207,7 @@ export default function DeliveryForm({
         setJoinOffer(null);
         return setError("방금 그 주문이 마감됐어요 😢 새로 신청해주세요");
       }
-      setParticipantId((row?.participant_id as string) ?? null);
+      setManageToken((row?.manage_token as string) ?? null);
       notifyAdmin(row?.participant_id as string);
     } else {
       await new Promise((r) => setTimeout(r, 400));
@@ -228,7 +229,7 @@ export default function DeliveryForm({
     setOrderNo(String(booked.size + 1).padStart(3, "0"));
 
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.rpc("create_delivery_v2", {
+      const { data, error } = await supabase.rpc("create_delivery_v3", {
         p_group_id: group?.id ?? null,
         p_name: name.trim(),
         p_phone: phone.trim(),
@@ -236,7 +237,7 @@ export default function DeliveryForm({
         p_date: date,
         p_time: slot,
         p_message: message.trim() || null,
-        p_convert: convertId,
+        p_convert_token: convertId,
         p_rider: rider ?? "신랑",
       });
       if (error) {
@@ -255,7 +256,7 @@ export default function DeliveryForm({
       }
       const row = Array.isArray(data) ? data[0] : data;
       if (row?.participant_id) {
-        setParticipantId(row.participant_id as string);
+        setManageToken((row.manage_token as string) ?? null);
         notifyAdmin(row.participant_id as string);
       }
     } else {
@@ -281,7 +282,7 @@ export default function DeliveryForm({
         slot={joinedInfo.slot}
         orderNo="합석"
         memberCount={joinedInfo.count}
-        participantId={participantId}
+        manageToken={manageToken}
         joined
         groupSlug={groupSlug}
       />
@@ -298,7 +299,7 @@ export default function DeliveryForm({
         rider={rider}
         orderNo={orderNo}
         memberCount={1}
-        participantId={participantId}
+        manageToken={manageToken}
         groupSlug={groupSlug}
       />
     );

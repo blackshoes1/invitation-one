@@ -30,7 +30,7 @@ export default function JoinForm({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
-  const [participantId, setParticipantId] = useState<string | null>(null);
+  const [manageToken, setManageToken] = useState<string | null>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
 
   const owner = order.member_names[0] ?? "";
@@ -44,11 +44,11 @@ export default function JoinForm({
     setSending(true);
 
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.rpc("join_delivery", {
+      const { data, error } = await supabase.rpc("join_delivery_v2", {
         p_delivery: order.id,
         p_name: name.trim(),
         p_phone: phone.trim(),
-        p_convert: convertId,
+        p_convert_token: convertId,
       });
       setSending(false);
       if (error) return setError("합류에 실패했어요. 잠시 후 다시 시도해주세요 🛠️");
@@ -59,7 +59,7 @@ export default function JoinForm({
         return setError("이 주문은 정원(10명)이 다 찼어요 😢 다른 주문을 골라주세요");
       if (row?.result === "closed")
         return setError("이 주문은 마감됐어요 😢 다른 주문을 골라주세요");
-      setParticipantId((row?.participant_id as string) ?? null);
+      setManageToken((row?.manage_token as string) ?? null);
       notifyAdmin(row?.participant_id as string);
     } else {
       await new Promise((r) => setTimeout(r, 400));
@@ -77,7 +77,7 @@ export default function JoinForm({
         slot={order.time_slot}
         orderNo="합류"
         memberCount={others + 1}
-        participantId={participantId}
+        manageToken={manageToken}
         joined
         groupSlug={groupSlug}
       />

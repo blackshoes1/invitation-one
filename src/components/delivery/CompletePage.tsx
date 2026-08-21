@@ -17,7 +17,7 @@ export default function CompletePage({
   rider = null,
   orderNo,
   memberCount,
-  participantId,
+  manageToken,
   joined = false,
   groupSlug = null,
 }: {
@@ -30,7 +30,8 @@ export default function CompletePage({
   orderNo: string;
   /** 함께 받는 참여자 수 (자동 집계) */
   memberCount: number;
-  participantId: string | null;
+  /** 관리 링크 토큰 (participant UUID 아님) */
+  manageToken: string | null;
   /** 합류로 들어온 경우 (새 주문 아님) */
   joined?: boolean;
   groupSlug?: string | null;
@@ -249,9 +250,9 @@ export default function CompletePage({
           “나 청첩장 배송 신청했다 🛵” 단톡방에 공유
         </button>
         {shareMsg && <p className="text-[11px] text-neutral-400">{shareMsg}</p>}
-        {participantId && (
+        {manageToken && (
           <Link
-            href={`/delivery/manage/${participantId}`}
+            href={`/delivery/manage/${manageToken}`}
             className="text-sm text-neutral-500 underline underline-offset-2"
           >
             신청 취소 / 변경 / 배송 현황 보기

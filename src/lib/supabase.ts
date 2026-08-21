@@ -138,9 +138,9 @@ export interface GroupOrder {
   member_names: string[];
 }
 
-/** get_participant RPC — manage 페이지 */
+/** get_participant RPC — manage 페이지 (서버 /api/delivery/manage 가 id 를 제거해 전달) */
 export interface ParticipantDetail {
-  id: string;
+  id?: string;
   type: ParticipantType;
   name: string;
   region: string | null;

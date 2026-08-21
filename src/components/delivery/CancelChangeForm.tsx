@@ -34,7 +34,18 @@ type Mode = "view" | "reschedule" | "switch" | "toHeart";
  * - 주문 대표(is_owner)는 날짜/시간 변경 가능 (참여자 전원 적용)
  * - 배송 완료 시 개인별 리뷰
  */
-export default function CancelChangeForm({ participantId }: { participantId: string }) {
+/** 관리 API 호출 헬퍼 — 토큰은 본문에 담아 전송 */
+async function manageApi(body: Record<string, unknown>) {
+  const res = await fetch("/api/delivery/manage", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const j = (await res.json().catch(() => ({}))) as { result?: unknown; error?: string };
+  return { ok: res.ok, status: res.status, result: j.result, error: j.error };
+}
+
+export default function CancelChangeForm({ token }: { token: string }) {
   const [detail, setDetail] = useState<ParticipantDetail | null | undefined>(undefined);
   const [orders, setOrders] = useState<GroupOrder[]>([]);
   const [booked, setBooked] = useState<Set<string>>(new Set());
@@ -65,8 +76,19 @@ export default function CancelChangeForm({ participantId }: { participantId: str
       setDetail(null);
       return;
     }
-    const { data } = await supabase.rpc("get_participant", { p_id: participantId });
-    const row = Array.isArray(data) && data[0] ? (data[0] as ParticipantDetail) : null;
+    // 관리 토큰으로 서버 조회 (participant UUID 직접 조회 불가 — P0-2)
+    let row: ParticipantDetail | null = null;
+    try {
+      const res = await fetch(`/api/delivery/manage?t=${encodeURIComponent(token)}`, {
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const j = (await res.json()) as { participant?: ParticipantDetail };
+        row = j.participant ?? null;
+      }
+    } catch {
+      row = null;
+    }
     setDetail(row);
     if (!row) return;
 
@@ -88,7 +110,7 @@ export default function CancelChangeForm({ participantId }: { participantId: str
       if (row.date) set.delete(row.date); // 본인 주문 날짜는 선택 가능
       setBooked(set);
     }
-  }, [participantId]);
+  }, [token]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -102,12 +124,9 @@ export default function CancelChangeForm({ participantId }: { participantId: str
     setBusy(true);
     setError(null);
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.rpc("switch_participant", {
-        p_id: participantId,
-        p_target: targetId,
-      });
+      const { ok, result: data } = await manageApi({ t: token, action: "switch", target_id: targetId });
       setBusy(false);
-      if (error) return setError("갈아타기에 실패했어요. 다시 시도해주세요.");
+      if (!ok) return setError("갈아타기에 실패했어요. 다시 시도해주세요.");
       if (data === "closed") return setError("그 주문은 방금 마감됐어요 😢");
       if (data === "full") return setError("그 주문은 정원(10명)이 다 찼어요 😢");
       if (data === "dup") return setError("그 주문에 이미 같은 정보로 함께하고 계세요 😊");
@@ -125,9 +144,9 @@ export default function CancelChangeForm({ participantId }: { participantId: str
     setBusy(true);
     setError(null);
     if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.rpc("leave_delivery", { p_id: participantId });
+      const { ok } = await manageApi({ t: token, action: "leave" });
       setBusy(false);
-      if (error) return setError("처리에 실패했어요. 다시 시도해주세요.");
+      if (!ok) return setError("처리에 실패했어요. 다시 시도해주세요.");
     } else {
       await new Promise((r) => setTimeout(r, 400));
       setBusy(false);
@@ -145,7 +164,7 @@ export default function CancelChangeForm({ participantId }: { participantId: str
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            participantId,
+            token,
             date: newDate,
             time: newSlot,
           }),
@@ -188,12 +207,9 @@ export default function CancelChangeForm({ participantId }: { participantId: str
     setBusy(true);
     setError(null);
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.rpc("respond_reschedule", {
-        p_participant: participantId,
-        p_accept: accept,
-      });
+      const { ok, result: data } = await manageApi({ t: token, action: "respond", accept });
       setBusy(false);
-      if (error) return setError("처리에 실패했어요. 다시 시도해주세요.");
+      if (!ok) return setError("처리에 실패했어요. 다시 시도해주세요.");
       if (data === "closed")
         return setError("아쉽지만 그 일정이 마감됐어요 😢 기존 날짜에 그대로 남아요.");
       if (data === "full")
@@ -217,14 +233,15 @@ export default function CancelChangeForm({ participantId }: { participantId: str
     setBusy(true);
     setError(null);
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.rpc("convert_to_heart", {
-        p_id: participantId,
-        p_region: joinRegion(sido, sub.trim()),
-        p_stamp: stamp,
-        p_message: heartMsg.trim() || null,
+      const { ok, result: data } = await manageApi({
+        t: token,
+        action: "convert_to_heart",
+        region: joinRegion(sido, sub.trim()),
+        stamp,
+        message: heartMsg.trim() || null,
       });
       setBusy(false);
-      if (error || data !== "ok")
+      if (!ok || data !== "ok")
         return setError("전환에 실패했어요. 다시 시도해주세요.");
     } else {
       await new Promise((r) => setTimeout(r, 400));
@@ -238,13 +255,14 @@ export default function CancelChangeForm({ participantId }: { participantId: str
     setReviewBusy(true);
     setError(null);
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.rpc("submit_review_v2", {
-        p_participant: participantId,
-        p_rating: rating,
-        p_text: reviewText.trim() || null,
+      const { ok, result: data } = await manageApi({
+        t: token,
+        action: "review",
+        rating,
+        text: reviewText.trim() || null,
       });
       setReviewBusy(false);
-      if (error) return setError("리뷰 등록에 실패했어요. 다시 시도해주세요.");
+      if (!ok) return setError("리뷰 등록에 실패했어요. 다시 시도해주세요.");
       if (data === "not_ready")
         return setError("아직 배송 완료 전이라 리뷰를 남길 수 없어요.");
       if (data === "rating") return setError("별점을 다시 선택해주세요 ⭐");
@@ -322,8 +340,8 @@ export default function CancelChangeForm({ participantId }: { participantId: str
   /* ---------- 마음배송 참여자 ---------- */
   if (detail.type === "마음배송") {
     const convertHref = detail.group_slug
-      ? `/delivery/group/${detail.group_slug}?convert=${detail.id}`
-      : `/delivery?convert=${detail.id}`;
+      ? `/delivery/group/${detail.group_slug}?convert=${token}`
+      : `/delivery?convert=${token}`;
     return (
       <div className="max-w-md mx-auto px-6 py-10 space-y-5 text-center">
         <div className="text-5xl">{detail.stamp ?? "💌"}</div>

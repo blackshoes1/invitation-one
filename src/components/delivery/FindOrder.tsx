@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import { formatYmdKo } from "@/lib/wedding";
 import DeliveryCalendar from "@/components/DeliveryCalendar";
 import type {
@@ -13,7 +13,8 @@ import type {
 } from "@/lib/supabase";
 
 interface Found {
-  participant_id: string;
+  /** 관리 페이지 경로 (서버가 토큰을 재발급해 내려줌) */
+  manage_url: string;
   type: ParticipantType;
   name: string;
   date: string | null;
@@ -46,19 +47,27 @@ export default function FindOrder() {
     setError(null);
     setBusy(true);
 
-    if (!isSupabaseConfigured || !supabase) {
+    if (!isSupabaseConfigured) {
       setBusy(false);
       setResults([]);
       return;
     }
-    const { data, error } = await supabase.rpc("find_participants", {
-      p_name: name.trim(),
-      p_last4: last4,
-      p_date: date,
-    });
-    setBusy(false);
-    if (error) return setError("조회 중 문제가 생겼어요. 다시 시도해주세요 🛠️");
-    setResults(Array.isArray(data) ? (data as Found[]) : []);
+    try {
+      const res = await fetch("/api/delivery/find", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), last4, date }),
+      });
+      setBusy(false);
+      if (res.status === 429)
+        return setError("조회 시도가 너무 많아요. 잠시 후 다시 시도해주세요 🙏");
+      if (!res.ok) return setError("조회 중 문제가 생겼어요. 다시 시도해주세요 🛠️");
+      const j = (await res.json()) as { results?: Found[] };
+      setResults(j.results ?? []);
+    } catch {
+      setBusy(false);
+      setError("조회 중 문제가 생겼어요. 다시 시도해주세요 🛠️");
+    }
   };
 
   if (!open) {
@@ -138,9 +147,9 @@ export default function FindOrder() {
           ) : (
             <ul className="space-y-2">
               {results.map((r) => (
-                <li key={r.participant_id}>
+                <li key={r.manage_url}>
                   <Link
-                    href={`/delivery/manage/${r.participant_id}`}
+                    href={r.manage_url}
                     className="block bg-delivery/5 rounded-xl px-4 py-3 text-left active:scale-[0.98] transition-transform"
                   >
                     <p className="text-sm font-bold text-neutral-700">

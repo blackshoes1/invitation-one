@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { adminGuard } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { sendSms } from "@/lib/sms";
+import { sendSms, isSmsConfigured } from "@/lib/sms";
+import { rotateManageToken, manageUrl } from "@/lib/manageToken";
 import {
   formatYmdKo,
   slotsForDate,
@@ -244,8 +245,11 @@ export async function PATCH(
     const dateK = formatYmdKo(data.date);
     const targets = (parts ?? []) as { id: string; name: string; phone: string }[];
     const results = await Promise.all(
-      targets.map((p) => {
-        const link = `${origin}/delivery/manage/${p.id}`;
+      targets.map(async (p) => {
+        // 관리 링크는 토큰 기반 (P0-2). SMS 가 실제 나갈 때만 토큰을 회전 발급해
+        // 미설정 환경에서 기존 링크가 무효화되지 않도록 함.
+        const tok = isSmsConfigured ? await rotateManageToken(p.id) : null;
+        const link = tok ? manageUrl(origin, tok) : `${origin}/delivery`;
         const fill = (tpl: string) =>
           tpl
             .replace(/\{이름\}/g, p.name)

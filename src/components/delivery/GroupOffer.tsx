@@ -75,7 +75,7 @@ export function AcceptOfferForm({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
-  const [participantId, setParticipantId] = useState<string | null>(null);
+  const [manageToken, setManageToken] = useState<string | null>(null);
   const [memberCount, setMemberCount] = useState(1);
   const phoneRef = useRef<HTMLInputElement>(null);
 
@@ -87,11 +87,11 @@ export function AcceptOfferForm({
     setSending(true);
 
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.rpc("accept_group_offer", {
+      const { data, error } = await supabase.rpc("accept_group_offer_v2", {
         p_slug: slug,
         p_name: name.trim(),
         p_phone: phone.trim(),
-        p_convert: convertId,
+        p_convert_token: convertId,
       });
       setSending(false);
       if (error) return setError("신청에 실패했어요. 잠시 후 다시 시도해주세요 🛠️");
@@ -104,7 +104,7 @@ export function AcceptOfferForm({
         return setError("아쉽게도 이 일정은 마감됐어요 😢 다른 날짜로 신청해주세요");
       if (row?.result === "no_offer")
         return setError("제안된 일정이 없어요. 새로고침 후 다시 시도해주세요 🙏");
-      setParticipantId((row?.participant_id as string) ?? null);
+      setManageToken((row?.manage_token as string) ?? null);
       setMemberCount((row?.member_count as number) ?? 1);
       notifyAdmin(row?.participant_id as string);
     } else {
@@ -126,7 +126,7 @@ export function AcceptOfferForm({
         location={group.offer_location}
         orderNo={memberCount > 1 ? "합류" : "접수"}
         memberCount={memberCount}
-        participantId={participantId}
+        manageToken={manageToken}
         joined={memberCount > 1}
         groupSlug={slug}
       />
