@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { toCsv } from "@/lib/csv";
 import { adminGuard } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -25,18 +26,8 @@ const SOURCE_LABEL: Record<string, string> = {
   legacy: "레거시",
 };
 
-const esc = (v: unknown) => {
-  let s = v == null ? "" : String(v);
-  // CSV 수식 인젝션 방어 — 하객 입력(이름/메모)이 =, +, -, @, 탭으로
-  // 시작하면 Excel 이 수식으로 실행할 수 있으므로 ' 를 앞에 붙여 무력화
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-};
-
 function csvResponse(header: string[], rows: string[][], filename: string) {
-  const csv =
-    "﻿" +
-    [header.join(","), ...rows.map((r) => r.map(esc).join(","))].join("\r\n");
+  const csv = toCsv(header, rows);
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

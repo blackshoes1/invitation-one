@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # 빌드/테스트용 더미 값 — 실제 Supabase·SMS·카카오 운영 자원에는 접근하지 않는다.
+      # (NEXT_PUBLIC_* 가 비어 있으면 앱은 '미설정' 분기로 동작하고, 서버 키는 전혀 주지 않는다)
+      NEXT_PUBLIC_SITE_URL: https://example.invalid
+      NEXT_PUBLIC_INVITATION_KEY: ci-dummy-key
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm test
+      - run: npm run build

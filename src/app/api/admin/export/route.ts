@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { csvEscape } from "@/lib/csv";
 import { adminGuard } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -15,13 +16,7 @@ export async function GET(req: Request) {
     .order("created_at", { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const esc = (v: unknown) => {
-    let s = v == null ? "" : String(v);
-    // CSV 수식 인젝션 방어 — 하객이 입력한 이름/배송지가 =, +, -, @, 탭으로
-    // 시작하면 Excel 이 수식으로 실행할 수 있으므로 ' 를 앞에 붙여 무력화
-    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
+  const esc = csvEscape;
 
   const header = [
     "이름",

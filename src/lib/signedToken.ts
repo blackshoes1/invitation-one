@@ -24,7 +24,9 @@ export type VerifyResult =
 const b64u = (buf: Buffer) => buf.toString("base64url");
 const fromB64u = (s: string) => Buffer.from(s, "base64url");
 
-export function signingKeyFromEnv(env: NodeJS.ProcessEnv = process.env): Buffer | null {
+export function signingKeyFromEnv(
+  env: Record<string, string | undefined> = process.env
+): Buffer | null {
   if (env.APP_SIGNING_SECRET)
     return crypto.createHash("sha256").update(env.APP_SIGNING_SECRET).digest();
   const parts = [env.SUPABASE_SERVICE_ROLE_KEY, env.ADMIN_PASSWORD];
