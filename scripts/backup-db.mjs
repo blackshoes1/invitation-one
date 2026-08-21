@@ -43,6 +43,8 @@ const TABLES = [
   "guest_photos",
   "checkins",
   "seating_tables",
+  "notification_outbox", // P1-3 카카오 알림 아웃박스 (발송 이력)
+  // rate_limits · admin_sessions 는 휘발성(제한 창·세션) — 백업 대상 아님
 ];
 
 const supabase = createClient(url, key);

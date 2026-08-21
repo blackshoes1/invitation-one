@@ -19,8 +19,15 @@ npm run backup
 
 ## 복원
 
-사고 시 백업 JSON 을 Supabase SQL Editor / API 로 다시 넣습니다.
-행 수가 적으므로(수백 행 규모) 필요한 테이블만 골라 복원하면 됩니다.
+```bash
+npm run restore -- backups/<스탬프>            # 폴더 안 모든 테이블
+npm run restore -- backups/<스탬프> rsvp,checkins
+```
+
+- 기본키 기준 **upsert** — 백업에 있는 행은 되살리고/덮어쓰고, 백업에 없는 행은 건드리지 않습니다 (삭제 동기화 없음).
+- FK 부모(groups → deliveries → participants …)부터 넣도록 스크립트가 순서를 맞춥니다.
+- 특정 행만 되돌릴 땐 JSON 에서 필요한 행만 남겨 복원하거나 SQL Editor 에서 직접 넣으면 됩니다.
+- 복원 전 현재 상태를 한 번 더 `npm run backup` 해 두세요.
 
 ## 포함되지 않는 것
 
