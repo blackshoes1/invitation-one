@@ -172,6 +172,18 @@ export default function CheckinPage() {
         setError("QR 을 다시 스캔해 주세요. 계속 안 되면 안내데스크로 와주세요.");
         return;
       }
+      if (j.error === "window") {
+        setError(
+          j.state === "checkin_closed"
+            ? "체크인이 마감됐어요. 안내데스크로 와주세요."
+            : "아직 체크인 시간이 아니에요. 잠시 후 다시 시도해 주세요."
+        );
+        return;
+      }
+      if (j.error === "rate_limited") {
+        setError("시도가 너무 많아요. 잠시 후 다시 시도해 주세요.");
+        return;
+      }
       const list: Candidate[] = j.candidates ?? [];
       setCandidates(list);
       if (list.length === 0)

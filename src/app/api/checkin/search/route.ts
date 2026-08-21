@@ -1,5 +1,6 @@
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
-import { passJson, digits, checkEventKey } from "@/lib/checkinServer";
+import { passJson, digits, checkEventKey, getCheckinWindow } from "@/lib/checkinServer";
+import { rateLimitAllow, clientIp } from "@/lib/rateLimit";
 
 /**
  * 공용 QR — RSVP 검색 (공개) — §4.4
@@ -8,6 +9,7 @@ import { passJson, digits, checkEventKey } from "@/lib/checkinServer";
  * 닫혀 있고, 현장 QR 을 스캔한 사람에게만 열리는 게이트.
  * 이름 + 전화번호 뒤 4자리로 참석 RSVP 를 찾는다.
  * 전체 전화번호·토큰은 반환하지 않는다 (마스킹 + rsvpId 만).
+ * 운영 시간 창(checkin_enabled + 개방/마감) 안에서만 동작하고 IP rate limit 을 건다.
  */
 export async function POST(req: Request) {
   if (!isAdminConfigured || !supabaseAdmin)
@@ -26,6 +28,14 @@ export async function POST(req: Request) {
       { error: "event_key" },
       gate === "unset" ? 503 : 403
     );
+
+  // 운영 시간 창 밖(체크인 비활성·개방 전·마감 후)에는 후보를 반환하지 않는다 (P1-4)
+  const win = await getCheckinWindow(supabaseAdmin);
+  if (win !== "ok") return passJson({ error: "window", state: win }, 403);
+
+  // IP 기준 rate limit (DB) — 이름+끝4자리 열거 시도 억제. 예식장 공용망 고려해 넉넉히.
+  if (!(await rateLimitAllow(`checkin-search:${clientIp(req)}`, 120, 600)))
+    return passJson({ error: "rate_limited" }, 429);
 
   const name = String(body.name ?? "").trim();
   const last4 = digits(String(body.last4 ?? ""));
