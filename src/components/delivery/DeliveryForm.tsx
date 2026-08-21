@@ -36,10 +36,8 @@ const RIDERS: { value: Rider; emoji: string; desc: string }[] = [
 const TOTAL = 6;
 const DRAFT_KEY = "delivery-form-draft";
 
+/** 새로고침/이탈 복원용 초안 — 개인정보(이름·연락처·배송지)는 저장하지 않는다 (P2-3) */
 interface Draft {
-  name: string;
-  phone: string;
-  location: string;
   date: string | null;
   slot: TimeSlot | null;
   rider: Rider | null;
@@ -109,10 +107,8 @@ export default function DeliveryForm({
       const raw = sessionStorage.getItem(DRAFT_KEY);
       if (raw) {
         const d = JSON.parse(raw) as Draft;
+        // P2-3: 개인정보(이름·연락처·배송지)는 초안에 저장하지 않는다 — 날짜·시간·기사·메시지만 복원
         // eslint-disable-next-line react-hooks/set-state-in-effect
-        setName(d.name ?? "");
-        setPhone(d.phone ?? "");
-        setLocation(d.location ?? "");
         setDate(d.date ?? null);
         setSlot(d.slot ?? null);
         setRider(d.rider ?? null);
@@ -126,13 +122,13 @@ export default function DeliveryForm({
 
   useEffect(() => {
     if (done) return;
-    const d: Draft = { name, phone, location, date, slot, rider, message };
+    const d: Draft = { date, slot, rider, message };
     try {
       sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d));
     } catch {
       /* ignore */
     }
-  }, [name, phone, location, date, slot, rider, message, done]);
+  }, [date, slot, rider, message, done]);
 
   const go = (delta: number) => {
     setError(null);
