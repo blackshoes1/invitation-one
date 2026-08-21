@@ -14,6 +14,7 @@ import BgmToggle from "@/components/BgmToggle";
 import PostWeddingBanner from "@/components/PostWeddingBanner";
 import LockedGate from "@/components/LockedGate";
 import { INVITATION_KEY } from "@/lib/wedding";
+import { issueUploadToken } from "@/lib/signedToken";
 
 /**
  * Admin 업로드 메인 사진을 서버에서 미리 조회 (5분 캐시).
@@ -88,7 +89,7 @@ export default async function Home({
       {/* RSVP 복구 시: <Rsvp submitToken={rsvpSubmitToken()} /> */}
       <NewlywedNews />
       <Guestbook qrEntry={qrEntry} />
-      <GuestSnap />
+      <GuestSnap uploadToken={issueUploadToken()} />
       <Account />
       <footer className="bg-wedding-cream px-6 pt-2 pb-16 text-center">
         <ShareButton />

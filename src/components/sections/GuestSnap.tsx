@@ -21,7 +21,49 @@ import FadeIn from "@/components/FadeIn";
  * 업로드 → Supabase 'guest-photos' 버킷 → (NAS Cloud Sync 로 아카이브).
  * 사진은 브라우저에서 압축·EXIF 제거 후 전송.
  */
-export default function GuestSnap() {
+export default function GuestSnap({
+  uploadToken = null,
+}: {
+  /** 서버(page.tsx)가 렌더 시 발급한 단기 업로드 토큰 — 만료되면 /api/guest-photos/token 으로 갱신 */
+  uploadToken?: string | null;
+}) {
+  const tokenRef = useRef<string | null>(uploadToken);
+  /** 토큰 재발급 (만료·무효 시 1회). 실패하면 null */
+  const renewToken = async (): Promise<string | null> => {
+    try {
+      const r = await fetch(
+        `/api/guest-photos/token?key=${encodeURIComponent(INVITATION_KEY)}`,
+        { cache: "no-store" }
+      );
+      if (!r.ok) return null;
+      const j = (await r.json()) as { token?: string };
+      tokenRef.current = j.token ?? null;
+      return tokenRef.current;
+    } catch {
+      return null;
+    }
+  };
+  /** 업로드 POST — 토큰 만료/무효(401)면 재발급 후 1회 재시도 */
+  const postUpload = async (fd: FormData) => {
+    const send = async (tok: string) => {
+      fd.set("token", tok);
+      const res = await fetch("/api/guest-photos", { method: "POST", body: fd });
+      const j = (await res.json().catch(() => ({}))) as {
+        photo?: GuestPhoto;
+        error?: string;
+        code?: string;
+      };
+      return { res, j };
+    };
+    let tok = tokenRef.current ?? (await renewToken());
+    if (!tok) return { res: null, j: { error: "업로드 권한을 받지 못했어요. 청첩장을 새로고침 해주세요 🙏" } };
+    let out = await send(tok);
+    if (out.res.status === 401 && out.j.code === "token_expired") {
+      tok = await renewToken();
+      if (tok) out = await send(tok);
+    }
+    return out;
+  };
   const [photos, setPhotos] = useState<GuestPhoto[]>([]);
   const [name, setName] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -155,13 +197,12 @@ export default function GuestSnap() {
       const compressed = await compressImage(framed);
       const fd = new FormData();
       fd.append("file", compressed);
-      fd.append("key", INVITATION_KEY);
+
       // 이름 + 선택한 미션을 함께 기록 (미션만 있어도 태그로 남김)
       const label = [name.trim(), mission].filter(Boolean).join(" · ");
       if (label) fd.append("name", label);
-      const res = await fetch("/api/guest-photos", { method: "POST", body: fd });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok || !j.photo) {
+      const { res, j } = await postUpload(fd);
+      if (!res || !res.ok || !j.photo) {
         setError(j.error ?? "업로드에 실패했어요. 잠시 후 다시 시도해주세요 🙏");
         return;
       }
