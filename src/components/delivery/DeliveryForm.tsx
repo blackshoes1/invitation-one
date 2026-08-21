@@ -4,53 +4,22 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import {
-  type TimeSlot,
-  formatYmdKo,
-  formatPhone,
-  isValidPhone,
-  slotsForDate,
-  groom,
-  bride,
-} from "@/lib/wedding";
+import { type TimeSlot, isValidPhone, slotsForDate } from "@/lib/wedding";
 import { notifyAdmin } from "@/lib/notify";
-import DeliveryCalendar from "@/components/DeliveryCalendar";
 import StepIndicator from "@/components/delivery/StepIndicator";
 import OrderSummary from "@/components/delivery/OrderSummary";
 import CompletePage from "@/components/delivery/CompletePage";
+import { TOTAL, type DateOrder } from "@/components/delivery/form/types";
+import { useDeliveryDraft } from "@/components/delivery/form/useDeliveryDraft";
+import StepContact from "@/components/delivery/form/StepContact";
+import StepLocation from "@/components/delivery/form/StepLocation";
+import StepDate from "@/components/delivery/form/StepDate";
+import StepSlot from "@/components/delivery/form/StepSlot";
+import StepRider from "@/components/delivery/form/StepRider";
+import StepMessage from "@/components/delivery/form/StepMessage";
+import JoinOfferView from "@/components/delivery/form/JoinOfferView";
 
-const SLOTS: { value: TimeSlot; emoji: string }[] = [
-  { value: "오전", emoji: "🌅" },
-  { value: "오후", emoji: "☀️" },
-  { value: "저녁", emoji: "🌙" },
-];
-
-export type Rider = "신랑" | "신부" | "신랑+신부";
-const RIDERS: { value: Rider; emoji: string; desc: string }[] = [
-  { value: "신랑", emoji: "🤵", desc: "신랑이 갈게요" },
-  { value: "신부", emoji: "👰", desc: "신부가 갈게요" },
-  { value: "신랑+신부", emoji: "💑", desc: "둘이 같이 갈게요" },
-];
-
-/** 0 받는분(이름+연락처) · 1 배송지 · 2 날짜 · 3 시간 · 4 배송기사 · 5 요청 → 요약 → 완료 */
-const TOTAL = 6;
-const DRAFT_KEY = "delivery-form-draft";
-
-/** 새로고침/이탈 복원용 초안 — 개인정보(이름·연락처·배송지)는 저장하지 않는다 (P2-3) */
-interface Draft {
-  date: string | null;
-  slot: TimeSlot | null;
-  rider: Rider | null;
-  message: string;
-}
-
-/** get_orders_on_date RPC — 같은 날 기존 주문 (이름은 서버에서 마스킹) */
-interface DateOrder {
-  id: string;
-  time_slot: TimeSlot;
-  member_count: number;
-  owner_masked: string | null;
-}
+export type { Rider } from "@/components/delivery/form/types";
 
 export default function DeliveryForm({
   group = null,
@@ -72,10 +41,6 @@ export default function DeliveryForm({
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [location, setLocation] = useState("");
-  const [date, setDate] = useState<string | null>(null);
-  const [slot, setSlot] = useState<TimeSlot | null>(null);
-  const [rider, setRider] = useState<Rider | null>(null);
-  const [message, setMessage] = useState("");
 
   const [booked, setBooked] = useState<Set<string>>(new Set());
   const phoneRef = useRef<HTMLInputElement>(null);
@@ -85,6 +50,19 @@ export default function DeliveryForm({
   const [orderNo, setOrderNo] = useState("001");
   /** 완료 화면 관리 링크용 토큰 (생성 RPC 가 1회 반환) */
   const [manageToken, setManageToken] = useState<string | null>(null);
+
+  // 입력값 보존 — 새로고침/이탈 후 재진입 시 이어서 (날짜·시간·기사·메시지)
+  const {
+    date,
+    setDate,
+    slot,
+    setSlot,
+    rider,
+    setRider,
+    message,
+    setMessage,
+    clearDraft,
+  } = useDeliveryDraft(done);
 
   // 합석 제안 — 같은 날 기존 주문이 있을 때
   const [joinOffer, setJoinOffer] = useState<DateOrder[] | null>(null);
@@ -101,34 +79,10 @@ export default function DeliveryForm({
     }
   };
 
-  // 입력값 보존 — 새로고침/이탈 후 재진입 시 이어서
   useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem(DRAFT_KEY);
-      if (raw) {
-        const d = JSON.parse(raw) as Draft;
-        // P2-3: 개인정보(이름·연락처·배송지)는 초안에 저장하지 않는다 — 날짜·시간·기사·메시지만 복원
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setDate(d.date ?? null);
-        setSlot(d.slot ?? null);
-        setRider(d.rider ?? null);
-        setMessage(d.message ?? "");
-      }
-    } catch {
-      /* ignore */
-    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- setState 는 RPC await 이후 (비동기)
     loadBooked();
   }, []);
-
-  useEffect(() => {
-    if (done) return;
-    const d: Draft = { date, slot, rider, message };
-    try {
-      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d));
-    } catch {
-      /* ignore */
-    }
-  }, [date, slot, rider, message, done]);
 
   const go = (delta: number) => {
     setError(null);
@@ -209,11 +163,7 @@ export default function DeliveryForm({
       await new Promise((r) => setTimeout(r, 400));
       setSending(false);
     }
-    try {
-      sessionStorage.removeItem(DRAFT_KEY);
-    } catch {
-      /* ignore */
-    }
+    clearDraft();
     setJoinedInfo({ slot: order.time_slot, count: order.member_count + 1 });
     onSubmitted?.();
   };
@@ -259,11 +209,7 @@ export default function DeliveryForm({
       console.info("[delivery demo]", { group, name, phone, location, date, slot, message });
       await new Promise((r) => setTimeout(r, 500));
     }
-    try {
-      sessionStorage.removeItem(DRAFT_KEY);
-    } catch {
-      /* ignore */
-    }
+    clearDraft();
     setSending(false);
     setDone(true);
     onSubmitted?.();
@@ -304,68 +250,22 @@ export default function DeliveryForm({
   // 합석 제안 — 같은 날 먼저 신청한 분이 있을 때
   if (joinOffer && date) {
     return (
-      <div className="max-w-md mx-auto px-5 pt-6 pb-10 space-y-5">
-        <div className="text-center space-y-2">
-          <div className="text-4xl">🤝</div>
-          <h2 className="text-xl font-extrabold text-neutral-800 leading-snug">
-            {formatYmdKo(date)}에
-            <br />
-            먼저 신청하신 분이 있어요!
-          </h2>
-          <p className="text-sm text-neutral-400">
-            같은 자리에서 함께 받으시면 좋아요. 합석하시겠어요?
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          {joinOffer.map((o) => (
-            <div
-              key={o.id}
-              className="bg-white rounded-2xl border border-delivery/10 p-4 space-y-2.5"
-            >
-              <p className="text-sm font-bold text-neutral-700">
-                🛵 {o.owner_masked ?? "먼저 신청하신 분"}님
-                {o.member_count > 1 ? ` 외 ${o.member_count - 1}명` : ""} ·{" "}
-                {o.time_slot}
-              </p>
-              <button
-                type="button"
-                onClick={() => acceptJoin(o)}
-                disabled={sending}
-                className="w-full py-3 rounded-full bg-delivery text-white text-sm font-extrabold active:scale-95 transition-transform disabled:opacity-60"
-              >
-                {sending ? "합석 중… 🛵" : "네, 합석할게요 🤝"}
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {error && (
-          <p className="text-sm text-delivery-dark font-medium text-center">{error}</p>
-        )}
-
-        <button
-          type="button"
-          onClick={() => {
-            setJoinOffer(null);
-            setError(null);
-            go(1); // 따로 받기 → 시간대 선택으로 진행
-          }}
-          className="w-full py-3.5 rounded-full bg-white border-2 border-delivery/20 text-neutral-500 text-sm font-bold"
-        >
-          아니요, 따로 받을게요
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setJoinOffer(null);
-            setError(null);
-          }}
-          className="w-full text-xs text-neutral-400 underline underline-offset-2"
-        >
-          ← 날짜 다시 고르기
-        </button>
-      </div>
+      <JoinOfferView
+        date={date}
+        orders={joinOffer}
+        sending={sending}
+        error={error}
+        onAccept={acceptJoin}
+        onDecline={() => {
+          setJoinOffer(null);
+          setError(null);
+          go(1); // 따로 받기 → 시간대 선택으로 진행
+        }}
+        onBack={() => {
+          setJoinOffer(null);
+          setError(null);
+        }}
+      />
     );
   }
 
@@ -390,156 +290,46 @@ export default function DeliveryForm({
     switch (step) {
       case 0:
         return (
-          <Q title="받는 분 정보를 알려주세요 📋">
-            <div className="space-y-3">
-              <input
-                autoFocus
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    phoneRef.current?.focus(); // 완료 → 연락처로 이동
-                  }
-                }}
-                enterKeyHint="next"
-                placeholder="성함"
-                className="dform-input"
-              />
-              <input
-                ref={phoneRef}
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(formatPhone(e.target.value))}
-                onKeyDown={(e) => e.key === "Enter" && next()}
-                enterKeyHint="done"
-                placeholder="배송 완료 후 연락드릴 번호 📞"
-                className="dform-input"
-              />
-            </div>
-          </Q>
+          <StepContact
+            name={name}
+            phone={phone}
+            phoneRef={phoneRef}
+            onNameChange={setName}
+            onPhoneChange={setPhone}
+            onNext={next}
+          />
         );
       case 1:
         return (
-          <Q title="배송지를 입력해주세요 📍" sub="전국 어디든 직접 배달합니다 🛵 정확할수록 빨리 찾아가요">
-            <input
-              autoFocus
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && next()}
-              enterKeyHint="done"
-              placeholder="예: 강남역 2번 출구, 회사 앞"
-              className="dform-input"
-            />
-          </Q>
+          <StepLocation
+            location={location}
+            onLocationChange={setLocation}
+            onNext={next}
+          />
         );
       case 2:
         return (
-          <Q title="배송 희망일을 선택해주세요 📅" sub="● 마감   ○ 배송 가능">
-            <DeliveryCalendar
-              selected={date}
-              booked={booked}
-              onSelect={(d) => {
-                setDate(d);
-                // 평일은 저녁만 가능 — 이미 고른 시간대가 안 맞으면 초기화
-                if (slot && !slotsForDate(d).includes(slot)) setSlot(null);
-              }}
-              selectedClass="bg-delivery text-white font-bold"
-            />
-            {date && (
-              <p className="text-sm text-delivery font-bold text-center pt-2">
-                {formatYmdKo(date)} 선택! 👍
-              </p>
-            )}
-          </Q>
+          <StepDate
+            date={date}
+            booked={booked}
+            onSelect={(d) => {
+              setDate(d);
+              // 평일은 저녁만 가능 — 이미 고른 시간대가 안 맞으면 초기화
+              if (slot && !slotsForDate(d).includes(slot)) setSlot(null);
+            }}
+          />
         );
-      case 3: {
-        const avail = date ? slotsForDate(date) : [];
-        const visible = SLOTS.filter((s) => avail.includes(s.value));
-        return (
-          <Q
-            title={`${date ? formatYmdKo(date) : ""} 배송 희망 시간대를 골라주세요 ⏰`}
-            sub={visible.length === 1 ? "평일은 저녁 배달만 가능해요 🌙" : undefined}
-          >
-            <div
-              className={`grid gap-3 ${
-                visible.length === 1 ? "grid-cols-1" : "grid-cols-3"
-              }`}
-            >
-              {visible.map((s) => (
-                <button
-                  key={s.value}
-                  type="button"
-                  onClick={() => setSlot(s.value)}
-                  aria-pressed={slot === s.value}
-                  className={`py-6 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${
-                    slot === s.value
-                      ? "border-delivery bg-delivery text-white scale-105"
-                      : "border-delivery/20 bg-white text-neutral-500"
-                  }`}
-                >
-                  <span className="text-3xl">{s.emoji}</span>
-                  <span className="text-sm font-bold">{s.value}</span>
-                </button>
-              ))}
-            </div>
-          </Q>
-        );
-      }
+      case 3:
+        return <StepSlot date={date} slot={slot} onSelect={setSlot} />;
       case 4:
-        return (
-          <Q
-            title="배송기사를 선택해주세요 🛵"
-            sub="기사님 일정에 따라 조정될 수 있어요 😊"
-          >
-            <div className="grid grid-cols-3 gap-3">
-              {RIDERS.map((r) => (
-                <button
-                  key={r.value}
-                  type="button"
-                  onClick={() => setRider(r.value)}
-                  aria-pressed={rider === r.value}
-                  className={`py-6 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${
-                    rider === r.value
-                      ? "border-delivery bg-delivery text-white scale-105"
-                      : "border-delivery/20 bg-white text-neutral-500"
-                  }`}
-                >
-                  <span className="text-3xl">{r.emoji}</span>
-                  <span className="text-sm font-bold">{r.value}</span>
-                  <span
-                    className={`text-[11px] ${
-                      rider === r.value ? "text-white/80" : "text-neutral-400"
-                    }`}
-                  >
-                    {r.desc}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </Q>
-        );
+        return <StepRider rider={rider} onSelect={setRider} />;
       case 5:
         return (
-          <Q
-            title={`배송기사(${
-              rider === "신랑+신부"
-                ? "신랑·신부"
-                : rider === "신부"
-                ? bride.name
-                : groom.name
-            })에게 요청사항이 있으신가요? 💬`}
-            sub="예: 저녁 7시 이후에 와주세요 (선택)"
-          >
-            <textarea
-              autoFocus
-              value={message}
-              maxLength={500}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="요청사항을 적어주세요"
-              className="w-full p-4 rounded-2xl border-2 border-delivery/20 bg-white focus:outline-none focus:border-delivery resize-none h-28 text-base"
-            />
-          </Q>
+          <StepMessage
+            rider={rider}
+            message={message}
+            onMessageChange={setMessage}
+          />
         );
     }
   };
@@ -615,28 +405,6 @@ export default function DeliveryForm({
         </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-function Q({
-  title,
-  sub,
-  children,
-}: {
-  title: string;
-  sub?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-5">
-      <div className="space-y-1.5">
-        <h2 className="text-xl font-extrabold text-neutral-800 leading-snug">
-          {title}
-        </h2>
-        {sub && <p className="text-sm text-neutral-400">{sub}</p>}
-      </div>
-      {children}
     </div>
   );
 }
