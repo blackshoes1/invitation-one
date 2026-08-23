@@ -126,6 +126,8 @@ export interface Participant {
   replied_at: string | null;
   /** 마음배송 공개 설정 — 피드 이름 표시 (anon 기본) */
   display_mode?: "anon" | "initial" | "name";
+  /** 익명 별명 (예: 수줍은 펭귄) — display_mode='anon' 일 때 공개 피드 표시명 */
+  anon_alias?: string | null;
   /** true 면 공개 피드·지도에서 제외 (관리자만) */
   is_private?: boolean;
   show_region?: boolean;

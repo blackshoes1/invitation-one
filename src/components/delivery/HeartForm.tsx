@@ -15,6 +15,7 @@ import { OVERSEAS, joinRegion } from "@/lib/regions";
 import StampPicker from "@/components/delivery/StampPicker";
 import RegionPicker from "@/components/delivery/RegionPicker";
 import { notifyAdmin } from "@/lib/notify";
+import { randomAnonAlias } from "@/lib/anonAlias";
 import { getSiteSettings } from "@/lib/settings";
 
 const invitationHref = INVITATION_KEY ? `/?key=${INVITATION_KEY}` : "/";
@@ -41,6 +42,8 @@ export default function HeartForm({
   const [isPrivate, setIsPrivate] = useState(false);
   const [showRegion, setShowRegion] = useState(true);
   const [attendance, setAttendance] = useState<Attendance | null>(null);
+  /** 익명 별명 (예: 수줍은 펭귄) — 🎲 로 다시 뽑을 수 있음 */
+  const [anonAlias, setAnonAlias] = useState(() => randomAnonAlias());
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -77,6 +80,7 @@ export default function HeartForm({
         p_is_private: isPrivate,
         p_show_region: showRegion,
         p_attendance: attendance,
+        p_anon_alias: anonAlias,
       });
       if (error) {
         setSending(false);
@@ -210,7 +214,17 @@ export default function HeartForm({
           ) : (
             <>
               <p className="font-bold text-neutral-700">
-                {stamp} {publicName(name, displayMode)}
+                {stamp} {publicName(name, displayMode, anonAlias)}
+                {displayMode === "anon" && (
+                  <button
+                    type="button"
+                    onClick={() => setAnonAlias(randomAnonAlias())}
+                    className="ml-1.5 text-[11px] font-bold text-delivery underline underline-offset-2"
+                    title="다른 별명으로"
+                  >
+                    🎲 다른 별명
+                  </button>
+                )}
                 {showRegion && sido && sub.trim() ? (
                   <span className="font-normal text-neutral-400"> · 📍 {joinRegion(sido, sub.trim())}</span>
                 ) : null}
@@ -227,7 +241,7 @@ export default function HeartForm({
           value={displayMode}
           onChange={setDisplayMode}
           options={[
-            ["anon", "익명"],
+            ["anon", "익명 별명"],
             ["initial", "한 글자 가리기"],
             ["name", "실명"],
           ]}
@@ -318,7 +332,7 @@ type DisplayMode = "anon" | "initial" | "name";
 type Attendance = "yes" | "maybe" | "no";
 
 /** 공개 피드 표시명 미리보기 — 서버(get_celebrations) 규칙과 동일 */
-function publicName(name: string, mode: DisplayMode): string {
+function publicName(name: string, mode: DisplayMode, alias: string): string {
   const n = name.trim();
   if (mode === "name") return n || "이름";
   if (mode === "initial") {
@@ -326,7 +340,7 @@ function publicName(name: string, mode: DisplayMode): string {
     if (n.length === 2) return `${n[0]}○`;
     return `${n[0]}${"○".repeat(n.length - 2)}${n[n.length - 1]}`;
   }
-  return "익명의 하객";
+  return alias;
 }
 
 function ChoiceRow<T extends string>({

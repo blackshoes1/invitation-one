@@ -109,7 +109,8 @@ export default function MessagesTab({
       <div className="space-y-2">
         {messages.map((m) => {
           const mode = m.display_mode ?? "name";
-          const modeLabel = mode === "anon" ? "익명" : mode === "initial" ? "한 글자 가림" : "실명";
+          const modeLabel =
+            mode === "anon" ? `익명 · ${m.anon_alias ?? "별명"}` : mode === "initial" ? "한 글자 가림" : "실명";
           const attLabel =
             m.attendance === "yes" ? "참석" : m.attendance === "maybe" ? "미정" : m.attendance === "no" ? "불참" : null;
           const draft = replyDrafts[m.id] ?? m.reply ?? "";
