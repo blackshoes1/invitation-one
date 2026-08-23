@@ -23,7 +23,7 @@ export default function MenuSelect({
         <BikeIcon className="w-9 h-9 text-white shrink-0" />
         <span>
           <span className="block font-extrabold">종이 청첩장 직접 받기</span>
-          <span className="block text-xs text-white/80">만나서 전해드려요 🛵</span>
+          <span className="block text-xs text-white/80">만나서 받을게요 🛵</span>
         </span>
       </button>
 
@@ -36,7 +36,7 @@ export default function MenuSelect({
         <span>
           <span className="block font-bold text-neutral-700">축하 한마디만 남기기</span>
           <span className="block text-xs text-neutral-400">
-            종이 청첩장 없이 마음만 전해요 (마음 배송 💌)
+            종이 청첩장은 안 받고 축하만 남길게요 (마음 배송 💌)
           </span>
         </span>
       </button>

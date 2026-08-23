@@ -157,7 +157,7 @@ export default function HeartForm({
       <div className="text-center space-y-1">
         <h2 className="text-xl font-extrabold text-neutral-800">💌 축하 한마디 남기기</h2>
         <p className="text-sm text-neutral-400">
-          종이 청첩장 없이 마음만 전해요 (마음 배송)
+          종이 청첩장은 안 받고, 축하 마음만 남겨요 (마음 배송)
         </p>
         <p className="text-[11px] text-neutral-400">결혼식 참석 여부와는 상관없어요 🙂</p>
       </div>
