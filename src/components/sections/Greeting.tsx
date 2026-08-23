@@ -1,7 +1,6 @@
 import { groom, bride, type Person } from "@/lib/wedding";
 import FadeIn from "@/components/FadeIn";
 
-/** "김도윤 의 장남 성근영" — 있는 부모만 표기 */
 function ParentLine({ label, person }: { label: string; person: Person }) {
   const parents = [person.father, person.mother].filter(Boolean).join(" · ");
   return (
