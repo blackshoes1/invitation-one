@@ -39,6 +39,30 @@ export default function MessagesTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /** 공개 설정 전환 (익명/한글자/실명 · 비공개) */
+  const setVisibility = async (
+    id: string,
+    patch: { display_mode?: "anon" | "initial" | "name"; is_private?: boolean }
+  ) => {
+    try {
+      const res = await api("/api/admin/messages", {
+        method: "PATCH",
+        body: JSON.stringify({ id, ...patch }),
+      });
+      if (!res.ok) return setError("공개 설정 변경에 실패했습니다.");
+      const j = await res.json();
+      setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...j.participant } : m)));
+    } catch {
+      setError("공개 설정 변경 요청이 실패했습니다. 네트워크를 확인해주세요.");
+    }
+  };
+
+  const att = {
+    yes: messages.filter((m) => m.attendance === "yes").length,
+    maybe: messages.filter((m) => m.attendance === "maybe").length,
+    no: messages.filter((m) => m.attendance === "no").length,
+  };
+
   /** 방명록 공개 답글 저장/삭제 (LC-3) — 빈 문자열이면 답글 삭제 */
   const saveReply = async (id: string, reply: string) => {
     setReplySaving(id);
@@ -76,8 +100,18 @@ export default function MessagesTab({
           받은 메시지가 없습니다.
         </p>
       )}
+      {!loading && messages.length > 0 && (
+        <p className="text-[11px] text-neutral-400 mb-2">
+          결혼식 참석(한마디 남길 때 선택): 참석 {att.yes} · 미정 {att.maybe} · 불참 {att.no}
+          {" "}· 미응답 {messages.length - att.yes - att.maybe - att.no}
+        </p>
+      )}
       <div className="space-y-2">
         {messages.map((m) => {
+          const mode = m.display_mode ?? "name";
+          const modeLabel = mode === "anon" ? "익명" : mode === "initial" ? "한 글자 가림" : "실명";
+          const attLabel =
+            m.attendance === "yes" ? "참석" : m.attendance === "maybe" ? "미정" : m.attendance === "no" ? "불참" : null;
           const draft = replyDrafts[m.id] ?? m.reply ?? "";
           const dirty = draft.trim() !== (m.reply ?? "").trim();
           const saving = replySaving === m.id;
@@ -100,6 +134,33 @@ export default function MessagesTab({
                   {m.message && (
                     <p className="text-xs text-neutral-500 break-words">{m.message}</p>
                   )}
+                  <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px]">
+                    <span className={`px-1.5 py-0.5 rounded-sm ${m.is_private ? "bg-neutral-200 text-neutral-600" : "bg-sage-100 text-sage-700"}`}>
+                      {m.is_private ? "🔒 비공개" : `공개 · ${modeLabel}`}
+                    </span>
+                    {m.show_region === false && (
+                      <span className="px-1.5 py-0.5 rounded-sm bg-neutral-100 text-neutral-500">지역 숨김</span>
+                    )}
+                    {attLabel && (
+                      <span className="px-1.5 py-0.5 rounded-sm bg-wedding-gold/15 text-sage-700">결혼식 {attLabel}</span>
+                    )}
+                    {!m.is_private && (
+                      <button
+                        type="button"
+                        onClick={() => setVisibility(m.id, { display_mode: mode === "anon" ? "name" : "anon" })}
+                        className="underline text-neutral-400"
+                      >
+                        {mode === "anon" ? "실명으로" : "익명으로"}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setVisibility(m.id, { is_private: !m.is_private })}
+                      className="underline text-neutral-400"
+                    >
+                      {m.is_private ? "공개로 전환" : "비공개로"}
+                    </button>
+                  </p>
                 </div>
               </div>
               {/* 공개 답글 (LC-3) — 청첩장 피드에 함께 노출됨 */}

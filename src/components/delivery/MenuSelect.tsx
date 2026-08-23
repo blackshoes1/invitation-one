@@ -22,8 +22,8 @@ export default function MenuSelect({
       >
         <BikeIcon className="w-9 h-9 text-white shrink-0" />
         <span>
-          <span className="block font-extrabold">직접 배달 받기</span>
-          <span className="block text-xs text-white/80">만나서 청첩장 받기</span>
+          <span className="block font-extrabold">종이 청첩장 직접 받기</span>
+          <span className="block text-xs text-white/80">만나서 전해드려요 🛵</span>
         </span>
       </button>
 
@@ -34,12 +34,18 @@ export default function MenuSelect({
       >
         <span className="text-2xl">💌</span>
         <span>
-          <span className="block font-bold text-neutral-700">마음 배송</span>
+          <span className="block font-bold text-neutral-700">축하 한마디만 남기기</span>
           <span className="block text-xs text-neutral-400">
-            못 만나도 마음 전하기
+            종이 청첩장 없이 마음만 전해요 (마음 배송 💌)
           </span>
         </span>
       </button>
+
+      <p className="text-center text-[11px] text-neutral-400 leading-relaxed">
+        결혼식 참석 여부와는 상관없어요 🙂
+        <br />
+        어느 쪽을 고르셔도 식장에서 뵈면 더 좋아요
+      </p>
     </div>
   );
 }

@@ -31,6 +31,7 @@ db/rsvp.sql → db/deliveries.sql → db/groups.sql → db/group_members.sql
 | `20260821000100_admin_sessions.sql` | P1-1 관리자 세션 테이블 (토큰 해시만 저장) |
 | `20260821000200_notification_outbox.sql` | P1-3 카카오 알림 아웃박스 + participants insert 트리거 + `claim_notifications()` |
 | `20260821000300_group_member_invites.sql` | 개인 초대 링크 — `group_members.phone/invite_token_hash/invited_at`, `_invite_phone()`, `create_delivery_v3`·`join_delivery_v2`·`accept_group_offer_v2` 에 `p_invite_token` 추가(구 시그니처 drop 후 재생성, 기존 호출 호환) |
+| `20260822000100_heart_privacy.sql` | 마음배송 공개 설정(`display_mode/is_private/show_region`)·참석 여부(`attendance`), `_mask_name()`, `get_celebrations` 마스킹/비공개 제외, `send_heart_v2` 인자 추가(구 시그니처 drop 후 재생성) — 기존 마음배송 행은 `name` 유지 |
 
 ## 적용 확인
 

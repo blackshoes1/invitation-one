@@ -36,6 +36,11 @@ export default function HeartForm({
   const [sub, setSub] = useState("");
   const [message, setMessage] = useState("");
   const [phone, setPhone] = useState("");
+  /** 공개 설정 (기본: 익명 · 모두에게 공개 · 지역 표시) + 참석 여부(선택) */
+  const [displayMode, setDisplayMode] = useState<DisplayMode>("anon");
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [showRegion, setShowRegion] = useState(true);
+  const [attendance, setAttendance] = useState<Attendance | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -68,6 +73,10 @@ export default function HeartForm({
         p_stamp: stamp,
         p_message: message.trim() || null,
         p_phone: phone.trim() || null,
+        p_display_mode: displayMode,
+        p_is_private: isPrivate,
+        p_show_region: showRegion,
+        p_attendance: attendance,
       });
       if (error) {
         setSending(false);
@@ -146,10 +155,11 @@ export default function HeartForm({
   return (
     <div className="max-w-sm mx-auto px-6 py-6 space-y-6">
       <div className="text-center space-y-1">
-        <h2 className="text-xl font-extrabold text-neutral-800">💌 마음 배송</h2>
+        <h2 className="text-xl font-extrabold text-neutral-800">💌 축하 한마디 남기기</h2>
         <p className="text-sm text-neutral-400">
-          못 만나도 마음은 전할 수 있어요
+          종이 청첩장 없이 마음만 전해요 (마음 배송)
         </p>
+        <p className="text-[11px] text-neutral-400">결혼식 참석 여부와는 상관없어요 🙂</p>
       </div>
 
       <div className="space-y-2">
@@ -189,6 +199,92 @@ export default function HeartForm({
         className="w-full p-4 rounded-2xl border-2 border-delivery/20 bg-white focus:outline-none focus:border-delivery resize-none h-24 text-base"
       />
 
+      {/* 공개 범위 — 기본 익명. 관리자(신랑신부)는 항상 실명·원문을 봄 */}
+      <div className="rounded-2xl border-2 border-delivery/15 bg-white p-4 space-y-3">
+        <p className="text-xs font-bold text-neutral-500">청첩장 방명록에 이렇게 보여요 👀</p>
+        <div className="rounded-xl bg-delivery/5 px-3 py-2.5 text-sm">
+          {isPrivate ? (
+            <p className="text-neutral-500 text-xs">
+              🔒 신랑신부에게만 보여요 (방명록·지도에는 나오지 않아요)
+            </p>
+          ) : (
+            <>
+              <p className="font-bold text-neutral-700">
+                {stamp} {publicName(name, displayMode)}
+                {showRegion && sido && sub.trim() ? (
+                  <span className="font-normal text-neutral-400"> · 📍 {joinRegion(sido, sub.trim())}</span>
+                ) : null}
+              </p>
+              <p className="text-xs text-neutral-500 mt-0.5">
+                {message.trim() ? `“${message.trim()}”` : "(한마디 없음)"}
+              </p>
+            </>
+          )}
+        </div>
+
+        <ChoiceRow
+          label="이름 표시"
+          value={displayMode}
+          onChange={setDisplayMode}
+          options={[
+            ["anon", "익명"],
+            ["initial", "한 글자 가리기"],
+            ["name", "실명"],
+          ]}
+        />
+        <ChoiceRow
+          label="한마디"
+          value={isPrivate ? "private" : "public"}
+          onChange={(v) => setIsPrivate(v === "private")}
+          options={[
+            ["public", "모두에게 공개"],
+            ["private", "신랑신부에게만 🔒"],
+          ]}
+        />
+        <ChoiceRow
+          label="지역"
+          value={showRegion ? "show" : "hide"}
+          onChange={(v) => setShowRegion(v === "show")}
+          options={[
+            ["show", "지도에 표시"],
+            ["hide", "표시 안 함"],
+          ]}
+        />
+        <p className="text-[11px] text-neutral-400">
+          이름·연락처 원본은 신랑신부만 봐요
+        </p>
+      </div>
+
+      {/* 참석 여부 (선택) — 공개되지 않고 신랑신부만 봄 */}
+      <div className="space-y-1.5">
+        <p className="text-xs font-bold text-neutral-500">
+          결혼식엔 오실 수 있나요? <span className="font-normal text-neutral-400">(선택)</span>
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          {(
+            [
+              ["yes", "참석해요 🙌"],
+              ["maybe", "아직 미정 🤔"],
+              ["no", "못 가요 🙏"],
+            ] as [Attendance, string][]
+          ).map(([v, label]) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setAttendance(attendance === v ? null : v)}
+              className={`py-2.5 rounded-xl text-xs font-bold border-2 transition-colors ${
+                attendance === v
+                  ? "bg-delivery text-white border-delivery"
+                  : "bg-white text-neutral-600 border-delivery/15"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="text-[11px] text-neutral-400">신랑신부만 볼 수 있어요 · 나중에 바뀌어도 괜찮아요</p>
+      </div>
+
       <div className="space-y-1.5">
         <input
           type="tel"
@@ -214,6 +310,55 @@ export default function HeartForm({
       >
         {sending ? "전하는 중…" : "마음 전하기 💌"}
       </button>
+    </div>
+  );
+}
+
+type DisplayMode = "anon" | "initial" | "name";
+type Attendance = "yes" | "maybe" | "no";
+
+/** 공개 피드 표시명 미리보기 — 서버(get_celebrations) 규칙과 동일 */
+function publicName(name: string, mode: DisplayMode): string {
+  const n = name.trim();
+  if (mode === "name") return n || "이름";
+  if (mode === "initial") {
+    if (n.length <= 1) return "○";
+    if (n.length === 2) return `${n[0]}○`;
+    return `${n[0]}${"○".repeat(n.length - 2)}${n[n.length - 1]}`;
+  }
+  return "익명의 하객";
+}
+
+function ChoiceRow<T extends string>({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: T;
+  onChange: (v: T) => void;
+  options: [T, string][];
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-14 shrink-0 text-[11px] font-bold text-neutral-500">{label}</span>
+      <div className="flex-1 flex flex-wrap gap-1.5">
+        {options.map(([v, text]) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => onChange(v)}
+            className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-colors ${
+              value === v
+                ? "bg-delivery text-white border-delivery"
+                : "bg-white text-neutral-500 border-delivery/20"
+            }`}
+          >
+            {text}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

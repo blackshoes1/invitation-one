@@ -124,6 +124,13 @@ export interface Participant {
   /** 신랑·신부 공개 답글 (LC-3) */
   reply: string | null;
   replied_at: string | null;
+  /** 마음배송 공개 설정 — 피드 이름 표시 (anon 기본) */
+  display_mode?: "anon" | "initial" | "name";
+  /** true 면 공개 피드·지도에서 제외 (관리자만) */
+  is_private?: boolean;
+  show_region?: boolean;
+  /** 결혼식 참석 여부 (선택, 관리자만) */
+  attendance?: "yes" | "maybe" | "no" | null;
   created_at: string;
   updated_at: string;
 }
