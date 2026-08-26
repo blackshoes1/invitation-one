@@ -171,6 +171,11 @@ export default function Account() {
               <br />
               아래에 계좌를 안내드립니다. 너른 양해 부탁드립니다.
             </p>
+            <p className="text-[11px] text-neutral-400 tracking-wider">
+              🌸 화환은 정중히 사양합니다.
+              <br />
+              보내주시는 마음만 감사히 받겠습니다.
+            </p>
           </div>
         </FadeIn>
 
