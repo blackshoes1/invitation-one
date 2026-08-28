@@ -30,6 +30,17 @@ const CSP = [
   "report-to csp",
 ].join("; ");
 
+/**
+ * P2-2: enforce 전환 스위치 — 기본은 Report-Only(관찰만, 차단 없음).
+ * /api/csp-report 위반 로그를 충분히 관찰한 뒤 Vercel 환경변수
+ * CSP_ENFORCE=true 를 설정하면 재배포만으로 enforce 로 전환된다.
+ * (문제가 생기면 변수 제거 + 재배포로 즉시 Report-Only 복귀 — 코드 수정 불필요)
+ */
+const CSP_HEADER =
+  process.env.CSP_ENFORCE === "true"
+    ? "Content-Security-Policy"
+    : "Content-Security-Policy-Report-Only";
+
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -41,7 +52,7 @@ const securityHeaders = [
       "camera=(self), microphone=(), geolocation=(self), payment=(), usb=(), browsing-topics=(), interest-cohort=()",
   },
   { key: "Reporting-Endpoints", value: 'csp="/api/csp-report"' },
-  { key: "Content-Security-Policy-Report-Only", value: CSP },
+  { key: CSP_HEADER, value: CSP },
 ];
 
 const nextConfig: NextConfig = {
