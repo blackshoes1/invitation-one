@@ -14,6 +14,10 @@
 /coverage
 /test-results
 /playwright-report
+# e2e-db 스크립트 생성물 (scripts/e2e-db-ci.sh — 커밋 금지)
+/supabase/config.toml
+/supabase/migrations/19990101000000_ci_prep.sql
+/supabase/migrations/*_legacy_*.sql
 
 # next.js
 /.next/

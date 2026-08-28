@@ -38,6 +38,32 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
 
+  # P1-5 — DB 필요 E2E (초대·배송신청·관리자 세션·체크인 운영시간)
+  # 레거시를 타임스탬프 사본으로 복사해 supabase start 가 전체 스키마를 적용,
+  # 시드 후 로컬 스택을 향해 앱을 빌드·실행한다 (운영 자원 접근 없음).
+  e2e-db:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NEXT_PUBLIC_SITE_URL: https://example.invalid
+      NEXT_PUBLIC_INVITATION_KEY: ci-dummy-key
+      NEXT_TELEMETRY_DISABLED: "1"
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: npm ci
+      - run: bash scripts/e2e-db-ci.sh
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+
   # P1-6 — 빈 DB 에 레거시→마이그레이션 전체 적용 + 권한/시그니처 단언
   # (supabase CLI 는 시작 시 supabase/migrations 를 자동 적용해 레거시 선행이
   #  불가능하므로, 일반 postgres 컨테이너 + 스크립트가 롤/스키마를 직접 준비)

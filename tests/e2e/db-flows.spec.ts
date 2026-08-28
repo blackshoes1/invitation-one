@@ -4,32 +4,37 @@ import { test, expect } from "@playwright/test";
  * DB 가 있어야 하는 E2E (E2E-2·3·5·6) — 로컬/CI Supabase 스택 + 시드가 준비되고
  * E2E_DB=1 일 때만 실행된다. 운영 Supabase 에는 절대 연결하지 말 것.
  *
- * 준비물(수동/CI 스크립트):
- *  - supabase local (docker) + 레거시 db/*.sql → supabase/migrations 순서 적용
- *  - 시드: 그룹 1개(slug=e2e-group) + group_member 1명(invite 토큰=E2E_INVITE_TOKEN)
- *  - 앱 env: NEXT_PUBLIC_SUPABASE_URL/ANON_KEY + SUPABASE_SERVICE_ROLE_KEY(local),
- *            ADMIN_PASSWORD=e2e-admin-pass
+ * 준비는 scripts/e2e-db-ci.sh 가 수행:
+ *  - supabase start (레거시 db/*.sql 을 타임스탬프 마이그레이션으로 복사해 순서 적용)
+ *  - 시드: 그룹(slug=e2e-group, 'E2E그룹') + group_member '초대손님'
+ *          (phone 010-9876-5432, invite 토큰 = E2E_INVITE_TOKEN)
+ *  - 앱 env: 로컬 Supabase 키 + ADMIN_PASSWORD + CHECKIN_EVENT_KEY
  */
 const DB = Boolean(process.env.E2E_DB);
 const INVITE_TOKEN = process.env.E2E_INVITE_TOKEN ?? "";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "e2e-admin-pass";
+const EVENT_KEY = process.env.E2E_CHECKIN_EVENT_KEY ?? "";
 
 test.describe("E2E-2 개인 초대", () => {
   test.skip(!DB || !INVITE_TOKEN, "E2E_DB + 시드 필요");
 
-  test("초대 링크 진입 시 이름·마스킹 번호만 보이고 실제 번호는 노출되지 않는다", async ({ page }) => {
+  test("초대 링크 진입 — 페이지 어디에도 전체 전화번호가 노출되지 않는다", async ({ page }) => {
     await page.goto(`/delivery/group/e2e-group?i=${INVITE_TOKEN}`);
-    await expect(page.getByText(/010-\*\*\*\*-\d{4}/)).toBeVisible();
+    await expect(page.getByText("E2E그룹")).toBeVisible();
+    // 초대 해석(fetch) 완료 후에도 전체 번호는 HTML 에 없어야 한다 (마스킹만)
+    await page.waitForLoadState("networkidle");
     const html = await page.content();
-    expect(html).not.toMatch(/010-\d{4}-\d{4}/); // 전체 번호가 HTML 어디에도 없어야 함
+    expect(html).not.toMatch(/010-\d{3,4}-\d{4}/);
   });
 
-  test("초대 해석 API 는 마스킹 번호만 반환한다", async ({ request }) => {
+  test("초대 해석 API 는 이름 + 마스킹 번호만 반환한다", async ({ request }) => {
     const res = await request.get(`/api/delivery/invite?i=${INVITE_TOKEN}`);
     expect(res.status()).toBe(200);
     const j = await res.json();
-    expect(j.invite.phoneMasked).toMatch(/^010-\*\*\*\*-\d{4}$/);
-    expect(JSON.stringify(j)).not.toMatch(/010-\d{4}-\d{4}/);
+    expect(j.invite.name).toBe("초대손님");
+    expect(j.invite.phoneMasked).toBe("010-****-5432");
+    expect(j.invite.groupSlug).toBe("e2e-group");
+    expect(JSON.stringify(j)).not.toMatch(/010-\d{3,4}-\d{4}/);
   });
 
   test("초대 토큰과 다른 그룹 조합은 403 invite_group_mismatch", async ({ request }) => {
@@ -39,42 +44,63 @@ test.describe("E2E-2 개인 초대", () => {
     expect(res.status()).toBe(403);
     expect((await res.json()).error).toBe("invite_group_mismatch");
   });
+
+  test("존재하지 않는 초대 토큰은 401", async ({ request }) => {
+    const res = await request.post("/api/delivery/join", {
+      data: {
+        deliveryId: "123e4567-e89b-42d3-a456-426614174000",
+        name: "홍길동",
+        inviteToken: "ffffffffffffffffffffffffffffffff",
+      },
+    });
+    expect(res.status()).toBe(401);
+    expect((await res.json()).error).toBe("invite_invalid");
+  });
 });
 
 test.describe("E2E-3/4 배송 신청 + manage token", () => {
   test.skip(!DB, "E2E_DB 필요");
 
   test("신규 배송 신청 → manage token 발급 → 관리 페이지 접근", async ({ request, page }) => {
-    const res = await request.post("/api/delivery/create", {
-      data: {
-        name: "E2E테스터",
-        phone: "010-9999-1234",
-        location: "서울 강남구 테스트로 1",
-        date: "2026-10-10", // 주말 (전 시간대 허용)
-        time: "오후",
-        message: null,
-      },
-    });
-    expect(res.status()).toBe(200);
-    const j = await res.json();
-    expect(j.manage_token).toMatch(/^[0-9a-f]{32}$/);
+    // 주말 후보 날짜 — 재시도(retry)로 이미 점유됐으면 다음 날짜 사용
+    const dates = ["2026-10-10", "2026-10-11", "2026-10-03", "2026-10-04"];
+    let token: string | null = null;
+    for (const date of dates) {
+      const res = await request.post("/api/delivery/create", {
+        data: {
+          name: "E2E테스터",
+          phone: "010-9999-1234",
+          location: "서울 강남구 테스트로 1",
+          date,
+          time: "오후",
+          message: null,
+        },
+      });
+      if (res.status() === 200) {
+        token = (await res.json()).manage_token;
+        break;
+      }
+      expect(res.status()).toBe(409); // date_taken 만 허용
+    }
+    expect(token).toMatch(/^[0-9a-f]{32}$/);
 
-    await page.goto(`/delivery/manage/${j.manage_token}`);
-    await expect(page.getByText("E2E테스터")).toBeVisible();
+    await page.goto(`/delivery/manage/${token}`);
+    await expect(page.getByText("E2E테스터").first()).toBeVisible();
   });
 
-  test("변조 manage token → 401", async ({ request }) => {
+  test("변조 manage token → 401, participant 데이터 비반환", async ({ request }) => {
     const res = await request.get(
       "/api/delivery/manage?t=00000000000000000000000000000000"
     );
     expect(res.status()).toBe(401);
+    expect((await res.json()).participant).toBeUndefined();
   });
 });
 
 test.describe("E2E-5 관리자 세션", () => {
   test.skip(!DB, "E2E_DB 필요");
 
-  test("잘못된 비밀번호 → 401, 정상 → 로그인·유지·로그아웃 후 차단", async ({ request }) => {
+  test("잘못된 비밀번호 401 → 로그인 → 세션 유지 → 로그아웃 후 차단", async ({ request }) => {
     const bad = await request.post("/api/admin/login", {
       data: { password: "wrong-password" },
     });
@@ -85,25 +111,35 @@ test.describe("E2E-5 관리자 세션", () => {
     });
     expect(ok.status()).toBe(200);
 
-    // 세션 쿠키로 보호 API 접근 (request context 가 쿠키 유지)
-    const stats = await request.get("/api/admin/stats");
-    expect(stats.status()).toBe(200);
+    // 새로고침 시 세션 확인 경로 (쿠키는 request context 가 유지)
+    expect((await request.get("/api/admin/login")).status()).toBe(200);
+    // 보호 API 접근
+    expect((await request.get("/api/admin/stats")).status()).toBe(200);
 
-    const out = await request.post("/api/admin/login", { data: { logout: true } });
-    expect(out.ok()).toBeTruthy();
-    const after = await request.get("/api/admin/stats");
-    expect(after.status()).toBe(401);
+    // 로그아웃(DELETE) → 세션 철회
+    expect((await request.delete("/api/admin/login")).ok()).toBeTruthy();
+    expect((await request.get("/api/admin/login")).status()).toBe(401);
+    expect((await request.get("/api/admin/stats")).status()).toBe(401);
   });
 });
 
 test.describe("E2E-6 체크인 운영 시간", () => {
-  test.skip(!DB, "E2E_DB 필요");
+  test.skip(!DB || !EVENT_KEY, "E2E_DB + CHECKIN_EVENT_KEY 필요");
 
-  test("checkin disabled 상태에서는 공용 검색이 차단된다", async ({ request }) => {
+  test("checkin disabled 상태에서는 올바른 행사 키로도 검색이 차단된다", async ({ request }) => {
+    // 시드 기본값: site_settings.checkin_enabled = false (v24)
     const res = await request.post("/api/checkin/search", {
-      data: { eventKey: process.env.E2E_CHECKIN_EVENT_KEY ?? "", name: "홍길동", last4: "1234" },
+      data: { eventKey: EVENT_KEY, name: "홍길동", last4: "1234" },
     });
-    // 이벤트 키 미설정이면 503, 설정 + disabled 면 결과 코드로 차단
-    expect(res.ok()).toBeFalsy();
+    expect(res.status()).toBe(403);
+    expect((await res.json()).error).toBe("window");
+  });
+
+  test("행사 키가 틀리면 운영 시간과 무관하게 403 event_key", async ({ request }) => {
+    const res = await request.post("/api/checkin/search", {
+      data: { eventKey: "wrong-key", name: "홍길동", last4: "1234" },
+    });
+    expect(res.status()).toBe(403);
+    expect((await res.json()).error).toBe("event_key");
   });
 });
