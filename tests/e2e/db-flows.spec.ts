@@ -111,15 +111,25 @@ test.describe("E2E-5 관리자 세션", () => {
     });
     expect(ok.status()).toBe(200);
 
-    // 새로고침 시 세션 확인 경로 (쿠키는 request context 가 유지)
-    expect((await request.get("/api/admin/login")).status()).toBe(200);
-    // 보호 API 접근
-    expect((await request.get("/api/admin/stats")).status()).toBe(200);
+    // 세션 쿠키는 운영과 동일하게 Secure 로 내려온다 — E2E 는 http 로 접속하므로
+    // 컨텍스트 자동 전송이 안 된다. 쿠키를 직접 추출해 명시 전달한다.
+    const setCookie = ok
+      .headersArray()
+      .filter((h) => h.name.toLowerCase() === "set-cookie")
+      .map((h) => h.value)
+      .join("; ");
+    const m = /admin_session=([0-9a-f]{64})/.exec(setCookie);
+    expect(m).not.toBeNull();
+    const cookie = { cookie: `admin_session=${m![1]}` };
 
-    // 로그아웃(DELETE) → 세션 철회
-    expect((await request.delete("/api/admin/login")).ok()).toBeTruthy();
-    expect((await request.get("/api/admin/login")).status()).toBe(401);
-    expect((await request.get("/api/admin/stats")).status()).toBe(401);
+    // 새로고침 시 세션 확인 경로 + 보호 API 접근
+    expect((await request.get("/api/admin/login", { headers: cookie })).status()).toBe(200);
+    expect((await request.get("/api/admin/stats", { headers: cookie })).status()).toBe(200);
+
+    // 로그아웃(DELETE) → 서버 세션 철회 → 같은 쿠키로도 접근 불가
+    expect((await request.delete("/api/admin/login", { headers: cookie })).ok()).toBeTruthy();
+    expect((await request.get("/api/admin/login", { headers: cookie })).status()).toBe(401);
+    expect((await request.get("/api/admin/stats", { headers: cookie })).status()).toBe(401);
   });
 });
 
