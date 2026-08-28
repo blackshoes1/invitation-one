@@ -14,6 +14,8 @@ const ALLOWED_KEYS = [
   "checkin_enabled",
   "checkin_open_at",
   "checkin_close_at",
+  // P2-1 하객 스냅 전체 공개 스위치 (false = 공개 갤러리 일시중지, 파일 보존)
+  "guest_snap_public",
 ];
 
 /** 콘텐츠 설정 조회 */

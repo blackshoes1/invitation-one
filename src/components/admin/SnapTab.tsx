@@ -9,14 +9,25 @@ export default function SnapTab({ api, setError, setNotice: _setNotice }: TabCtx
   void _setNotice; // TabCtx 시그니처 유지용 (이 탭은 notice 미사용)
   const [snaps, setSnaps] = useState<GuestPhotoAdmin[]>([]);
   const [loading, setLoading] = useState(true);
+  /** P2-1 전체 공개 스위치 — false 면 공개 갤러리 일시중지 (파일 보존, 관리자는 계속 봄) */
+  const [snapPublic, setSnapPublic] = useState<boolean | null>(null);
+  const [switching, setSwitching] = useState(false);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const res = await api("/api/admin/guest-photos");
+        const [res, settingsRes] = await Promise.all([
+          api("/api/admin/guest-photos"),
+          api("/api/admin/settings"),
+        ]);
         const j = await res.json();
         if (alive) setSnaps(res.ok ? j.photos ?? [] : []);
+        if (settingsRes.ok) {
+          const s = (await settingsRes.json()).settings ?? {};
+          // 명시적 false 만 중지 상태 (미설정 = 공개, DB RPC 와 동일 규칙)
+          if (alive) setSnapPublic(!(s.guest_snap_public === false || s.guest_snap_public === "false"));
+        }
       } catch {
         if (alive) setError("하객 스냅을 불러오지 못했습니다.");
       } finally {
@@ -28,6 +39,31 @@ export default function SnapTab({ api, setError, setNotice: _setNotice }: TabCtx
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const togglePublic = async () => {
+    if (snapPublic === null || switching) return;
+    const next = !snapPublic;
+    if (
+      !next &&
+      !confirm(
+        "하객 스냅 공개를 일시중지할까요?\n청첩장·라이브 월에서 사진이 모두 숨겨집니다.\n(파일은 삭제되지 않으며 관리자는 계속 볼 수 있어요)"
+      )
+    )
+      return;
+    setSwitching(true);
+    try {
+      const res = await api("/api/admin/settings", {
+        method: "PUT",
+        body: JSON.stringify({ key: "guest_snap_public", value: next }),
+      });
+      if (res.ok) setSnapPublic(next);
+      else setError("공개 설정 변경에 실패했습니다.");
+    } catch {
+      setError("공개 설정 변경 요청이 실패했습니다.");
+    } finally {
+      setSwitching(false);
+    }
+  };
 
   const toggleSnap = async (id: string, approved: boolean) => {
     try {
@@ -74,6 +110,35 @@ export default function SnapTab({ api, setError, setNotice: _setNotice }: TabCtx
           📺 라이브 월 열기 (스크린용)
         </a>
       </div>
+      {/* P2-1 긴급 모더레이션 — 전체 공개 일시중지 */}
+      {snapPublic !== null && (
+        <div
+          className={`flex items-center justify-between gap-2 border p-3 ${
+            snapPublic ? "bg-white border-wedding-gold/20" : "bg-red-50 border-red-200"
+          }`}
+        >
+          <p className="text-xs text-neutral-600">
+            {snapPublic ? (
+              <>🟢 하객 스냅 공개 중 — 문제가 생기면 즉시 전체 숨김 가능</>
+            ) : (
+              <b className="text-red-600">
+                ⛔ 전체 공개 일시중지됨 — 청첩장·라이브 월에서 숨겨져 있어요
+              </b>
+            )}
+          </p>
+          <button
+            onClick={togglePublic}
+            disabled={switching}
+            className={`shrink-0 px-3 py-1.5 text-xs rounded-full disabled:opacity-60 ${
+              snapPublic
+                ? "border border-red-300 text-red-500 bg-white"
+                : "bg-sage-600 text-white"
+            }`}
+          >
+            {switching ? "변경 중…" : snapPublic ? "전체 공개 중지" : "공개 재개"}
+          </button>
+        </div>
+      )}
       <p className="text-[11px] text-neutral-400 text-center">
         하객이 올린 사진입니다. 부적절한 사진은 숨기거나 삭제하세요. 원본은
         NAS(Cloud Sync)에 자동 보관돼요.
