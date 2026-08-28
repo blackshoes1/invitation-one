@@ -34,3 +34,18 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm test
       - run: npm run build
+      # P1-5 E2E — 방금 빌드한 앱을 next start 로 띄워 검증 (DB 필요 시나리오는 skip)
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+
+  # P1-6 — 빈 DB 에 레거시→마이그레이션 전체 적용 + 권한/시그니처 단언
+  db-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase db start
+      - run: bash scripts/db-verify.sh
