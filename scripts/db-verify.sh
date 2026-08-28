@@ -5,12 +5,15 @@
 #   빈 DB → 레거시(db/*.sql, README 순서) → supabase/migrations 전체
 #   → supabase/tests/permission_check.sql (권한·시그니처 단언)
 #
-# 사용:
-#   supabase db start            # 로컬 Postgres (docker)
+# 사용 (일반 Postgres 컨테이너 — supabase CLI 불필요):
+#   docker run -d -p 54322:5432 -e POSTGRES_PASSWORD=postgres postgres:17
 #   bash scripts/db-verify.sh
 # 환경변수:
-#   DB_URL (기본: supabase db start 의 로컬 주소)
+#   DB_URL (기본: postgresql://postgres:postgres@127.0.0.1:54322/postgres)
 #
+# ※ supabase CLI(supabase db start)는 시작 시 supabase/migrations 를 자동
+#   적용하는데 이 저장소는 레거시(db/*.sql) 선행이 필요해 실패한다 — 그래서
+#   일반 Postgres 에 Supabase 환경(롤·extensions·storage 스텁)을 직접 만든다.
 # ⚠️ 운영 DB 를 향해 실행하지 말 것 — 레거시 스키마 재적용은 새 DB 전용이다.
 # =============================================================================
 set -euo pipefail
@@ -19,16 +22,31 @@ cd "$(dirname "$0")/.."
 DB_URL="${DB_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
 PSQL=(psql "$DB_URL" -v ON_ERROR_STOP=1 -q)
 
-echo "== 사전 준비: storage 스텁·pgcrypto (db-only 스택 대비) =="
+echo "== 사전 준비: Supabase 롤·extensions·storage 스텁 =="
 "${PSQL[@]}" <<'SQL'
--- supabase 'db-only' 스택에는 storage-api 가 없어 storage.buckets 가 없을 수 있다.
--- 레거시 v17/v19 의 insert 를 통과시키기 위한 최소 스텁 (스키마 검증 목적에 충분).
+-- Supabase 가 기본 제공하는 롤 (권한 검증의 주체)
+do $$ begin
+  if not exists (select 1 from pg_roles where rolname = 'anon') then
+    create role anon nologin;
+  end if;
+  if not exists (select 1 from pg_roles where rolname = 'authenticated') then
+    create role authenticated nologin;
+  end if;
+  if not exists (select 1 from pg_roles where rolname = 'service_role') then
+    create role service_role nologin;
+  end if;
+end $$;
+grant usage on schema public to anon, authenticated, service_role;
+
+-- pgcrypto 는 Supabase 처럼 extensions 스키마에
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
+
+-- storage-api 가 없으므로 레거시 v17/v19 의 buckets insert 용 최소 스텁
 create schema if not exists storage;
 create table if not exists storage.buckets (
   id text primary key, name text, public boolean default false
 );
-create schema if not exists extensions;
-create extension if not exists pgcrypto with schema extensions;
 SQL
 
 echo "== 레거시 적용 (supabase/migrations/README.md 순서) =="

@@ -1,3 +1,0 @@
-# Supabase CLI 로컬 스택 최소 설정 — CI(db-verify)·로컬 검증용.
-# 나머지 값은 CLI 기본값 사용. 운영 프로젝트 설정과는 무관하다.
-project_id = "invitation-one"

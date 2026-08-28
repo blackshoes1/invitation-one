@@ -39,13 +39,23 @@ jobs:
       - run: npm run test:e2e
 
   # P1-6 — 빈 DB 에 레거시→마이그레이션 전체 적용 + 권한/시그니처 단언
+  # (supabase CLI 는 시작 시 supabase/migrations 를 자동 적용해 레거시 선행이
+  #  불가능하므로, 일반 postgres 컨테이너 + 스크립트가 롤/스키마를 직접 준비)
   db-verify:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - "54322:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v4
-      - uses: supabase/setup-cli@v1
-        with:
-          version: latest
-      - run: supabase db start
       - run: bash scripts/db-verify.sh
