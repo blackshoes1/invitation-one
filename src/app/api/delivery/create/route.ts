@@ -1,4 +1,6 @@
+import { after } from "next/server";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
+import { drainNotifications } from "@/lib/notifyOutbox";
 import { rateLimitAllow, clientIp } from "@/lib/rateLimit";
 import {
   json,
@@ -92,6 +94,9 @@ export async function POST(req: Request) {
   }>(data);
   if (!row?.participant_id) return json({ error: "server_error" }, 500);
   if (invite) await linkGroupMember(row.participant_id, invite.memberId);
+
+  // P1-4: 응답 후 아웃박스 드레인 (신규 + 재시도 도래분)
+  after(() => void drainNotifications(3).catch(() => {}));
 
   return json({ manage_token: row.manage_token, participant_id: row.participant_id });
 }

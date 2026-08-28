@@ -1,4 +1,6 @@
+import { after } from "next/server";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
+import { drainNotifications } from "@/lib/notifyOutbox";
 import { rateLimitAllow, clientIp } from "@/lib/rateLimit";
 import { json, parseName, parsePhone, parseText, parseUuid, firstRow, rpcErrorCode } from "@/lib/deliveryApi";
 import { isValidAnonAlias } from "@/lib/anonAlias";
@@ -77,6 +79,10 @@ export async function POST(req: Request) {
 
   const row = firstRow<{ participant_id: string; manage_token: string | null }>(data);
   if (!row?.participant_id) return json({ error: "server_error" }, 500);
+  // P1-4: 응답 후 아웃박스 드레인 — 신규 알림 즉시 시도 + 이전 실패분(재시도 도래) 처리.
+  // 트래픽이 있는 한 실패 알림이 다음 신청 시점에 재발송된다 (안전망 cron 은 별도).
+  after(() => void drainNotifications(3).catch(() => {}));
+
   // participant_id(공개 식별자)는 내려주지 않음 — 관리에는 manage_token 만 사용
   return json({ manage_token: row.manage_token });
 }
