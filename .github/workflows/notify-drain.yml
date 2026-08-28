@@ -1,0 +1,39 @@
+# P1-4 알림 아웃박스 안전망 cron (docs/NOTIFICATIONS.md)
+# 무트래픽 상황에서도 실패 알림이 30분 안에 재시도되도록 GET /api/notify 를 호출한다.
+# (주 경로는 신청 API 의 요청 기반 드레인 — 이건 안전망일 뿐이라 지연·중복 무해)
+#
+# - 30분 간격: 비공개 레포 Actions 무료 한도(월 2,000분) 안에서 동작 (월 ~1,440분,
+#   실제로는 런당 수 초 → 분 단위 반올림 기준 최대치)
+# - CRON_SECRET: 저장소 secret + Vercel 환경변수에 같은 값 필요 (미설정 시 skip)
+# - 예식(2026-10) 이후에는 이 워크플로를 비활성화해도 된다
+name: notify-drain
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Drain notification outbox
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET secret 미설정 — skip"
+            exit 0
+          fi
+          code=$(curl -sS -m 30 -o /tmp/out.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            https://kkachi.vercel.app/api/notify)
+          cat /tmp/out.json; echo
+          if [ "$code" = "401" ]; then
+            echo "::warning::Vercel 의 CRON_SECRET 이 저장소 secret 과 다르거나 미설정 (401)"
+            exit 0   # 설정 전 단계에서는 실패로 만들지 않는다
+          fi
+          [ "$code" = "200" ] || { echo "HTTP $code"; exit 1; }

@@ -20,8 +20,12 @@ participants INSERT
    → 트래픽이 있는 한 실패 알림은 다음 신청 시점(실질 수 분~수십 분)에 재발송.
 2. **클라이언트 fire-and-forget** — 기존 `notifyAdmin()` → `POST /api/notify`
    (rate limit 30/10분). 서버 경로의 보조.
-3. **안전망 cron** — `GET /api/notify` (CRON_SECRET Bearer). 현재 `vercel.json`
-   에서 매일 00:00 UTC 1회.
+3. **안전망 cron (2중)**
+   - GitHub Actions `notify-drain.yml`: **30분 간격**으로 `GET /api/notify` 호출.
+     저장소 secret `CRON_SECRET` 은 등록돼 있고, **Vercel 환경변수에 같은 값을
+     넣어야 동작한다** (다르면 401 경고만 내고 skip). 비공개 레포 Actions 무료
+     한도(월 2,000분) 고려해 15분이 아닌 30분 간격. 예식 후 비활성화 가능.
+   - Vercel cron(`vercel.json`): 매일 00:00 UTC 1회 (최후 안전망).
 
 ## cron 주기에 대해
 
