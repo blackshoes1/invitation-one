@@ -22,15 +22,10 @@ cat > supabase/config.toml <<'EOF'
 project_id = "invitation-one-ci"
 EOF
 
-echo "== 2) storage 스텁 (storage-api 를 띄우지 않으므로 레거시 v17/v19 대비) =="
-cat > supabase/migrations/19990101000000_ci_prep.sql <<'EOF'
-create schema if not exists storage;
-create table if not exists storage.buckets (
-  id text primary key, name text, public boolean default false
-);
-EOF
+# (supabase 로컬 DB 이미지에는 storage 스키마·buckets 가 이미 포함돼 있어
+#  별도 스텁이 필요 없다 — 오히려 storage 스키마에 create 권한이 없어 실패함)
 
-echo "== 3) 레거시 → 타임스탬프 사본 (README 순서) =="
+echo "== 2) 레거시 → 타임스탬프 사본 (README 순서) =="
 LEGACY=(
   db/rsvp.sql db/deliveries.sql db/groups.sql db/group_members.sql
   db/v2_updates.sql db/v3_create_delivery.sql db/v4_messages.sql db/v5_rsvp.sql
