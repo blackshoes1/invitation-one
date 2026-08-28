@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+# GITHUB_TOKEN 최소 권한 — 검증만 하므로 읽기면 충분 (branch protection required check 로 사용 가능)
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
