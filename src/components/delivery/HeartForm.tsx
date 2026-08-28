@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import {
   STAMPS,
   INVITATION_KEY,
@@ -68,23 +68,33 @@ export default function HeartForm({
     setError(null);
     setSending(true);
 
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.rpc("send_heart_v2", {
-        p_group_id: group?.id ?? null,
-        p_name: name.trim(),
-        p_region: joinRegion(sido, sub.trim()),
-        p_stamp: stamp,
-        p_message: message.trim() || null,
-        p_phone: phone.trim() || null,
-        p_display_mode: displayMode,
-        p_is_private: isPrivate,
-        p_show_region: showRegion,
-        p_attendance: attendance,
-        p_anon_alias: anonAlias,
-      });
-      if (error) {
+    if (isSupabaseConfigured) {
+      // P1-1: anon RPC 직접 호출 대신 서버 API (검증·rate limit 은 서버가 강제)
+      const res = await fetch("/api/delivery/heart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          groupId: group?.id ?? null,
+          name: name.trim(),
+          sido,
+          sub: sub.trim(),
+          stamp,
+          message: message.trim() || null,
+          phone: phone.trim() || null,
+          displayMode,
+          isPrivate,
+          showRegion,
+          attendance,
+          anonAlias,
+        }),
+      }).catch(() => null);
+      if (!res?.ok) {
         setSending(false);
-        return setError("전송에 실패했어요. 잠시 후 다시 시도해주세요 🛠️");
+        return setError(
+          res?.status === 429
+            ? "요청이 많아요. 잠시 후 다시 시도해주세요 🙏"
+            : "전송에 실패했어요. 잠시 후 다시 시도해주세요 🛠️"
+        );
       }
       notifyAdmin();
     } else {

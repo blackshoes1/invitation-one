@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import type { InvitePrefill } from "@/lib/invite";
 import InvitePhoneBox from "@/components/delivery/InvitePhoneBox";
 import { motion } from "framer-motion";
-import { supabase, isSupabaseConfigured, type GroupOrder } from "@/lib/supabase";
+import { isSupabaseConfigured, type GroupOrder } from "@/lib/supabase";
 import { formatYmdKo, formatPhone, isValidPhone } from "@/lib/wedding";
 import { notifyAdmin } from "@/lib/notify";
 import CompletePage from "@/components/delivery/CompletePage";
@@ -52,17 +52,27 @@ export default function JoinForm({
     setError(null);
     setSending(true);
 
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.rpc("join_delivery_v2", {
-        p_delivery: order.id,
-        p_name: name.trim(),
-        p_phone: useInvitePhone ? "" : phone.trim(),
-        p_convert_token: convertId,
-        p_invite_token: useInvitePhone ? inviteToken : null,
-      });
+    if (isSupabaseConfigured) {
+      // P1-1: 서버 API 경유 (검증·rate limit·초대 그룹 결속은 서버가 강제)
+      const res = await fetch("/api/delivery/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deliveryId: order.id,
+          name: name.trim(),
+          phone: useInvitePhone ? null : phone.trim(),
+          convertToken: convertId,
+          inviteToken: useInvitePhone ? inviteToken : null,
+        }),
+      }).catch(() => null);
       setSending(false);
-      if (error) return setError("합류에 실패했어요. 잠시 후 다시 시도해주세요 🛠️");
-      const row = Array.isArray(data) ? data[0] : data;
+      const row = res ? await res.json().catch(() => null) : null;
+      if (!res?.ok)
+        return setError(
+          res?.status === 429
+            ? "요청이 많아요. 잠시 후 다시 시도해주세요 🙏"
+            : "합류에 실패했어요. 잠시 후 다시 시도해주세요 🛠️"
+        );
       if (row?.result === "dup")
         return setError("이미 이 주문에 함께하고 계세요 😊");
       if (row?.result === "full")

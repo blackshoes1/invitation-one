@@ -146,17 +146,27 @@ export default function DeliveryForm({
   const acceptJoin = async (order: DateOrder) => {
     setSending(true);
     setError(null);
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.rpc("join_delivery_v2", {
-        p_delivery: order.id,
-        p_name: name.trim(),
-        p_phone: useInvitePhone ? "" : phone.trim(),
-        p_convert_token: convertId,
-        p_invite_token: useInvitePhone ? inviteToken : null,
-      });
+    if (isSupabaseConfigured) {
+      // P1-1: 서버 API 경유 (검증·rate limit·초대 그룹 결속은 서버가 강제)
+      const res = await fetch("/api/delivery/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deliveryId: order.id,
+          name: name.trim(),
+          phone: useInvitePhone ? null : phone.trim(),
+          convertToken: convertId,
+          inviteToken: useInvitePhone ? inviteToken : null,
+        }),
+      }).catch(() => null);
       setSending(false);
-      if (error) return setError("합석 처리에 실패했어요. 다시 시도해주세요 🛠️");
-      const row = Array.isArray(data) ? data[0] : data;
+      const row = res ? await res.json().catch(() => null) : null;
+      if (!res?.ok)
+        return setError(
+          res?.status === 429
+            ? "요청이 많아요. 잠시 후 다시 시도해주세요 🙏"
+            : "합석 처리에 실패했어요. 다시 시도해주세요 🛠️"
+        );
       if (row?.result === "dup")
         return setError("이미 이 주문에 함께하고 계세요 😊");
       if (row?.result === "full") {
@@ -184,34 +194,41 @@ export default function DeliveryForm({
     setSending(true);
     setOrderNo(String(booked.size + 1).padStart(3, "0"));
 
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.rpc("create_delivery_v3", {
-        p_group_id: group?.id ?? null,
-        p_name: name.trim(),
-        p_phone: useInvitePhone ? "" : phone.trim(),
-        p_location: location.trim(),
-        p_date: date,
-        p_time: slot,
-        p_message: message.trim() || null,
-        p_convert_token: convertId,
-        p_rider: rider ?? "신랑",
-        p_invite_token: useInvitePhone ? inviteToken : null,
-      });
-      if (error) {
+    if (isSupabaseConfigured) {
+      // P1-1: 서버 API 경유 (검증·rate limit·초대 그룹 결속은 서버가 강제)
+      const res = await fetch("/api/delivery/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          groupId: group?.id ?? null,
+          name: name.trim(),
+          phone: useInvitePhone ? null : phone.trim(),
+          location: location.trim(),
+          date,
+          time: slot,
+          message: message.trim() || null,
+          convertToken: convertId,
+          rider: rider ?? "신랑",
+          inviteToken: useInvitePhone ? inviteToken : null,
+        }),
+      }).catch(() => null);
+      const row = res ? await res.json().catch(() => null) : null;
+      if (!res?.ok) {
         setSending(false);
         setSummary(false);
-        if (error.code === "23505" || error.message.includes("date_taken")) {
+        if (row?.error === "date_taken") {
           setError("앗, 이 날짜는 마감됐어요 😢 다른 날짜를 골라주세요");
           setDate(null);
           setDir(-1);
           setStep(2);
           loadBooked();
+        } else if (res?.status === 429) {
+          setError("요청이 많아요. 잠시 후 다시 시도해주세요 🙏");
         } else {
           setError("주문에 실패했어요. 잠시 후 다시 시도해주세요 🛠️");
         }
         return;
       }
-      const row = Array.isArray(data) ? data[0] : data;
       if (row?.participant_id) {
         setManageToken((row.manage_token as string) ?? null);
         notifyAdmin();
