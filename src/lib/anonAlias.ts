@@ -18,3 +18,19 @@ export function randomAnonAlias(): string {
   const b = ANON_ANIMALS[Math.floor(Math.random() * ANON_ANIMALS.length)];
   return `${a} ${b}`;
 }
+
+/**
+ * 서버 검증 (P1-3): 별명이 정확히 "허용 형용사 + 공백 + 허용 동물" 조합인지 확인.
+ * 두 목록이 single source of truth — 형식 regex 만으로는 임의 한글 문구
+ * ("공짜 쿠폰" 등)가 공개 피드에 노출될 수 있어 조합 자체를 검사한다.
+ * 불일치 시 저장하지 않고 서버(DB _anon_alias)가 결정적 별명을 생성한다.
+ */
+export function isValidAnonAlias(v: unknown): v is string {
+  if (typeof v !== "string") return false;
+  const sp = v.indexOf(" ");
+  if (sp <= 0 || v.indexOf(" ", sp + 1) !== -1) return false;
+  return (
+    ANON_ADJECTIVES.includes(v.slice(0, sp)) &&
+    ANON_ANIMALS.includes(v.slice(sp + 1))
+  );
+}
