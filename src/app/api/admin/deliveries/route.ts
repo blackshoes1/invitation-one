@@ -126,8 +126,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: msg }, { status: 400 });
     }
     const row = (Array.isArray(data) ? data[0] : data) as
-      | { delivery_id: string }
+      | { delivery_id: string; participant_id?: string }
       | undefined;
+    // 관리자가 직접 만든 주문은 본인이 이미 아는 내용이므로 카카오 알림을 보내지 않는다.
+    // (트리거가 적재한 outbox 행을 skipped 로 마킹 — 역할 추론 대신 명시적 처리)
+    if (row?.participant_id) {
+      await supabaseAdmin!
+        .from("notification_outbox")
+        .update({
+          status: "skipped",
+          last_error: "admin_created",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("participant_id", row.participant_id)
+        .eq("status", "pending");
+    }
     return NextResponse.json({ delivery_id: row?.delivery_id ?? null, with_owner: true });
   }
 
