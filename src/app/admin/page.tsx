@@ -220,12 +220,36 @@ export default function AdminPage() {
           <p className="text-[11px] text-center text-sage-500">🔔 카카오 알림 연결됨</p>
         )}
 
-        {notice && (
-          <p className="text-xs text-center text-sage-700 bg-sage-50 py-2 border border-sage-200">
-            {notice}
-          </p>
+        {/* 알림 배너 — 목록을 내려본 상태에서 작업해도 보이도록 화면 상단에 고정.
+            (기존에는 페이지 최상단 고정 위치라 스크롤 후 작업하면 화면 밖이었다) */}
+        {(notice || error) && (
+          <div className="sticky top-2 z-40 space-y-1">
+            {notice && (
+              <p className="flex items-start gap-2 text-xs text-sage-700 bg-sage-50 py-2 px-3 border border-sage-200 shadow-sm">
+                <span className="flex-1">{notice}</span>
+                <button
+                  onClick={() => setNotice(null)}
+                  aria-label="알림 닫기"
+                  className="shrink-0 text-sage-400 leading-none"
+                >
+                  ✕
+                </button>
+              </p>
+            )}
+            {error && (
+              <p className="flex items-start gap-2 text-xs text-red-600 bg-red-50 py-2 px-3 border border-red-200 shadow-sm">
+                <span className="flex-1">⚠️ {error}</span>
+                <button
+                  onClick={() => setError(null)}
+                  aria-label="오류 닫기"
+                  className="shrink-0 text-red-400 leading-none"
+                >
+                  ✕
+                </button>
+              </p>
+            )}
+          </div>
         )}
-        {error && <p className="text-xs text-red-500 text-center">{error}</p>}
         {loading && (
           <p className="text-xs text-neutral-400 text-center">불러오는 중…</p>
         )}

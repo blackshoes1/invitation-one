@@ -41,9 +41,10 @@ export default function OrdersTab({
     gid: string = groupFilter,
     withHidden: boolean = showHidden
   ) => {
+    // ※ 여기서 setError/setNotice(null) 을 하지 않는다 — 작업 성공·실패 메시지를
+    //   띄운 직후 목록을 다시 불러오는 흐름이라, 여기서 지우면 같은 렌더에
+    //   묶여 메시지가 아예 보이지 않는다. 화면 전환·필터 변경 시에만 지운다.
     setLoading(true);
-    setError(null);
-    setNotice(null);
     try {
       const qs = new URLSearchParams();
       if (status !== "전체") qs.set("status", status);
@@ -234,11 +235,15 @@ export default function OrdersTab({
         tab={tab}
         onTabChange={(t) => {
           setTab(t);
+          setError(null);
+          setNotice(null);
           loadOrders(t, groupFilter);
         }}
         groupFilter={groupFilter}
         onGroupChange={(gid) => {
           setGroupFilter(gid);
+          setError(null);
+          setNotice(null);
           loadOrders(tab, gid);
         }}
         groups={groups}
