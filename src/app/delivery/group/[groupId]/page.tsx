@@ -55,7 +55,8 @@ function GroupPageInner() {
   const [group, setGroup] = useState<Group | null | undefined>(undefined);
   const [orders, setOrders] = useState<GroupOrder[]>([]);
   const [ordersLoaded, setOrdersLoaded] = useState(false);
-  const [taken, setTaken] = useState(0);
+  /** 신청 인원 — 아직 못 불러왔으면 null (숫자 튐 방지) */
+  const [taken, setTaken] = useState<number | null>(null);
   const [view, setView] = useState<View>({ kind: "menu" });
 
   const loadOrders = useCallback(async () => {
@@ -89,8 +90,10 @@ function GroupPageInner() {
     };
   }, [slug, loadOrders]);
 
-  const remaining = Math.max(0, DELIVERY_CAPACITY - taken);
-  const closed = remaining <= 0;
+  const seatsLoaded = taken !== null;
+  const remaining = seatsLoaded ? Math.max(0, DELIVERY_CAPACITY - taken) : 0;
+  // 아직 못 불러온 동안에는 마감 화면으로 넘어가지 않는다
+  const closed = seatsLoaded && remaining <= 0;
 
   // 인트로는 세 분기 모두 같은 트리 위치(루트 div 첫 번째 자식)에 두어
   // 로딩 → 본문 전환 시 리마운트 없이 영상이 끊기지 않게 한다.
@@ -143,7 +146,11 @@ function GroupPageInner() {
         </h1>
         <p className="mt-2 text-sm text-neutral-500">
           📦 남은 자리:{" "}
-          <span className="text-delivery font-bold">{remaining}명</span>
+          {seatsLoaded ? (
+            <span className="text-delivery font-bold">{remaining}명</span>
+          ) : (
+            <span className="inline-block w-9 h-3 align-middle rounded-full bg-neutral-200 animate-pulse" />
+          )}
         </p>
       </section>
 

@@ -21,7 +21,8 @@ function DeliveryPageInner() {
   /** 마음배송 → 직접배달 전환으로 들어온 참여자 id (?convert=) */
   const convertId = search.get("convert");
 
-  const [taken, setTaken] = useState(0);
+  /** 신청 인원 — 아직 못 불러왔으면 null (숫자가 0→실제값으로 튀지 않게) */
+  const [taken, setTaken] = useState<number | null>(null);
   const [mode, setMode] = useState<DeliveryMode | null>(
     convertId ? "delivery" : null
   );
@@ -31,12 +32,15 @@ function DeliveryPageInner() {
     (async () => {
       // 남은 자리 = 총 수량 - 직접배달 신청 인원 합계
       const { data } = await supabase!.rpc("get_delivery_guest_count");
+      // 실패하면 null 유지 — 잘못된 숫자를 보여주느니 자리표시자를 유지한다
       if (typeof data === "number") setTaken(data);
     })();
   }, []);
 
-  const remaining = Math.max(0, DELIVERY_CAPACITY - taken);
-  const closed = remaining <= 0;
+  const loaded = taken !== null;
+  const remaining = loaded ? Math.max(0, DELIVERY_CAPACITY - taken) : 0;
+  // 아직 못 불러온 동안에는 마감 화면으로 넘어가지 않는다
+  const closed = loaded && remaining <= 0;
 
   return (
     <div>
@@ -68,7 +72,12 @@ function DeliveryPageInner() {
             ⭐ 신규 오픈 · 무료배송
           </span>
           <span className="text-xs bg-white border border-delivery/15 text-neutral-600 px-3 py-1.5 rounded-full font-medium">
-            📦 남은 자리 {remaining}명
+            📦 남은 자리{" "}
+            {loaded ? (
+              `${remaining}명`
+            ) : (
+              <span className="inline-block w-9 h-3 align-middle rounded-full bg-neutral-200 animate-pulse" />
+            )}
           </span>
         </div>
       </section>
@@ -79,7 +88,7 @@ function DeliveryPageInner() {
         <section className="pb-6">
           {mode === null && (
             <>
-              <RiderProfile deliveredCount={taken} />
+              <RiderProfile deliveredCount={taken ?? undefined} />
               <ReviewStrip />
               <MenuSelect onPick={setMode} />
               <FindOrder />

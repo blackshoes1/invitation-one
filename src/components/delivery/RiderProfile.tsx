@@ -11,15 +11,19 @@ import BikeIcon from "@/components/delivery/BikeIcon";
  *   ※ 주문 건수가 아니다 — 한 주문에 여러 명이 합류하면 인원이 더 많다.
  */
 export default function RiderProfile({
-  deliveredCount = 0,
+  deliveredCount,
 }: {
+  /** 미정(로딩 중)이면 숫자 대신 '…' — 0명 이 먼저 보였다가 바뀌지 않도록 */
   deliveredCount?: number;
 }) {
   // 위트용 지표 — 실제 신청 수(deliveredCount)만 데이터 기반, 나머지는 연출
   const rating = "4.99";
   const stats: { label: string; value: string }[] = [
     // 값이 인원수이므로 단위도 '명' (건으로 쓰면 주문 건수로 오해 — 남은 자리와 같은 기준)
-    { label: "누적 배달", value: `${deliveredCount}명` },
+    {
+      label: "누적 배달",
+      value: deliveredCount == null ? "…" : `${deliveredCount}명`,
+    },
     { label: "재주문률", value: "💯%" },
     { label: "친절 배달", value: "100%" },
   ];
