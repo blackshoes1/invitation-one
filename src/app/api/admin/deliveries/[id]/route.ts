@@ -68,27 +68,27 @@ export async function PATCH(
           { error: "차단된 날짜예요. 캘린더 탭에서 차단을 해제한 뒤 변경하세요." },
           { status: 409 }
         );
-      // 하루 1건 원칙 — 다른 활성 주문과 충돌 검사 (자기 자신 제외)
-      const { data: clash } = await supabaseAdmin!
-        .from("deliveries")
-        .select("id")
-        .eq("date", body.date)
-        .neq("status", "취소")
-        .neq("id", id)
-        .limit(1);
-      if (clash && clash.length > 0)
-        return NextResponse.json(
-          { error: "해당 날짜에 이미 다른 주문이 있어요." },
-          { status: 409 }
-        );
+      // ※ 같은 날짜 중복 주문은 허용된다 (v10_multi_orders 에서 하루 1건 제한 폐지 —
+      //    마감은 blocked_dates 로만 관리). 예전 규칙대로 중복 검사를 하면 같은 날
+      //    다른 주문이 있는 건의 일정 수정이 전부 409 로 막혀 저장이 안 된다.
       patch.date = body.date;
     }
     if (body.time_slot !== undefined) {
       if (!["오전", "오후", "저녁"].includes(body.time_slot))
         return NextResponse.json({ error: "시간대가 올바르지 않습니다." }, { status: 400 });
+      // 날짜를 함께 바꾸지 않으면 기존 날짜 기준으로 검사 (평일에 오전/오후 방지)
+      let effectiveDate = body.date;
+      if (!effectiveDate) {
+        const { data: cur } = await supabaseAdmin!
+          .from("deliveries")
+          .select("date")
+          .eq("id", id)
+          .maybeSingle();
+        effectiveDate = cur?.date as string | undefined;
+      }
       if (
-        body.date &&
-        !slotsForDate(body.date).includes(body.time_slot as TimeSlot)
+        effectiveDate &&
+        !slotsForDate(effectiveDate).includes(body.time_slot as TimeSlot)
       )
         return NextResponse.json(
           { error: "해당 날짜에 선택할 수 없는 시간대예요." },

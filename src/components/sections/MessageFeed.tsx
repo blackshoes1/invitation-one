@@ -16,9 +16,15 @@ export function buildFeed(celebrations: Celebration[]): Celebration[] {
 export default function MessageFeed({
   items,
   highlightId,
+  realNames,
 }: {
   items: Celebration[];
   highlightId?: string | null;
+  /**
+   * 관리자(신랑·신부) 전용 실명 매핑 — 관리자 세션에서만 서버가 내려준다.
+   * 익명·한글자가림으로 공개된 글 옆에 실명을 배지로 덧붙인다 (하객 화면엔 없음).
+   */
+  realNames?: Record<string, { name: string; masked: boolean }> | null;
 }) {
   if (items.length === 0) {
     return (
@@ -48,6 +54,15 @@ export default function MessageFeed({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <p className="text-sm font-medium text-sage-700">{it.name}</p>
+                {/* 관리자만 보이는 실명 (공개 화면에서 가려진 글에만) */}
+                {realNames?.[it.id]?.masked && (
+                  <span
+                    className="text-[10px] px-1.5 py-0.5 rounded-full bg-sage-100 text-sage-700 font-bold"
+                    title="관리자에게만 보이는 실명입니다"
+                  >
+                    🔎 {realNames[it.id].name}
+                  </span>
+                )}
                 {isReview ? (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-delivery/10 text-delivery font-bold">
                     🛵✅ 직접 받음

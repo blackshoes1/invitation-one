@@ -54,6 +54,14 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
   const [mode, setMode] = useState<ViewMode>("messages");
   const [mineId, setMineId] = useState<string | null>(null);
   const [liveToast, setLiveToast] = useState<string | null>(null);
+  /**
+   * 관리자(신랑·신부) 전용 실명 보기 — 관리자 세션이 있을 때만 서버가 내려준다.
+   * 공개 피드는 그대로 마스킹된 채 두고 화면에서만 실명을 덧입힌다.
+   */
+  const [realNames, setRealNames] = useState<Record<
+    string,
+    { name: string; masked: boolean }
+  > | null>(null);
 
   // 최초 로드 + 25초 폴링 (MP-1) — 새 마음/리뷰가 도착하면 지도·피드 갱신 + 토스트
   useEffect(() => {
@@ -103,6 +111,22 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
     return () => {
       alive = false;
       clearInterval(timer);
+    };
+  }, []);
+
+  // 관리자 세션이면 실명 매핑을 받아둔다 (하객은 401 → null 유지)
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/admin/celebrations", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (alive && j?.realNames) setRealNames(j.realNames);
+      })
+      .catch(() => {
+        /* 하객·비로그인 — 무시 */
+      });
+    return () => {
+      alive = false;
     };
   }, []);
 
@@ -195,7 +219,7 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
                   <JourneyMap celebrations={celebrations} highlightId={mineId} />
                 </>
               ) : (
-                <MessageFeed items={feed} highlightId={mineId} />
+                <MessageFeed items={feed} highlightId={mineId} realNames={realNames} />
               )}
             </FadeIn>
           </>

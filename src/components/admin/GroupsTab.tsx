@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Group, GroupMemberRow } from "@/lib/supabase";
 import {
   formatYmdKo,
+  formatPhone,
   slotsForDate,
   DELIVERY_START,
   DELIVERY_END,
@@ -46,6 +47,52 @@ export default function GroupsTab({
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [members, setMembers] = useState<Record<string, GroupMemberRow[]>>({});
   const [newMember, setNewMember] = useState("");
+  /** 그룹 주문 직접 생성 (전화·카톡 접수 대응) — 열려 있는 그룹 id 와 입력값 */
+  const [newOrder, setNewOrder] = useState<{
+    gid: string;
+    date: string;
+    time: string;
+    location: string;
+    rider: string;
+    ownerName: string;
+    ownerPhone: string;
+  } | null>(null);
+  const [creatingOrder, setCreatingOrder] = useState(false);
+
+  const createOrder = async () => {
+    if (!newOrder || creatingOrder) return;
+    if (!newOrder.date) return setError("날짜를 선택해주세요.");
+    if (!newOrder.time) return setError("시간대를 선택해주세요.");
+    if (!newOrder.location.trim()) return setError("배송지를 입력해주세요.");
+    setError(null);
+    setNotice(null);
+    setCreatingOrder(true);
+    try {
+      const res = await api("/api/admin/deliveries", {
+        method: "POST",
+        body: JSON.stringify({
+          group_id: newOrder.gid,
+          date: newOrder.date,
+          time_slot: newOrder.time,
+          location: newOrder.location.trim(),
+          rider: newOrder.rider,
+          owner_name: newOrder.ownerName.trim() || null,
+          owner_phone: newOrder.ownerPhone.trim() || null,
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok) return setError(j.error ?? "주문 생성 실패");
+      setNotice(
+        j.with_owner
+          ? "주문을 만들었어요 🛵 주문 탭·캘린더에서 확인할 수 있어요."
+          : "빈 주문(슬롯)을 만들었어요 — 그룹 페이지에서 멤버가 합류할 수 있어요."
+      );
+      setNewOrder(null);
+      reload();
+    } finally {
+      setCreatingOrder(false);
+    }
+  };
 
   const createGroup = async () => {
     if (!newGroup.trim()) return;
@@ -375,6 +422,31 @@ export default function GroupsTab({
                   📅
                 </button>
                 <button
+                  onClick={() =>
+                    setNewOrder(
+                      newOrder?.gid === g.id
+                        ? null
+                        : {
+                            gid: g.id,
+                            date: g.offer_date ?? "",
+                            time: g.offer_time ?? "",
+                            location: g.offer_location ?? "",
+                            rider: "신랑",
+                            ownerName: "",
+                            ownerPhone: "",
+                          }
+                    )
+                  }
+                  className={`px-3 py-1.5 text-xs border ${
+                    newOrder?.gid === g.id
+                      ? "border-delivery text-delivery bg-delivery/5"
+                      : "border-wedding-gold/30 text-neutral-500"
+                  }`}
+                  title="이 그룹으로 주문 생성"
+                >
+                  🛵+
+                </button>
+                <button
                   onClick={() => renameGroup(g.id, g.name)}
                   className="px-3 py-1.5 text-xs border border-wedding-gold/30 text-neutral-500"
                   title="그룹명 수정"
@@ -395,6 +467,111 @@ export default function GroupsTab({
                 </button>
               </div>
             </div>
+
+            {/* 주문 직접 생성 — 전화·카톡으로 접수한 주문을 관리자가 입력 */}
+            {newOrder?.gid === g.id && (
+              <div className="border-t border-wedding-gold/10 pt-3 space-y-2">
+                <p className="text-[11px] text-neutral-400">
+                  🛵 주문 생성 — 만들면 주문 탭·캘린더에 바로 표시돼요.
+                  대표자를 비우면 빈 주문(슬롯)만 만들어져 그룹 멤버가 합류할 수 있어요.
+                </p>
+                <div className="flex gap-2 flex-wrap">
+                  <input
+                    type="date"
+                    min={DELIVERY_START}
+                    max={DELIVERY_END}
+                    value={newOrder.date}
+                    onChange={(e) => {
+                      const d = e.target.value;
+                      setNewOrder((prev) =>
+                        prev && {
+                          ...prev,
+                          date: d,
+                          time:
+                            d && prev.time && !slotsForDate(d).includes(prev.time as never)
+                              ? ""
+                              : prev.time,
+                        }
+                      );
+                    }}
+                    className="p-2 text-xs border border-wedding-gold/20 bg-white"
+                  />
+                  <select
+                    value={newOrder.time}
+                    onChange={(e) =>
+                      setNewOrder((prev) => prev && { ...prev, time: e.target.value })
+                    }
+                    disabled={!newOrder.date}
+                    className="p-2 text-xs border border-wedding-gold/20 bg-white"
+                  >
+                    <option value="">시간대</option>
+                    {(newOrder.date ? slotsForDate(newOrder.date) : []).map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={newOrder.rider}
+                    onChange={(e) =>
+                      setNewOrder((prev) => prev && { ...prev, rider: e.target.value })
+                    }
+                    className="p-2 text-xs border border-wedding-gold/20 bg-white"
+                  >
+                    <option value="신랑">🛵 신랑</option>
+                    <option value="신부">👰 신부</option>
+                    <option value="신랑+신부">💑 신랑+신부</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={newOrder.location}
+                    onChange={(e) =>
+                      setNewOrder((prev) => prev && { ...prev, location: e.target.value })
+                    }
+                    placeholder="배송지"
+                    className="flex-1 min-w-[140px] p-2 text-xs border border-wedding-gold/20 bg-white"
+                  />
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <input
+                    type="text"
+                    value={newOrder.ownerName}
+                    onChange={(e) =>
+                      setNewOrder((prev) => prev && { ...prev, ownerName: e.target.value })
+                    }
+                    placeholder="대표자 성함 (선택)"
+                    className="flex-1 min-w-[120px] p-2 text-xs border border-wedding-gold/20 bg-white"
+                  />
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    value={newOrder.ownerPhone}
+                    onChange={(e) =>
+                      setNewOrder(
+                        (prev) => prev && { ...prev, ownerPhone: formatPhone(e.target.value) }
+                      )
+                    }
+                    placeholder="대표자 연락처 (선택)"
+                    className="flex-1 min-w-[120px] p-2 text-xs border border-wedding-gold/20 bg-white"
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setNewOrder(null)}
+                    className="px-3 py-1.5 text-xs border border-neutral-300 text-neutral-400"
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={createOrder}
+                    disabled={creatingOrder}
+                    className="px-3 py-1.5 text-xs bg-delivery text-white font-bold disabled:opacity-60"
+                  >
+                    {creatingOrder ? "생성 중…" : "주문 생성"}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* 제안 일정 편집 */}
             {editOffer?.gid === g.id && (
