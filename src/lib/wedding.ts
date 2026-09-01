@@ -220,7 +220,7 @@ export const DELIVERY_START = "2026-07-06";
 export const DELIVERY_END = "2026-10-16";
 
 // 총 자리 수 = 준비한 종이 청첩장 수량 (남은 자리 = 이 값 - 직접배달 신청 인원 합계)
-export const DELIVERY_CAPACITY = 103;
+export const DELIVERY_CAPACITY = 100;
 
 // 완료 화면 "특별한 영상 메시지" (유튜브 비공개 링크). 비어 있으면 '준비 중' 표시.
 export const VIDEO_URL = process.env.NEXT_PUBLIC_VIDEO_URL ?? "";
