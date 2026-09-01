@@ -10,15 +10,20 @@ export default function ScheduleEditor({
   editSched,
   setEditSched,
   onSave,
+  notify,
+  setNotify,
 }: {
   editSched: EditSched;
   setEditSched: Dispatch<SetStateAction<EditSched | null>>;
   onSave: () => void;
+  /** 참여자 변경 안내 문자 발송 여부 (폼에서 직접 선택 — 확인창 사용 안 함) */
+  notify: boolean;
+  setNotify: Dispatch<SetStateAction<boolean>>;
 }) {
   return (
     <div className="border-t border-wedding-gold/10 pt-2.5 space-y-2">
       <p className="text-[10px] text-neutral-400">
-        일정 수정 — 저장 시 참여자 문자 안내 여부를 물어봅니다
+        일정 수정 — 아래 값을 고치고 &lsquo;변경 저장&rsquo;을 누르세요
       </p>
       <div className="flex gap-2 flex-wrap items-center">
         <input
@@ -69,19 +74,31 @@ export default function ScheduleEditor({
           className="flex-1 min-w-[140px] p-2 text-xs border border-wedding-gold/20 bg-white"
         />
       </div>
-      <div className="flex justify-end gap-2">
-        <button
-          onClick={() => setEditSched(null)}
-          className="px-3 py-1.5 text-xs border border-neutral-300 text-neutral-400"
-        >
-          취소
-        </button>
-        <button
-          onClick={onSave}
-          className="px-3 py-1.5 text-xs bg-sage-700 text-white"
-        >
-          변경 저장
-        </button>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        {/* 문자 발송 여부는 확인창(취소=작업 취소로 오해) 대신 여기서 선택 */}
+        <label className="flex items-center gap-1.5 text-[11px] text-neutral-500">
+          <input
+            type="checkbox"
+            checked={notify}
+            onChange={(e) => setNotify(e.target.checked)}
+            className="accent-sage-600"
+          />
+          참여자에게 변경 안내 문자 보내기
+        </label>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setEditSched(null)}
+            className="px-3 py-1.5 text-xs border border-neutral-300 text-neutral-400"
+          >
+            닫기
+          </button>
+          <button
+            onClick={onSave}
+            className="px-3 py-1.5 text-xs bg-sage-700 text-white"
+          >
+            변경 저장
+          </button>
+        </div>
       </div>
     </div>
   );

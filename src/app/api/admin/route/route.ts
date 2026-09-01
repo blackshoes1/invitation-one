@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminGuard } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { venue } from "@/lib/wedding";
+import { deliveryOrigin } from "@/lib/wedding";
 
 const KAKAO_REST = process.env.KAKAO_REST_API_KEY;
 
@@ -50,6 +50,7 @@ export async function GET(req: Request) {
       "id, location, date, time_slot, status, tracking_stage, lat, lng, geo_query, participants!delivery_id(name, phone, is_owner)"
     )
     .in("status", ["대기중", "확정"])
+    .eq("hidden", false) // 숨김 처리한 주문은 경로에서도 제외 (표시 전용 플래그)
     .order("date", { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -88,13 +89,13 @@ export async function GET(req: Request) {
     };
   };
 
-  // 식장 기준 최근접 이웃(greedy)으로 방문 순서 결정
+  // 배달 출발지(강동구) 기준 최근접 이웃(greedy)으로 방문 순서 결정
   const orderStops = (stops: ReturnType<typeof toStop>[]) => {
     const geo = stops.filter((s) => s.lat != null && s.lng != null);
     const noGeo = stops.filter((s) => s.lat == null || s.lng == null);
     const remaining = [...geo];
     const ordered: typeof geo = [];
-    let cur = { lat: venue.lat, lng: venue.lng };
+    let cur = { lat: deliveryOrigin.lat, lng: deliveryOrigin.lng };
     while (remaining.length) {
       let bi = 0;
       let bd = Infinity;
@@ -121,6 +122,10 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     days,
-    origin: { lat: venue.lat, lng: venue.lng, name: venue.name },
+    origin: {
+      lat: deliveryOrigin.lat,
+      lng: deliveryOrigin.lng,
+      name: deliveryOrigin.name,
+    },
   });
 }

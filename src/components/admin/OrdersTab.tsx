@@ -30,11 +30,16 @@ export default function OrdersTab({
   const [mergeSource, setMergeSource] = useState<string | null>(null);
   /** 주문(담당자 신청) 일정 수정 상태 — 그룹 담당자가 신청한 일자·시간·장소 조정 */
   const [editSched, setEditSched] = useState<EditSched | null>(null);
+  /** 일정 변경 시 참여자 안내 문자 발송 여부 (폼 체크박스) */
+  const [notifyOnSchedule, setNotifyOnSchedule] = useState(true);
+  /** 숨김 처리한 주문까지 볼지 (DB 는 보존 — 표시 전용) */
+  const [showHidden, setShowHidden] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const loadOrders = async (
     status: DeliveryStatus | "전체" = tab,
-    gid: string = groupFilter
+    gid: string = groupFilter,
+    withHidden: boolean = showHidden
   ) => {
     setLoading(true);
     setError(null);
@@ -43,6 +48,7 @@ export default function OrdersTab({
       const qs = new URLSearchParams();
       if (status !== "전체") qs.set("status", status);
       if (gid) qs.set("group_id", gid);
+      if (withHidden) qs.set("include_hidden", "1");
       const res = await api(`/api/admin/deliveries?${qs}`);
       if (res.status === 401) return; // api() 가 중앙 처리
       const j = await res.json();
@@ -136,9 +142,7 @@ export default function OrdersTab({
     setError(null);
     setNotice(null);
 
-    const notify = confirm(
-      "일정을 변경합니다.\n참여자에게 변경 안내 문자를 보낼까요?\n(취소를 눌러도 일정은 변경되며 문자만 생략됩니다)"
-    );
+    const notify = notifyOnSchedule;
     const res = await api(`/api/admin/deliveries/${editSched.id}`, {
       method: "PATCH",
       body: JSON.stringify({
@@ -180,7 +184,35 @@ export default function OrdersTab({
     const j = await res.json();
     setMergeSource(null);
     if (!res.ok) return setError(j.error ?? "합치기 실패");
-    setNotice(`참여자 ${j.moved}명을 옮기고 주문을 합쳤어요 🔗`);
+    setNotice(
+      j.deduped > 0
+        ? `참여자 ${j.moved}명을 옮기고 주문을 합쳤어요 🔗 (같은 분 ${j.deduped}명은 한 건으로 정리)`
+        : `참여자 ${j.moved}명을 옮기고 주문을 합쳤어요 🔗`
+    );
+    loadOrders();
+  };
+
+  /** 표시 숨김/복구 — DB 는 그대로 두고 관리자 목록에서만 감춘다 */
+  const toggleHidden = async (id: string, hidden: boolean, active: boolean) => {
+    if (hidden && active && !confirm(
+      "이 주문을 목록에서 숨길까요?\n데이터는 삭제되지 않고 보존되며, '숨김 포함 보기'로 언제든 되돌릴 수 있어요.\n(아직 진행 중인 주문이라 배송경로·캘린더에서도 사라집니다)"
+    ))
+      return;
+    setNotice(null);
+    setError(null);
+    const res = await api(`/api/admin/deliveries/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ hidden }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      return setError(j.error ?? "표시 설정 변경 실패");
+    }
+    setNotice(
+      hidden
+        ? "목록에서 숨겼어요 (데이터는 보존 — '숨김 포함 보기'로 복구 가능)."
+        : "다시 표시했어요."
+    );
     loadOrders();
   };
 
@@ -214,6 +246,19 @@ export default function OrdersTab({
         setSearch={setSearch}
       />
 
+      <label className="flex items-center justify-end gap-1.5 text-[11px] text-neutral-500">
+        <input
+          type="checkbox"
+          checked={showHidden}
+          onChange={(e) => {
+            setShowHidden(e.target.checked);
+            loadOrders(tab, groupFilter, e.target.checked);
+          }}
+          className="accent-sage-600"
+        />
+        숨김 포함 보기
+      </label>
+
       {mergeSource && (
         <p className="text-xs text-center text-delivery bg-delivery/5 border border-delivery/20 py-2">
           🔗 합칠 대상 주문의 [여기로 합치기] 버튼을 눌러주세요
@@ -244,6 +289,9 @@ export default function OrdersTab({
             acting={acting}
             mergeSource={mergeSource}
             setMergeSource={setMergeSource}
+            notify={notifyOnSchedule}
+            setNotify={setNotifyOnSchedule}
+            onToggleHidden={toggleHidden}
             editSched={editSched}
             setEditSched={setEditSched}
             onChangeStatus={changeStatus}

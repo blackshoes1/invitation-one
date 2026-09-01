@@ -21,6 +21,9 @@ export default function OrderCard({
   onChangeStage,
   onMerge,
   onSaveSchedule,
+  notify,
+  setNotify,
+  onToggleHidden,
 }: {
   r: AdminDelivery;
   groupName: (id: string | null) => string;
@@ -33,6 +36,11 @@ export default function OrderCard({
   onChangeStage: (id: string, stage: TrackingStage) => void;
   onMerge: (targetId: string) => void;
   onSaveSchedule: () => void;
+  /** 일정 변경 안내 문자 발송 여부 (ScheduleEditor 체크박스) */
+  notify: boolean;
+  setNotify: Dispatch<SetStateAction<boolean>>;
+  /** 표시 숨김/복구 (DB 보존) */
+  onToggleHidden: (id: string, hidden: boolean, active: boolean) => void;
 }) {
   const nextAction = NEXT_ACTION[r.status];
   const cancelable = r.status !== "취소" && r.status !== "완료";
@@ -176,12 +184,39 @@ export default function OrderCard({
         </div>
       )}
 
+      {/* 표시 숨김 — 데이터는 보존하고 목록에서만 감춘다 (취소 건 정리에 주로 사용) */}
+      <div className="flex justify-end">
+        <button
+          onClick={() =>
+            onToggleHidden(
+              r.id,
+              !r.hidden,
+              r.status === "대기중" || r.status === "확정"
+            )
+          }
+          className={`px-3 py-1.5 text-xs border ${
+            r.hidden
+              ? "border-sage-300 text-sage-600 bg-sage-50"
+              : "border-neutral-300 text-neutral-400"
+          }`}
+          title={
+            r.hidden
+              ? "목록에 다시 표시"
+              : "목록에서 숨기기 (데이터는 삭제되지 않음)"
+          }
+        >
+          {r.hidden ? "👁 다시 표시" : "🙈 숨기기"}
+        </button>
+      </div>
+
       {/* 일정 수정 폼 — 그룹 담당자가 신청한 일자·시간·장소를 관리자가 조정 */}
       {editSched?.id === r.id && (
         <ScheduleEditor
           editSched={editSched}
           setEditSched={setEditSched}
           onSave={onSaveSchedule}
+          notify={notify}
+          setNotify={setNotify}
         />
       )}
 

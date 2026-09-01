@@ -16,6 +16,9 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status"); // 대기중 | 확정 | 완료 | null(전체)
   const groupId = searchParams.get("group_id"); // 그룹 필터 | null(전체)
+  // 숨김 처리한 주문은 기본적으로 제외 (DB 는 보존 — 표시 전용 플래그).
+  // include_hidden=1 이면 숨김 건까지 반환 (주문 탭의 '숨김 포함 보기').
+  const includeHidden = searchParams.get("include_hidden") === "1";
 
   // 참여 시스템: 주문 + 참여자 목록을 함께 조회
   let query = supabaseAdmin!
@@ -24,6 +27,7 @@ export async function GET(req: Request) {
     .order("date", { ascending: true });
   if (status) query = query.eq("status", status);
   if (groupId) query = query.eq("group_id", groupId);
+  if (!includeHidden) query = query.eq("hidden", false);
 
   const { data, error } = await query;
   if (error) {

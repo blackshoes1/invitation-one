@@ -32,6 +32,8 @@ export async function PATCH(
     time_slot?: string;
     location?: string;
     notify?: boolean; // 일정 변경 시 참여자 SMS 안내 여부 (기본 true)
+    /** 표시 전용 숨김 — DB 는 보존하고 관리자 목록에서만 감춘다 */
+    hidden?: boolean;
   };
 
   const patch: {
@@ -40,8 +42,14 @@ export async function PATCH(
     date?: string;
     time_slot?: string;
     location?: string;
+    hidden?: boolean;
     updated_at?: string;
   } = {};
+
+  if (body.hidden !== undefined) {
+    patch.hidden = Boolean(body.hidden);
+    patch.updated_at = new Date().toISOString();
+  }
 
   // ----- 일정 수정 검증 (participant 쪽 reschedule_delivery_v2 와 같은 규칙) -----
   const scheduleChange =

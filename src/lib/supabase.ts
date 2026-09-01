@@ -54,6 +54,8 @@ export interface Delivery {
   review_text: string | null;
   /** 배송기사 (v15) — '신랑' | '신랑+신부' */
   rider?: string;
+  /** 표시 숨김 — DB 는 보존하고 관리자 목록·캘린더·경로에서만 감춘다 */
+  hidden?: boolean;
 }
 
 export type DeliveryInsert = Pick<
