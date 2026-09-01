@@ -25,7 +25,7 @@ export interface RsvpPayload {
 }
 
 export type DeliveryStatus = "대기중" | "확정" | "완료" | "취소";
-export type TimeSlotValue = "오전" | "오후" | "저녁";
+export type TimeSlotValue = "오전" | "점심" | "오후" | "저녁";
 
 /** 배송 추적 4단계 (status 와 별개로 Admin 이 수동 전환) */
 export type TrackingStage = "주문접수" | "준비중" | "배송출발" | "배송완료";

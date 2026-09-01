@@ -344,7 +344,7 @@ export default function DeliveryForm({
             booked={booked}
             onSelect={(d) => {
               setDate(d);
-              // 평일은 저녁만 가능 — 이미 고른 시간대가 안 맞으면 초기화
+              // 요일별 가능 시간대가 다름 — 이미 고른 시간대가 안 맞으면 초기화
               if (slot && !slotsForDate(d).includes(slot)) setSlot(null);
             }}
           />

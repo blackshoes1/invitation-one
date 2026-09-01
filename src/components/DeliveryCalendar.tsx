@@ -24,10 +24,20 @@ export default function DeliveryCalendar({
   /** 과거 날짜 선택 허용 — "내 신청 찾기"처럼 지난 배송일을 조회할 때 사용 */
   allowPast?: boolean;
 }) {
-  const [month, setMonth] = useState(FIRST_MONTH);
   // 마운트 시점 기준 오늘 (모듈 스코프에 두면 탭을 오래 열어두거나
   // 서버 모듈 재사용 시 stale 해지므로 컴포넌트 마운트마다 계산)
   const [todayYmd] = useState(() => toYmd(new Date()));
+  /**
+   * 접속일이 속한 달부터 보여준다 (지난 달을 먼저 띄우면 매번 넘겨야 함).
+   * 배달 기간을 벗어난 시점(기간 전/후)에는 각각 첫 달·마지막 달로 맞춘다.
+   * allowPast(내 신청 찾기)는 과거 조회가 목적이므로 첫 달부터.
+   */
+  const [month, setMonth] = useState(() => {
+    if (allowPast) return FIRST_MONTH;
+    const now = new Date();
+    const m = now.getFullYear() === YEAR ? now.getMonth() : now.getFullYear() < YEAR ? FIRST_MONTH : LAST_MONTH;
+    return Math.min(LAST_MONTH, Math.max(FIRST_MONTH, m));
+  });
 
   const cells = useMemo(() => {
     const offset = new Date(YEAR, month, 1).getDay();

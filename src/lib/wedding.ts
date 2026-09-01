@@ -204,14 +204,15 @@ export const PHOTO_MISSIONS: string[] = [
 ];
 
 /* ------------------ 청첩장 받기(배달 신청) ------------------ */
-export type TimeSlot = "오전" | "오후" | "저녁";
-export const TIME_SLOTS: TimeSlot[] = ["오전", "오후", "저녁"];
+export type TimeSlot = "오전" | "점심" | "오후" | "저녁";
+export const TIME_SLOTS: TimeSlot[] = ["오전", "점심", "오후", "저녁"];
 
-/** 요일별 배송 가능 시간대 — 평일은 저녁만, 주말은 전체 */
+/** 요일별 배송 가능 시간대 — 평일은 점심·저녁, 주말은 오전·오후·저녁 */
 export function slotsForDate(ymd: string): TimeSlot[] {
   const [y, m, d] = ymd.split("-").map(Number);
   const day = new Date(y, m - 1, d).getDay();
-  return day === 0 || day === 6 ? TIME_SLOTS : ["저녁"];
+  // 주말은 낮 시간이 넉넉하고, 평일은 회사 점심시간·퇴근 후만 가능
+  return day === 0 || day === 6 ? ["오전", "오후", "저녁"] : ["점심", "저녁"];
 }
 
 // 배달 신청 가능 기간 (YYYY-MM-DD)

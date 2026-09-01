@@ -6,6 +6,7 @@ import { rotateManageToken, manageUrl } from "@/lib/manageToken";
 import {
   formatYmdKo,
   slotsForDate,
+  TIME_SLOTS,
   DELIVERY_START,
   DELIVERY_END,
 } from "@/lib/wedding";
@@ -82,7 +83,7 @@ export async function PATCH(
       patch.date = body.date;
     }
     if (body.time_slot !== undefined) {
-      if (!["오전", "오후", "저녁"].includes(body.time_slot))
+      if (!TIME_SLOTS.includes(body.time_slot as TimeSlot))
         return NextResponse.json({ error: "시간대가 올바르지 않습니다." }, { status: 400 });
       // 날짜를 함께 바꾸지 않으면 기존 날짜 기준으로 검사 (평일에 오전/오후 방지)
       let effectiveDate = body.date;

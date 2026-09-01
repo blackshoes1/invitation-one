@@ -51,7 +51,7 @@ export default function ReschedulePanel({
       />
       {newDate && slotsForDate(newDate).length === 1 && (
         <p className="text-[11px] text-neutral-400 text-center">
-          평일은 저녁 배달만 가능해요 🌙
+          평일은 점심·저녁에 찾아뵐 수 있어요 🍚🌙
         </p>
       )}
       <div

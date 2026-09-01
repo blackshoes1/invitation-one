@@ -23,7 +23,7 @@ export function parseOffer(body: {
     return { error: "날짜 형식이 올바르지 않습니다." };
   if (date < DELIVERY_START || date > DELIVERY_END)
     return { error: "제안 날짜는 신청 기간(7/6~10/16) 안이어야 합니다." };
-  if (!["오전", "오후", "저녁"].includes(time))
-    return { error: "시간대는 오전/오후/저녁 중 하나여야 합니다." };
+  if (!["오전", "점심", "오후", "저녁"].includes(time))
+    return { error: "시간대는 오전/점심/오후/저녁 중 하나여야 합니다." };
   return { fields: { offer_date: date, offer_time: time, offer_location: location } };
 }

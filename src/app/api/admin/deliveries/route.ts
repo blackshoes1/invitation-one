@@ -3,6 +3,7 @@ import { adminGuard } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   slotsForDate,
+  TIME_SLOTS,
   DELIVERY_START,
   DELIVERY_END,
   isValidPhone,
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
       { status: 400 }
     );
 
-  const slot = ["오전", "오후", "저녁"].includes(String(b.time_slot))
+  const slot = TIME_SLOTS.includes(b.time_slot as TimeSlot)
     ? (b.time_slot as TimeSlot)
     : null;
   if (!slot)

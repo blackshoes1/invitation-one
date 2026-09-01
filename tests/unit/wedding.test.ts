@@ -14,9 +14,9 @@ describe("slotsForDate", () => {
     expect(slotsForDate("2026-08-22")).toEqual(["오전", "오후", "저녁"]); // 토
     expect(slotsForDate("2026-08-23")).toEqual(["오전", "오후", "저녁"]); // 일
   });
-  it("평일은 저녁만", () => {
-    expect(slotsForDate("2026-08-21")).toEqual(["저녁"]); // 금
-    expect(slotsForDate("2026-08-24")).toEqual(["저녁"]); // 월
+  it("평일은 점심·저녁", () => {
+    expect(slotsForDate("2026-08-21")).toEqual(["점심", "저녁"]); // 금
+    expect(slotsForDate("2026-08-24")).toEqual(["점심", "저녁"]); // 월
   });
 });
 

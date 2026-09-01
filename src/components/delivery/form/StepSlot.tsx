@@ -18,11 +18,21 @@ export default function StepSlot({
   return (
     <Q
       title={`${date ? formatYmdKo(date) : ""} 배송 희망 시간대를 골라주세요 ⏰`}
-      sub={visible.length === 1 ? "평일은 저녁 배달만 가능해요 🌙" : undefined}
+      sub={
+        visible.length === 1
+          ? "평일은 저녁 배달만 가능해요 🌙"
+          : visible.some((s) => s.value === "점심")
+            ? "평일은 점심·저녁에 찾아뵐 수 있어요 🍚🌙"
+            : undefined
+      }
     >
       <div
         className={`grid gap-3 ${
-          visible.length === 1 ? "grid-cols-1" : "grid-cols-3"
+          visible.length === 1
+            ? "grid-cols-1"
+            : visible.length === 2
+              ? "grid-cols-2"
+              : "grid-cols-3"
         }`}
       >
         {visible.map((s) => (

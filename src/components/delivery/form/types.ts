@@ -2,6 +2,7 @@ import type { TimeSlot } from "@/lib/wedding";
 
 export const SLOTS: { value: TimeSlot; emoji: string }[] = [
   { value: "오전", emoji: "🌅" },
+  { value: "점심", emoji: "🍚" },
   { value: "오후", emoji: "☀️" },
   { value: "저녁", emoji: "🌙" },
 ];
