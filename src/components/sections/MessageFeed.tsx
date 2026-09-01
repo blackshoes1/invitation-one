@@ -54,15 +54,16 @@ export default function MessageFeed({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <p className="text-sm font-medium text-sage-700">{it.name}</p>
-                {/* 관리자만 보이는 실명 (공개 화면에서 가려진 글에만) */}
-                {realNames?.[it.id]?.masked && (
-                  <span
-                    className="text-[10px] px-1.5 py-0.5 rounded-full bg-sage-100 text-sage-700 font-bold"
-                    title="관리자에게만 보이는 실명입니다"
-                  >
-                    🔎 {realNames[it.id].name}
-                  </span>
-                )}
+                {/* 관리자에게만 보이는 실명 — 공개 이름과 다를 때만 (하객에겐 401 로 아예 내려가지 않음) */}
+                {realNames?.[it.id]?.masked &&
+                  realNames[it.id].name !== it.name && (
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded-full border border-dashed border-sage-400 text-sage-600 font-bold"
+                      title="관리자에게만 보이는 실명입니다 (하객 화면에는 표시되지 않아요)"
+                    >
+                      🔒 {realNames[it.id].name}
+                    </span>
+                  )}
                 {isReview ? (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-delivery/10 text-delivery font-bold">
                     🛵✅ 직접 받음

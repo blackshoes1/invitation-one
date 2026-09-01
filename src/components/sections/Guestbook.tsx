@@ -219,7 +219,15 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
                   <JourneyMap celebrations={celebrations} highlightId={mineId} />
                 </>
               ) : (
-                <MessageFeed items={feed} highlightId={mineId} realNames={realNames} />
+                <>
+                  {realNames && (
+                    <p className="mb-2 text-[11px] text-sage-600 bg-sage-50 border border-dashed border-sage-300 px-3 py-1.5 rounded-sm">
+                      🔒 관리자 모드 — 점선 배지의 실명은 <b>나에게만</b> 보여요
+                      (하객 화면에는 별명만 표시됩니다)
+                    </p>
+                  )}
+                  <MessageFeed items={feed} highlightId={mineId} realNames={realNames} />
+                </>
               )}
             </FadeIn>
           </>
