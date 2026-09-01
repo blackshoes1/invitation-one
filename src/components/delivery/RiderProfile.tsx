@@ -7,7 +7,8 @@ import BikeIcon from "@/components/delivery/BikeIcon";
 /**
  * 라이더 프로필 (DL-2) — 배민 프로필식 위트.
  * 신랑·신부를 "청첩장 전문 라이더"로 소개하는 재미 카드.
- * deliveredCount = 지금까지 직접배달 신청 인원(누적 배달 건수 위트).
+ * deliveredCount = 지금까지 직접배달 신청 "인원" (남은 자리와 같은 기준).
+ *   ※ 주문 건수가 아니다 — 한 주문에 여러 명이 합류하면 인원이 더 많다.
  */
 export default function RiderProfile({
   deliveredCount = 0,
@@ -17,7 +18,8 @@ export default function RiderProfile({
   // 위트용 지표 — 실제 신청 수(deliveredCount)만 데이터 기반, 나머지는 연출
   const rating = "4.99";
   const stats: { label: string; value: string }[] = [
-    { label: "누적 배달", value: `${deliveredCount}건` },
+    // 값이 인원수이므로 단위도 '명' (건으로 쓰면 주문 건수로 오해 — 남은 자리와 같은 기준)
+    { label: "누적 배달", value: `${deliveredCount}명` },
     { label: "재주문률", value: "💯%" },
     { label: "친절 배달", value: "100%" },
   ];
