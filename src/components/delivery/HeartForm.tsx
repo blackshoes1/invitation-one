@@ -187,6 +187,7 @@ export default function HeartForm({
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="이름"
+        aria-label="이름"
         className="dform-input"
       />
 
@@ -212,6 +213,7 @@ export default function HeartForm({
         maxLength={500}
         onChange={(e) => setMessage(e.target.value)}
         placeholder="한마디 (선택)"
+        aria-label="축하 한마디 (선택)"
         className="w-full p-4 rounded-2xl border-2 border-delivery/20 bg-white focus:outline-none focus:border-delivery resize-none h-24 text-base"
       />
 
@@ -320,6 +322,7 @@ export default function HeartForm({
           onKeyDown={(e) => e.key === "Enter" && submit()}
           enterKeyHint="done"
           placeholder="연락처 (선택)"
+          aria-label="연락처 (선택)"
           className="dform-input"
         />
         <p className="text-[11px] text-neutral-400">

@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useId, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { accounts, type Account as Acct } from "@/lib/wedding";
 import FadeIn from "@/components/FadeIn";
@@ -94,30 +93,25 @@ function AccountRow({ acc }: { acc: Acct }) {
         </button>
       </div>
 
-      <AnimatePresence>
-        {toast && (
-          <motion.p
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="text-[11px] text-sage-600 text-center"
-          >
-            {toast}
-          </motion.p>
-        )}
-      </AnimatePresence>
+      {/* 복사 완료 등 짧은 안내 — 스크린리더에도 전달되도록 라이브 영역으로 둔다 */}
+      <p className="text-[11px] text-sage-600 text-center" role="status">
+        {toast && <span className="fade-in-soft inline-block">{toast}</span>}
+      </p>
     </div>
   );
 }
 
 function AccountAccordion({ title, accounts }: { title: string; accounts: Acct[] }) {
   const [open, setOpen] = useState(false);
+  // 펼친 영역과 버튼을 aria-controls 로 이어 준다 (스크린리더가 관계를 읽도록)
+  const panelId = useId();
   return (
     <div className="bg-white border border-wedding-gold/15">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
+        aria-controls={panelId}
         className="w-full px-6 py-4 flex justify-between items-center hover:bg-sage-50 transition-colors text-sm text-sage-700 font-light tracking-widest"
       >
         <span>{title}</span>
@@ -128,23 +122,22 @@ function AccountAccordion({ title, accounts }: { title: string; accounts: Acct[]
           }`}
         />
       </button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="border-t border-wedding-gold/10 bg-sage-50/40 overflow-hidden"
-          >
-            <div className="px-6 py-5 space-y-4 divide-y divide-wedding-gold/10">
-              {accounts.map((acc, i) => (
-                <AccountRow key={i} acc={acc} />
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* grid-template-rows 0fr→1fr 로 높이를 CSS 만으로 부드럽게 펼친다.
+          닫힌 동안에는 hidden 으로 스크린리더·탭 이동에서도 빠진다. */}
+      <div
+        id={panelId}
+        className={`collapsible border-t border-wedding-gold/10 bg-sage-50/40 ${
+          open ? "" : "collapsible-closed"
+        }`}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="px-6 py-5 space-y-4 divide-y divide-wedding-gold/10">
+            {accounts.map((acc, i) => (
+              <AccountRow key={i} acc={acc} />
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

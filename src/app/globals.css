@@ -55,6 +55,138 @@ html {
   scroll-behavior: smooth;
 }
 
+/* === 접근성: 키보드 포커스 표시 =========================================
+   각 입력창이 outline: none 으로 브라우저 기본 포커스 링을 지우고 테두리 색만
+   바꾸는데, 색 변화만으로는 키보드 사용자가 현재 위치를 알기 어렵다 (WCAG 2.4.7).
+   :focus-visible 은 키보드 탐색에만 걸리므로 마우스·터치 사용자의 화면은 그대로다.
+
+   ⚠︎ 이 규칙은 반드시 @layer 밖(= 이 파일의 평범한 위치)에 있어야 한다. 레이어에
+   속하지 않은 CSS 는 명시도와 무관하게 레이어 안의 CSS 를 이긴다. 코드 곳곳의
+   focus:outline-none(Tailwind utilities 레이어)을 덮어 쓰는 근거가 바로 이것이라,
+   이 블록을 @layer 안으로 옮기면 포커스 표시가 조용히 사라진다. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-sage-600);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+/* 배달앱(민트) 영역은 팔레트에 맞춰 링 색만 교체 — .delivery-scroll 은 /delivery 레이아웃 래퍼 */
+.delivery-scroll :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline-color: var(--color-delivery-mint);
+}
+
+/* === 접근성: 모션 최소화 =================================================
+   전정기관 장애·멀미 민감 사용자를 위해 OS 의 "동작 줄이기" 설정을 존중한다
+   (WCAG 2.3.3). 애니메이션을 없애는 대신 사실상 즉시 끝나게 만들어,
+   완료 콜백(onAnimationComplete 등)에 의존하는 로직이 깨지지 않게 한다. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* === 모션 프리미티브 ======================================================
+   애니메이션 라이브러리 없이 청첩장의 등장 연출을 처리한다. 위의
+   prefers-reduced-motion 규칙이 transition/animation 시간을 0 으로 만들기 때문에
+   "동작 줄이기" 설정은 여기서 따로 분기하지 않아도 자동으로 존중된다. */
+
+/* 스크롤 진입 시 떠오르는 래퍼 (FadeIn.tsx) */
+.reveal {
+  opacity: 0;
+  transform: translateY(var(--reveal-y, 28px));
+  transition:
+    opacity 0.8s ease-out,
+    transform 0.8s ease-out;
+  transition-delay: var(--reveal-delay, 0s);
+  will-change: opacity, transform;
+}
+.reveal.is-in {
+  opacity: 1;
+  transform: none;
+  /* 등장이 끝나면 합성 레이어를 반납한다 — 긴 페이지에서 메모리 낭비 방지 */
+  will-change: auto;
+}
+
+/* 첫 화면 진입 연출 (Hero) — 스크롤과 무관하게 로드 직후 재생 */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rise-in {
+  animation: rise-in 1s ease-out both;
+  animation-delay: var(--rise-delay, 0s);
+}
+
+/* 짧은 안내 문구가 스르륵 나타나는 연출 (복사 완료 토스트 등) */
+@keyframes fade-in-soft {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.fade-in-soft {
+  animation: fade-in-soft 0.25s ease-out both;
+}
+
+/* 모달 카드가 살짝 커지며 올라오는 연출 */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.pop-in {
+  animation: pop-in 0.22s ease-out both;
+}
+
+/* 아코디언 — grid 행 높이를 0fr↔1fr 로 전환해 JS 없이 높이를 애니메이션한다.
+   닫힌 상태에서는 visibility: hidden 이 되어 탭 이동·스크린리더에서도 빠진다
+   (overflow: hidden 만으로는 화면 밖에 있을 뿐 여전히 포커스가 들어간다). */
+.collapsible {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows 0.3s ease-in-out,
+    opacity 0.3s ease-in-out,
+    visibility 0.3s;
+}
+.collapsible-closed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  border-top-color: transparent;
+}
+
+/* 겹쳐 놓은 사진을 서로 교차 페이드 (Gallery) */
+.crossfade {
+  opacity: 0;
+  transition: opacity 0.6s ease-out;
+}
+.crossfade[data-active="true"] {
+  opacity: 1;
+}
+
 /* 스크롤바 숨김 (세로 스와이프 패널용) */
 .hide-scrollbar {
   scrollbar-width: none;

@@ -75,8 +75,10 @@
 | FD-6 | 카카오 지도 도메인 등록 (kkachi.vercel.app, 콘솔) | P0 | S | ✅ 완료 (운영 지도 렌더 확인) |
 | FD-2 | 카카오톡 공유 버튼 (JS SDK 피드 카드) | P1 | M | ✅ 완료 |
 | FD-3 | apple-touch-icon(모노그램) · theme-color | P1 | S | ✅ 완료 |
-| FD-4 | 이미지 lazy-load · 최적화 | P1 | S | ✅ 완료 |
+| FD-4 | 이미지 lazy-load · 최적화 | P1 | S | ✅ 완료 (히어로·갤러리·앨범·근황·라이트박스 전부 `next/image` AVIF 경유) |
 | FD-5 | 배경음악(BGM) 토글 (BgmToggle · `NEXT_PUBLIC_BGM_URL` 지정 시 노출) | P2 | S | ✅ 완료 (음원 투입 대기) |
+| FD-7 | 접근성 — 모션 최소화 존중 · 포커스 표시 · h1 · 폼 라벨 · 슬라이드 정지 | P1 | M | ✅ 완료 |
+| FD-8 | 청첩장 첫 화면 JS 감량 (애니메이션 라이브러리 제거 → CSS) | P1 | M | ✅ 완료 (313→268KB gz) |
 
 ---
 
