@@ -49,6 +49,86 @@ export async function GET(req: Request) {
  */
 const RIDERS = ["신랑", "신부", "신랑+신부"] as const;
 
+/**
+ * 그룹 명단(group_members) 전원을 이 주문의 참여자로 등록 (관리자 일괄 신청 처리).
+ * 이미 신청한 사람은 건너뛴다:
+ *  - 이 주문에 이미 같은 이름의 참여자가 있음 (대표자 등)
+ *  - 명단 연결(group_member_id)로 이미 참여자가 있음 (본인이 직접 신청)
+ *  - 같은 그룹의 취소되지 않은 주문에 같은 이름의 참여자가 있음 (연결 이전 신청분)
+ * 관리자가 만든 건이므로 카카오 알림은 보내지 않는다 (트리거가 적재한 outbox 행을 skipped 로 마킹).
+ * 합석 정원(10명)은 하객 합류 규칙이라 관리자 일괄 등록에는 적용하지 않는다.
+ */
+async function addRosterParticipants(
+  deliveryId: string,
+  groupId: string
+): Promise<{ added: number; skipped: number }> {
+  const sb = supabaseAdmin!;
+  const { data: roster } = await sb
+    .from("group_members")
+    .select("id, name, phone")
+    .eq("group_id", groupId)
+    .order("created_at", { ascending: true });
+  if (!roster?.length) return { added: 0, skipped: 0 };
+
+  const [{ data: onOrder }, { data: linked }, { data: inGroup }] = await Promise.all([
+    sb.from("participants").select("name").eq("delivery_id", deliveryId),
+    sb
+      .from("participants")
+      .select("group_member_id")
+      .in(
+        "group_member_id",
+        roster.map((m) => m.id)
+      ),
+    sb
+      .from("participants")
+      .select("name, deliveries!inner(status)")
+      .eq("group_id", groupId)
+      .neq("deliveries.status", "취소"),
+  ]);
+
+  const norm = (v: string) => v.trim();
+  const taken = new Set<string>((onOrder ?? []).map((p) => norm(p.name as string)));
+  for (const p of inGroup ?? []) taken.add(norm(p.name as string));
+  const linkedIds = new Set<string>(
+    (linked ?? []).map((p) => p.group_member_id as string).filter(Boolean)
+  );
+
+  const rows = roster
+    .filter((m) => !linkedIds.has(m.id) && !taken.has(norm(m.name)))
+    .map((m) => ({
+      delivery_id: deliveryId,
+      group_id: groupId,
+      type: "직접배달",
+      name: norm(m.name),
+      phone: m.phone ?? null,
+      is_owner: false,
+      group_member_id: m.id,
+    }));
+  if (rows.length === 0) return { added: 0, skipped: roster.length };
+
+  const { data: inserted, error } = await sb
+    .from("participants")
+    .insert(rows)
+    .select("id");
+  if (error) {
+    console.error("[admin/deliveries] 명단 일괄 등록 실패:", error.message);
+    return { added: 0, skipped: roster.length };
+  }
+  const ids = (inserted ?? []).map((p) => p.id as string);
+  if (ids.length > 0) {
+    await sb
+      .from("notification_outbox")
+      .update({
+        status: "skipped",
+        last_error: "admin_created",
+        updated_at: new Date().toISOString(),
+      })
+      .in("participant_id", ids)
+      .eq("status", "pending");
+  }
+  return { added: rows.length, skipped: roster.length - rows.length };
+}
+
 export async function POST(req: Request) {
   const bad = await adminGuard(req);
   if (bad) return bad;
@@ -92,6 +172,8 @@ export async function POST(req: Request) {
     );
 
   const groupId = typeof b.group_id === "string" && b.group_id ? b.group_id : null;
+  // 그룹 주문이면 명단 전원을 신청 처리 (기본 동작 — 체크 해제 시 대표자만)
+  const includeRoster = Boolean(groupId) && b.include_roster !== false;
   const rider = RIDERS.includes(b.rider as never) ? (b.rider as string) : "신랑";
   const message = String(b.message ?? "").trim().slice(0, 300) || null;
   const ownerName = String(b.owner_name ?? "").trim().slice(0, 40);
@@ -141,7 +223,16 @@ export async function POST(req: Request) {
         .eq("participant_id", row.participant_id)
         .eq("status", "pending");
     }
-    return NextResponse.json({ delivery_id: row?.delivery_id ?? null, with_owner: true });
+    const roster =
+      includeRoster && row?.delivery_id
+        ? await addRosterParticipants(row.delivery_id, groupId!)
+        : { added: 0, skipped: 0 };
+    return NextResponse.json({
+      delivery_id: row?.delivery_id ?? null,
+      with_owner: true,
+      roster_added: roster.added,
+      roster_skipped: roster.skipped,
+    });
   }
 
   // 대표자 없음 → 빈 주문(슬롯)만 생성. 그룹 멤버가 나중에 합류.
@@ -158,5 +249,13 @@ export async function POST(req: Request) {
     .select("id")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ delivery_id: data.id, with_owner: false });
+  const roster = includeRoster
+    ? await addRosterParticipants(data.id, groupId!)
+    : { added: 0, skipped: 0 };
+  return NextResponse.json({
+    delivery_id: data.id,
+    with_owner: false,
+    roster_added: roster.added,
+    roster_skipped: roster.skipped,
+  });
 }

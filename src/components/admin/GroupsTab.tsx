@@ -56,6 +56,8 @@ export default function GroupsTab({
     rider: string;
     ownerName: string;
     ownerPhone: string;
+    /** 명단 전원을 이 주문에 신청 처리 (기본 켜짐) */
+    includeRoster: boolean;
   } | null>(null);
   const [creatingOrder, setCreatingOrder] = useState(false);
 
@@ -78,14 +80,25 @@ export default function GroupsTab({
           rider: newOrder.rider,
           owner_name: newOrder.ownerName.trim() || null,
           owner_phone: newOrder.ownerPhone.trim() || null,
+          include_roster: newOrder.includeRoster,
         }),
       });
       const j = await res.json();
       if (!res.ok) return setError(j.error ?? "주문 생성 실패");
+      const added = Number(j.roster_added ?? 0);
+      const skipped = Number(j.roster_skipped ?? 0);
+      const rosterMsg = newOrder.includeRoster
+        ? added > 0
+          ? ` 명단 ${added}명을 신청 처리했어요${skipped > 0 ? ` (이미 신청 ${skipped}명 제외)` : ""}.`
+          : skipped > 0
+            ? " 명단은 모두 이미 신청돼 있어요."
+            : ""
+        : "";
       setNotice(
-        j.with_owner
+        (j.with_owner
           ? "주문을 만들었어요 🛵 주문 탭·캘린더에서 확인할 수 있어요."
-          : "빈 주문(슬롯)을 만들었어요 — 그룹 페이지에서 멤버가 합류할 수 있어요."
+          : "빈 주문(슬롯)을 만들었어요 — 그룹 페이지에서 멤버가 합류할 수 있어요.") +
+          rosterMsg
       );
       setNewOrder(null);
       reload();
@@ -469,6 +482,7 @@ export default function GroupsTab({
                             rider: "신랑",
                             ownerName: "",
                             ownerPhone: "",
+                            includeRoster: true,
                           }
                     )
                   }
@@ -510,6 +524,22 @@ export default function GroupsTab({
                   🛵 주문 생성 — 만들면 주문 탭·캘린더에 바로 표시돼요.
                   대표자를 비우면 빈 주문(슬롯)만 만들어져 그룹 멤버가 합류할 수 있어요.
                 </p>
+                <label className="flex items-start gap-2 text-[11px] text-neutral-500">
+                  <input
+                    type="checkbox"
+                    checked={newOrder.includeRoster}
+                    onChange={(e) =>
+                      setNewOrder(
+                        (prev) => prev && { ...prev, includeRoster: e.target.checked }
+                      )
+                    }
+                    className="mt-0.5"
+                  />
+                  <span>
+                    명단({members[g.id]?.length ?? g.roster_count ?? 0}명) 전원을 이 주문에
+                    신청 처리 — 이미 신청한 사람은 자동으로 빠지고, 남은 자리 수에 반영돼요
+                  </span>
+                </label>
                 <div className="flex gap-2 flex-wrap">
                   <input
                     type="date"

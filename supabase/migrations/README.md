@@ -33,6 +33,7 @@ db/rsvp.sql → db/deliveries.sql → db/groups.sql → db/group_members.sql
 | `20260821000300_group_member_invites.sql` | 개인 초대 링크 — `group_members.phone/invite_token_hash/invited_at`, `_invite_phone()`, `create_delivery_v3`·`join_delivery_v2`·`accept_group_offer_v2` 에 `p_invite_token` 추가(구 시그니처 drop 후 재생성, 기존 호출 호환) |
 | `20260822000100_heart_privacy.sql` | 마음배송 공개 설정(`display_mode/is_private/show_region`)·참석 여부(`attendance`), `_mask_name()`, `get_celebrations` 마스킹/비공개 제외, `send_heart_v2` 인자 추가(구 시그니처 drop 후 재생성) — 기존 마음배송 행은 `name` 유지 |
 | `20260823000100_anon_alias.sql` | 익명 별명(`participants.anon_alias`, `_anon_alias()`), 기존 마음배송 전부 익명 전환, `get_celebrations` 별명 표시, `send_heart_v2` 에 `p_anon_alias` 추가 |
+| `20260905000100_participant_phone_optional.sql` | 관리자 일괄 신청 처리용 — `participants_delivery_shape` 에서 직접배달 phone 필수 조건 제거 (delivery_id 필수는 유지) |
 
 ## 적용 확인
 
