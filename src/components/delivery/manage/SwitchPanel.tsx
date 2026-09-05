@@ -41,7 +41,7 @@ export default function SwitchPanel({
                 {extra > 0 ? ` 외 ${extra}명` : ""}
               </span>
             </p>
-            <p className="text-xs text-neutral-400 mt-1">
+            <p className="text-xs text-neutral-500 mt-1">
               참여: {o.member_names.join(", ")}
             </p>
           </button>

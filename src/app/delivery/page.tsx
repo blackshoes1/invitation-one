@@ -103,7 +103,7 @@ function DeliveryPageInner() {
       </section>
 
       {!inviteReady ? (
-        <div className="h-[40vh] flex items-center justify-center text-neutral-400 text-sm">
+        <div className="h-[40vh] flex items-center justify-center text-neutral-500 text-sm">
           불러오는 중…
         </div>
       ) : closed ? (
@@ -123,7 +123,7 @@ function DeliveryPageInner() {
             <div className="max-w-md mx-auto px-5">
               <button
                 onClick={() => setMode(null)}
-                className="text-xs text-neutral-400 mb-1"
+                className="text-xs text-neutral-500 mb-1"
               >
                 ← 메뉴로 돌아가기
               </button>
@@ -147,7 +147,7 @@ function DeliveryPageInner() {
 
       <Faq />
 
-      <footer className="text-center text-[11px] text-neutral-400 pb-8">
+      <footer className="text-center text-[11px] text-neutral-500 pb-8">
         청첩장배달 🛵 · {groom.name} ♥ {bride.name}
       </footer>
     </div>
@@ -158,7 +158,7 @@ export default function DeliveryPage() {
   return (
     <Suspense
       fallback={
-        <div className="h-[60vh] flex items-center justify-center text-neutral-400 text-sm">
+        <div className="h-[60vh] flex items-center justify-center text-neutral-500 text-sm">
           불러오는 중…
         </div>
       }

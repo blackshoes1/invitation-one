@@ -228,7 +228,7 @@ export default function CompletePage({
         <TrackingView stage="주문접수" />
       </div>
 
-      <p className="mt-5 text-xs text-neutral-400 leading-relaxed">
+      <p className="mt-5 text-xs text-neutral-500 leading-relaxed">
         배송기사가 직접 찾아갑니다 🛵
         <br />
         곧 연락드릴게요!
@@ -242,7 +242,7 @@ export default function CompletePage({
         >
           주문서 이미지로 저장 📸
         </button>
-        {saveMsg && <p className="text-[11px] text-neutral-400">{saveMsg}</p>}
+        {saveMsg && <p className="text-[11px] text-neutral-500">{saveMsg}</p>}
         <button
           type="button"
           onClick={share}
@@ -250,7 +250,7 @@ export default function CompletePage({
         >
           “나 청첩장 배송 신청했다 🛵” 단톡방에 공유
         </button>
-        {shareMsg && <p className="text-[11px] text-neutral-400">{shareMsg}</p>}
+        {shareMsg && <p className="text-[11px] text-neutral-500">{shareMsg}</p>}
         {manageToken && (
           <Link
             href={`/delivery/manage/${manageToken}`}
@@ -278,7 +278,7 @@ export default function CompletePage({
             영상 보기 ▶
           </a>
         ) : (
-          <p className="text-[11px] text-neutral-400 py-2">영상 준비 중이에요 🎬</p>
+          <p className="text-[11px] text-neutral-500 py-2">영상 준비 중이에요 🎬</p>
         )}
       </div>
 
@@ -305,7 +305,7 @@ function Row({
 }) {
   return (
     <div className="flex justify-between gap-3">
-      <span className="text-neutral-400">{label}</span>
+      <span className="text-neutral-500">{label}</span>
       <span
         className={`text-right ${
           highlight ? "text-delivery font-bold" : "text-neutral-700 font-medium"

@@ -19,7 +19,7 @@ export default function StepIndicator({
         <span className="text-xs font-bold text-delivery">
           주문서 작성 중… 🧾
         </span>
-        <span className="text-xs text-neutral-400">
+        <span className="text-xs text-neutral-500">
           {current + 1} / {total}
         </span>
       </div>
@@ -52,7 +52,7 @@ export default function StepIndicator({
               </div>
               <span
                 className={`text-[9px] ${
-                  active ? "text-delivery font-bold" : "text-neutral-400"
+                  active ? "text-delivery font-bold" : "text-neutral-500"
                 }`}
               >
                 {label}

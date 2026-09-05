@@ -83,7 +83,7 @@ export default function DeliveryCalendar({
         {WEEK.map((w, i) => (
           <div
             key={w}
-            className={`text-[10px] py-1 ${i === 0 ? "text-red-400" : "text-neutral-400"}`}
+            className={`text-[10px] py-1 ${i === 0 ? "text-red-400" : "text-neutral-500"}`}
           >
             {w}
           </div>
@@ -106,7 +106,9 @@ export default function DeliveryCalendar({
                     isSel
                       ? selectedClass
                       : isBooked
-                      ? "text-neutral-300 line-through"
+                      ? // 마감된 날짜도 여전히 누를 수 있는 버튼이다 — 어느 날이
+                        // 마감인지 읽히려면 취소선만으로는 부족하다
+                        "text-neutral-500 line-through"
                       : disabled
                       ? "text-neutral-200"
                       : "text-sage-700 hover:bg-sage-50"
@@ -120,7 +122,7 @@ export default function DeliveryCalendar({
         )}
       </div>
 
-      <p className="text-[10px] text-neutral-400 mt-3 text-center tracking-wide">
+      <p className="text-[10px] text-neutral-500 mt-3 text-center tracking-wide">
         취소선 표시된 날짜는 이미 신청되었습니다.
       </p>
     </div>

@@ -116,7 +116,7 @@ export default function JoinForm({
           <br />
           합류할게요 ➕
         </h2>
-        <p className="text-sm text-neutral-400">
+        <p className="text-sm text-neutral-500">
           {owner}
           {others > 1 ? `님 외 ${others - 1}명` : "님"}과 함께 받아요
         </p>

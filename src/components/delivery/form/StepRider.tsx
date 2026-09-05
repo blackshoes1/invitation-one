@@ -32,7 +32,7 @@ export default function StepRider({
             <span className="text-sm font-bold">{r.value}</span>
             <span
               className={`text-[11px] ${
-                rider === r.value ? "text-white/80" : "text-neutral-400"
+                rider === r.value ? "text-white/80" : "text-neutral-500"
               }`}
             >
               {r.desc}

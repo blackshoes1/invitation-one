@@ -41,7 +41,7 @@ export default function WaitingList() {
       <div className="text-center space-y-2 py-6">
         <div className="text-4xl">📝</div>
         <p className="font-bold text-neutral-800">대기자 명단에 등록됐어요!</p>
-        <p className="text-xs text-neutral-400">
+        <p className="text-xs text-neutral-500">
           취소 자리가 생기면 순서대로 연락드릴게요 🛵
         </p>
       </div>

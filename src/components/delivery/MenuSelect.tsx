@@ -35,13 +35,13 @@ export default function MenuSelect({
         <span className="text-2xl">💌</span>
         <span>
           <span className="block font-bold text-neutral-700">축하 한마디만 남기기</span>
-          <span className="block text-xs text-neutral-400">
+          <span className="block text-xs text-neutral-500">
             종이 청첩장은 안 받고 축하만 남길게요 (마음 배송 💌)
           </span>
         </span>
       </button>
 
-      <p className="text-center text-[11px] text-neutral-400 leading-relaxed">
+      <p className="text-center text-[11px] text-neutral-500 leading-relaxed">
         결혼식 참석 여부와는 상관없어요 🙂
         <br />
         어느 쪽을 고르셔도 식장에서 뵈면 더 좋아요

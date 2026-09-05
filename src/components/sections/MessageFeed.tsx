@@ -28,7 +28,7 @@ export default function MessageFeed({
 }) {
   if (items.length === 0) {
     return (
-      <p className="text-sm text-neutral-400 py-8 text-center">
+      <p className="text-sm text-neutral-500 py-8 text-center">
         가장 먼저 축하 마음을 남겨주세요 💐
       </p>
     );
@@ -74,7 +74,7 @@ export default function MessageFeed({
                   </span>
                 )}
                 {!isReview && it.area && (
-                  <span className="text-[10px] text-neutral-400">({it.area})</span>
+                  <span className="text-[10px] text-neutral-500">({it.area})</span>
                 )}
                 {mine && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sage-600 text-white">

@@ -54,7 +54,7 @@ export default function CancelChangeForm({ token }: { token: string }) {
 
   if (detail === undefined)
     return (
-      <div className="h-[50vh] flex items-center justify-center text-sm text-neutral-400">
+      <div className="h-[50vh] flex items-center justify-center text-sm text-neutral-500">
         불러오는 중…
       </div>
     );
@@ -97,7 +97,7 @@ export default function CancelChangeForm({ token }: { token: string }) {
         {result === "left" ? (
           <Link
             href="/delivery"
-            className="mt-2 text-sm text-neutral-400 underline underline-offset-2"
+            className="mt-2 text-sm text-neutral-500 underline underline-offset-2"
           >
             🛵 배달 메인으로
           </Link>

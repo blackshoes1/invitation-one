@@ -33,7 +33,7 @@ export default function ReviewBlock({
             “{done ? reviewText : alreadyText}”
           </p>
         )}
-        <p className="text-[11px] text-neutral-400">
+        <p className="text-[11px] text-neutral-500">
           남겨주신 후기는 청첩장에 소개돼요 💝
         </p>
       </div>
@@ -46,7 +46,7 @@ export default function ReviewBlock({
         <p className="text-sm font-extrabold text-neutral-800">
           청첩장은 만족스러우셨나요?
         </p>
-        <p className="text-[11px] text-neutral-400">별점을 남겨주시면 큰 힘이 돼요</p>
+        <p className="text-[11px] text-neutral-500">별점을 남겨주시면 큰 힘이 돼요</p>
       </div>
 
       <div className="flex justify-center gap-1.5">
@@ -73,7 +73,7 @@ export default function ReviewBlock({
           rows={2}
           className="w-full rounded-xl border border-delivery/20 px-3 py-2.5 text-base resize-none focus:outline-none focus:border-delivery"
         />
-        <p className="text-right text-[10px] text-neutral-300">
+        <p className="text-right text-[10px] text-neutral-500">
           {reviewText.length}/100
         </p>
       </div>

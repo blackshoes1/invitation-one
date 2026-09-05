@@ -101,7 +101,7 @@ function GroupPageInner() {
     return (
       <div>
         <IntroAnimation />
-        <div className="h-[60vh] flex items-center justify-center text-neutral-400 text-sm">
+        <div className="h-[60vh] flex items-center justify-center text-neutral-500 text-sm">
           불러오는 중…
         </div>
       </div>
@@ -115,7 +115,7 @@ function GroupPageInner() {
         <div className="h-[70vh] flex flex-col items-center justify-center text-center px-8 gap-3">
           <div className="text-5xl">🔍</div>
           <p className="font-bold text-neutral-700">그룹을 찾을 수 없어요</p>
-          <p className="text-xs text-neutral-400">링크를 다시 확인해 주세요.</p>
+          <p className="text-xs text-neutral-500">링크를 다시 확인해 주세요.</p>
           <Link
             href="/delivery"
             className="mt-3 px-5 py-2.5 rounded-full bg-delivery text-white text-sm font-bold"
@@ -199,7 +199,7 @@ function GroupPageInner() {
             <div className="max-w-md mx-auto px-5">
               <button
                 onClick={() => setView({ kind: "menu" })}
-                className="text-xs text-neutral-400 mb-1"
+                className="text-xs text-neutral-500 mb-1"
               >
                 ← 주문 현황으로 돌아가기
               </button>
@@ -250,7 +250,7 @@ function GroupPageInner() {
 
       <Faq />
 
-      <footer className="text-center text-[11px] text-neutral-400 pb-8">
+      <footer className="text-center text-[11px] text-neutral-500 pb-8">
         청첩장배달 🛵 · {groom.name} ♥ {bride.name}
       </footer>
     </div>
@@ -261,7 +261,7 @@ export default function GroupPage() {
   return (
     <Suspense
       fallback={
-        <div className="h-[60vh] flex items-center justify-center text-neutral-400 text-sm">
+        <div className="h-[60vh] flex items-center justify-center text-neutral-500 text-sm">
           불러오는 중…
         </div>
       }

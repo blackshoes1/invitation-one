@@ -229,7 +229,7 @@ export default function GuestSnap({
           <h2 className="font-serif text-2xl font-light tracking-widest text-sage-700">
             하객 스냅
           </h2>
-          <p className="text-xs text-neutral-400 leading-relaxed pt-1">
+          <p className="text-xs text-neutral-500 leading-relaxed pt-1">
             오늘 담아주신 순간을 함께 나눠요 📸
             <br />
             사진을 올려주시면 저희에게 소중히 간직됩니다
@@ -238,7 +238,7 @@ export default function GuestSnap({
 
         {/* 포토 미션 (GS-9) — 고르면 카메라가 열리고, 올리면 체크됩니다 */}
         <FadeIn className="space-y-2">
-          <p className="text-xs text-neutral-400">
+          <p className="text-xs text-neutral-500">
             📸 포토 미션 · {doneMissions.length}/{PHOTO_MISSIONS.length} 완료
           </p>
           <div className="flex flex-wrap justify-center gap-1.5">
@@ -377,7 +377,7 @@ export default function GuestSnap({
                   type="button"
                   aria-label="닫기"
                   onClick={() => !uploading && setPendingFile(null)}
-                  className="text-neutral-400"
+                  className="text-neutral-500"
                 >
                   <X size={18} />
                 </button>

@@ -71,7 +71,7 @@ export default function LockedGate() {
           >
             🛵 청첩장 받으러 가기
           </Link>
-          <p className="text-[11px] text-neutral-400 pt-1">
+          <p className="text-[11px] text-neutral-500 pt-1">
             이미 신청하셨는데 링크를 잃어버리셨나요?
             <br />
             <Link
@@ -102,7 +102,7 @@ export default function LockedGate() {
             </a>
           </div>
           <div className="border-t border-wedding-gold/10 pt-3">
-            <p className="text-[11px] text-neutral-400 leading-relaxed">
+            <p className="text-[11px] text-neutral-500 leading-relaxed">
               🚗 {venue.parking}
             </p>
           </div>
@@ -146,7 +146,7 @@ export default function LockedGate() {
           )}
         </div>
 
-        <p className="text-[11px] text-neutral-400">
+        <p className="text-[11px] text-neutral-500">
           {groom.name} ♥ {bride.name}
         </p>
       </div>

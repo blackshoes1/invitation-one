@@ -159,12 +159,12 @@ export default function Account() {
                 현장 축의대를 운영하지 않습니다.
               </span>
             </p>
-            <p className="text-[11px] text-neutral-400 pt-1 tracking-wider">
+            <p className="text-[11px] text-neutral-500 pt-1 tracking-wider">
               마음을 전하고자 하시는 분들을 위해
               <br />
               아래에 계좌를 안내드립니다. 너른 양해 부탁드립니다.
             </p>
-            <p className="text-[11px] text-neutral-400 tracking-wider">
+            <p className="text-[11px] text-neutral-500 tracking-wider">
               🌸 화환은 둘 곳이 없는 관계로 정중히 사양합니다!
               <br />
               마음만 감사히 받겠습니다.

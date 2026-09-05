@@ -116,7 +116,7 @@ export default function VerifyBadge({
           </p>
         )}
         {!isHeart && !done && (
-          <p className="text-[11px] text-neutral-400">
+          <p className="text-[11px] text-neutral-500">
             아직 배송 준비 중이에요 — 곧 만나요 🛵
           </p>
         )}
@@ -173,7 +173,7 @@ export default function VerifyBadge({
             setOpen(false);
             setError(null);
           }}
-          className="px-4 py-2.5 text-sm text-neutral-400 border border-wedding-gold/20 rounded-full"
+          className="px-4 py-2.5 text-sm text-neutral-500 border border-wedding-gold/20 rounded-full"
         >
           닫기
         </button>

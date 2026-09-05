@@ -40,7 +40,7 @@ export default function ToHeartPanel({
         <p className="text-sm font-bold text-neutral-700">
           마음 배송으로 바꿀게요 💌
         </p>
-        <p className="text-[11px] text-neutral-400">
+        <p className="text-[11px] text-neutral-500">
           못 만나도 괜찮아요 — 마음은 청첩장 지도에 예쁘게 남아요
         </p>
       </div>

@@ -42,7 +42,7 @@ export function ConfirmStep({
       <button
         type="button"
         onClick={onReset}
-        className="w-full text-center text-sm text-neutral-400 underline underline-offset-4"
+        className="w-full text-center text-sm text-neutral-500 underline underline-offset-4"
       >
         다시 검색하기
       </button>

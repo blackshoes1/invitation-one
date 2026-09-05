@@ -35,7 +35,7 @@ export default function TrackingView({
 }) {
   if (canceled) {
     return (
-      <p className="text-center text-sm text-neutral-400 py-4">
+      <p className="text-center text-sm text-neutral-500 py-4">
         취소된 주문이에요 🗑️
       </p>
     );
@@ -71,7 +71,7 @@ export default function TrackingView({
               </div>
               <span
                 className={`mt-1.5 text-[10px] text-center leading-tight ${
-                  reached ? "text-delivery font-bold" : "text-neutral-400"
+                  reached ? "text-delivery font-bold" : "text-neutral-500"
                 }`}
               >
                 {s.label}

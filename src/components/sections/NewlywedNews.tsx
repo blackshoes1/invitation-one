@@ -20,7 +20,7 @@ export default function NewlywedNews() {
           <h2 className="font-serif text-2xl font-light tracking-widest text-sage-700">
             신혼 근황
           </h2>
-          <p className="text-xs text-neutral-400 pt-1">
+          <p className="text-xs text-neutral-500 pt-1">
             잊지 않고 찾아주셔서 감사해요 💌
           </p>
         </FadeIn>

@@ -56,7 +56,10 @@ export default function RiderProfile({
             </p>
             <p className="text-xs text-neutral-500 mt-0.5">
               <span className="text-amber-400">⭐ {rating}</span>
-              <span className="text-neutral-300"> · </span>
+              {/* 눈으로 구분하려는 구분점 — 스크린리더가 "점" 을 읽을 필요는 없다 */}
+              <span className="text-neutral-400" aria-hidden="true">
+                {" · "}
+              </span>
               평생 단 한 번의 배달을 준비했어요
             </p>
           </div>
@@ -67,7 +70,7 @@ export default function RiderProfile({
           {stats.map((s) => (
             <div key={s.label} className="py-3 text-center">
               <p className="text-sm font-bold text-delivery">{s.value}</p>
-              <p className="text-[10px] text-neutral-400 mt-0.5">{s.label}</p>
+              <p className="text-[10px] text-neutral-500 mt-0.5">{s.label}</p>
             </div>
           ))}
         </div>

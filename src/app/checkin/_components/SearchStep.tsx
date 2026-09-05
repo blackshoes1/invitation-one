@@ -55,7 +55,7 @@ export function SearchStep({
 
       {candidates && candidates.length > 1 && (
         <div className="space-y-2 pt-1">
-          <p className="text-xs text-neutral-400 text-center">
+          <p className="text-xs text-neutral-500 text-center">
             같은 이름의 예약이 여러 건이에요. 본인 예약을 선택해 주세요.
           </p>
           {candidates.map((c) => (
@@ -67,7 +67,7 @@ export function SearchStep({
               className="w-full p-3 border border-wedding-gold/20 rounded-md text-left text-sm disabled:opacity-50"
             >
               <b className="text-sage-700">{c.displayName}</b>
-              <span className="text-neutral-400">
+              <span className="text-neutral-500">
                 {" "}
                 · {c.side ? SIDE_LABEL[c.side] : "-"} ·{" "}
                 {c.maskedPhone ?? ""}
@@ -84,7 +84,7 @@ export function SearchStep({
           인원 변경은 안내데스크에서 도와드려요.
         </p>
       )}
-      <p className="text-xs text-neutral-400 text-center leading-relaxed pt-1">
+      <p className="text-xs text-neutral-500 text-center leading-relaxed pt-1">
         참석 의사를 미리 전하지 못하셨나요?
         <br />
         안내데스크에서 바로 등록해 드려요.
