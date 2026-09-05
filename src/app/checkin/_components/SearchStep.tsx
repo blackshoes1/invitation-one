@@ -34,6 +34,7 @@ export function SearchStep({
         value={sName}
         onChange={(e) => setSName(e.target.value)}
         placeholder="성함"
+        aria-label="성함"
         className="w-full p-3.5 text-base text-center border border-wedding-gold/25 bg-white rounded-md focus:outline-none focus:border-sage-600"
       />
       <input
@@ -42,6 +43,7 @@ export function SearchStep({
         maxLength={4}
         onChange={(e) => setSLast4(e.target.value.replace(/\D/g, ""))}
         placeholder="전화번호 뒤 4자리"
+        aria-label="전화번호 뒤 4자리"
         className="w-full p-3.5 text-base text-center border border-wedding-gold/25 bg-white rounded-md focus:outline-none focus:border-sage-600"
       />
       {error && (

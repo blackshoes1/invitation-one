@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { groom, bride } from "@/lib/wedding";
+import MotionProvider from "@/components/MotionProvider";
 
 export const metadata: Metadata = {
   title: `청첩장 배달 서비스 🛵 | ${groom.name} ♥ ${bride.name}`,
@@ -18,7 +19,7 @@ export default function DeliveryLayout({
 }) {
   return (
     <div className="delivery-scroll h-[100dvh] overflow-y-auto bg-delivery-bg text-neutral-800 font-sans">
-      {children}
+      <MotionProvider>{children}</MotionProvider>
     </div>
   );
 }

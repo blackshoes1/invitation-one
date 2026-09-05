@@ -54,6 +54,7 @@ export default function WaitingList() {
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="이름"
+        aria-label="이름"
         className="dform-input"
       />
       <input
@@ -62,6 +63,7 @@ export default function WaitingList() {
         value={phone}
         onChange={(e) => setPhone(formatPhone(e.target.value))}
         placeholder="연락처 010-0000-0000"
+        aria-label="연락처"
         className="dform-input"
       />
       {error && <p className="text-xs text-delivery-dark text-center">{error}</p>}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import type { CSSProperties } from "react";
 import Image from "next/image";
 import {
   groom,
@@ -30,43 +30,44 @@ export default function Hero({ heroUrl }: { heroUrl?: string | null }) {
         src={heroSrc}
         alt={`${groom.name} & ${bride.name} 웨딩 사진`}
         fill
-        priority
-        unoptimized
+        // LCP 요소 — head 에서 미리 받게 한다 (Next 16 에서 priority 는 preload 로 대체)
+        preload
+        // 세로 꽉 채우는 배경 사진: 화면 폭만큼만 받으면 된다.
+        // sizes 가 없으면 srcset 이 1x/2x 로만 생성돼 저사양 폰도 큰 변환본을 받는다.
+        sizes="100vw"
+        quality={80}
         className="object-cover z-0"
       />
       {/* 상·하단 스크림 — 흰 드레스 위 흰 글씨 대비 확보 */}
       <div className="absolute inset-0 z-[1] bg-gradient-to-b from-black/30 via-black/5 to-black/55" />
 
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 1 }}
-        className="relative z-10 text-center text-white"
-      >
+      <div className="rise-in relative z-10 text-center text-white">
         <p className="font-serif text-base font-light tracking-[0.25em] drop-shadow-sm">
           소중한 분들을 초대합니다
         </p>
-      </motion.div>
+      </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 1, delay: 0.4 }}
-        className="relative z-10 text-center text-white space-y-4"
+      <div
+        className="rise-in relative z-10 text-center text-white space-y-4"
+        style={{ "--rise-delay": "0.4s" } as CSSProperties}
       >
-        {/* 마지막 글자 뒤 letter-spacing 끝여백을 음수 마진으로 제거해 광학적 가운데 정렬 */}
-        <div className="font-serif text-2xl font-light tracking-[0.15em] flex items-center justify-center gap-3 drop-shadow">
+        {/* 페이지의 유일한 h1 — 스크린리더·검색엔진이 "누구의 청첩장인지" 를 먼저 읽는다.
+            마지막 글자 뒤 letter-spacing 끝여백은 음수 마진으로 제거해 광학적 가운데 정렬 */}
+        <h1 className="font-serif text-2xl font-light tracking-[0.15em] flex items-center justify-center gap-3 drop-shadow">
           <span>{groom.name}</span>
-          <span className="text-sm text-wedding-gold/90">&</span>
+          <span className="text-sm text-wedding-gold/90" aria-hidden="true">
+            &
+          </span>
+          <span className="sr-only">그리고</span>
           <span className="-mr-[0.15em]">{bride.name}</span>
-        </div>
+        </h1>
         <div className="text-[12px] tracking-widest font-light space-y-1 drop-shadow">
           <p>
             {formatFullDate()} {formatTime()}
           </p>
           <p>{`서울 ${venue.name}`}</p>
         </div>
-      </motion.div>
+      </div>
     </section>
   );
 }

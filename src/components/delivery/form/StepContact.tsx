@@ -41,6 +41,7 @@ export default function StepContact({
           enterKeyHint="next"
           autoComplete="name"
           placeholder="성함"
+          aria-label="성함"
           className="dform-input"
         />
         {phoneMasked ? (
@@ -55,6 +56,7 @@ export default function StepContact({
             onKeyDown={(e) => e.key === "Enter" && onNext()}
             enterKeyHint="done"
             placeholder="배송 완료 후 연락드릴 번호 📞"
+            aria-label="연락처"
             className="dform-input"
           />
         )}

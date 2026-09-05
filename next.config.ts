@@ -58,13 +58,26 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   // 같은 와이파이의 휴대폰 등에서 dev 서버 접속 허용 (LAN 대역)
   allowedDevOrigins: ["192.168.0.148", "192.168.0.0/24"],
-  images: supabaseUrl
-    ? {
-        remotePatterns: [
-          new URL(`${supabaseUrl.replace(/\/+$/, "")}/storage/v1/object/public/**`),
-        ],
-      }
-    : undefined,
+  images: {
+    // 하객 사진·관리자 업로드 원본은 최대 10MB 라 반드시 최적화 경로를 태운다.
+    // AVIF 우선(같은 화질에 WebP 대비 ~20~30% 작음), 미지원 브라우저는 WebP 폴백.
+    formats: ["image/avif", "image/webp"],
+    // Next 16 부터 quality 는 허용 목록에 있는 값만 쓸 수 있다 (기본 [75]).
+    // 사진 위주 청첩장이라 갤러리/앨범은 70, 히어로는 80 을 쓴다.
+    qualities: [70, 75, 80],
+    // 사진은 관리자가 교체하기 전까지 바뀌지 않는다 — 최적화 결과를 오래 캐시해
+    // Vercel 이미지 최적화 호출 수와 응답 지연을 함께 줄인다. (교체 시 URL 이 바뀜)
+    minimumCacheTTL: 60 * 60 * 24 * 31, // 31일
+    // 모바일 청첩장이라 데스크톱 대형 폭은 필요 없다 — 불필요한 변환본 생성을 막는다.
+    deviceSizes: [360, 420, 640, 750, 828, 1080, 1200],
+    ...(supabaseUrl
+      ? {
+          remotePatterns: [
+            new URL(`${supabaseUrl.replace(/\/+$/, "")}/storage/v1/object/public/**`),
+          ],
+        }
+      : {}),
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

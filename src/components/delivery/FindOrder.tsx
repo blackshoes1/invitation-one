@@ -112,6 +112,7 @@ export default function FindOrder({ defaultOpen = false }: { defaultOpen?: boole
           enterKeyHint="next"
           autoComplete="name"
           placeholder="성함"
+          aria-label="성함"
           className="dform-input"
         />
         <input
@@ -122,6 +123,7 @@ export default function FindOrder({ defaultOpen = false }: { defaultOpen?: boole
           onKeyDown={(e) => e.key === "Enter" && search()}
           enterKeyHint="done"
           placeholder="연락처 끝 4자리"
+          aria-label="연락처 끝 4자리"
           className="dform-input"
         />
 

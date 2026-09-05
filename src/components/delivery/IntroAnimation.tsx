@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useReducedMotion } from "@/lib/useReducedMotion";
 
 const SEEN_KEY = "delivery-intro-seen";
 
@@ -11,12 +12,16 @@ const SEEN_KEY = "delivery-intro-seen";
  * - 자동재생을 위해 음소거 재생 (모바일 정책)
  * - 영상 로드 실패 시 기존 🛵 + "배송 출발!" 도장 애니메이션으로 폴백
  * - 느린 회선에서 영상이 스톨해도 최대 8초 후 자동 종료
+ * - "동작 줄이기" 를 켠 기기에서는 아예 재생하지 않는다 (화면 전체가 움직이는
+ *   연출이라 멀미 유발 요소가 크고, 1MB 영상 다운로드도 함께 아낀다)
  */
 export default function IntroAnimation() {
   const [show, setShow] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
+    if (reducedMotion) return;
     // 같은 세션에서 뒤로가기 등으로 재진입하면 반복 재생하지 않음
     try {
       if (sessionStorage.getItem(SEEN_KEY) === "1") return;
@@ -25,7 +30,7 @@ export default function IntroAnimation() {
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setShow(true);
-  }, []);
+  }, [reducedMotion]);
 
   const close = () => {
     setShow(false);
@@ -94,6 +99,7 @@ export default function IntroAnimation() {
           )}
 
           <button
+            type="button"
             onClick={close}
             className="absolute bottom-8 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-black/30 text-white/90 text-xs"
           >

@@ -136,6 +136,7 @@ export default function JoinForm({
           enterKeyHint="next"
           autoComplete="name"
           placeholder="성함 📋"
+          aria-label="성함"
           className="dform-input"
         />
         {useInvitePhone && invite?.phoneMasked ? (
@@ -153,6 +154,7 @@ export default function JoinForm({
             onKeyDown={(e) => e.key === "Enter" && submit()}
             enterKeyHint="done"
             placeholder="연락처 📞 010-0000-0000"
+            aria-label="연락처"
             className="dform-input"
           />
         )}

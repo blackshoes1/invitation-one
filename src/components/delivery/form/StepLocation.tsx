@@ -23,6 +23,7 @@ export default function StepLocation({
         onKeyDown={(e) => e.key === "Enter" && onNext()}
         enterKeyHint="done"
         placeholder="예: 서울시 강동구, 대구광역시 수성구"
+        aria-label="배송받을 지역 (시·군·구)"
         className="dform-input"
       />
     </Q>

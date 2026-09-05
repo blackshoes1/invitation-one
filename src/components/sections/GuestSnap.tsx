@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { motion, AnimatePresence } from "framer-motion";
 import { Camera, X } from "lucide-react";
 import { supabase, isSupabaseConfigured, type GuestPhoto } from "@/lib/supabase";
 import {
@@ -333,51 +332,43 @@ export default function GuestSnap({
         )}
       </div>
 
-      <AnimatePresence>
-        {lightbox && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+      {lightbox && (
+        <div
+          onClick={() => setLightbox(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="사진 크게 보기"
+          className="fade-in-soft fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4"
+        >
+          <button
+            type="button"
+            aria-label="닫기"
             onClick={() => setLightbox(null)}
-            role="dialog"
-            aria-modal="true"
-            aria-label="사진 크게 보기"
-            className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4"
+            className="absolute top-4 right-4 z-10 p-2 -m-2 text-white/80"
           >
-            <button
-              type="button"
-              aria-label="닫기"
-              onClick={() => setLightbox(null)}
-              className="absolute top-4 right-4 p-2 -m-2 text-white/80"
-            >
-              <X size={24} />
-            </button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={lightbox}
-              alt="하객 스냅"
-              className="max-w-full max-h-[85vh] object-contain"
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <X size={24} />
+          </button>
+          {/* 원본은 폰 카메라 해상도 그대로 — 화면 폭에 맞춘 변환본을 받는다 */}
+          <Image
+            src={lightbox}
+            alt="하객 스냅"
+            fill
+            sizes="100vw"
+            quality={75}
+            className="object-contain p-4"
+          />
+        </div>
+      )}
 
       {/* 프레임 선택 (GS-7) */}
-      <AnimatePresence>
-        {pendingFile && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.94, y: 12 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.94, opacity: 0 }}
-              className="bg-white rounded-lg overflow-hidden w-full max-w-xs"
-            >
+      {pendingFile && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="사진 프레임 고르기"
+          className="fade-in-soft fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4"
+        >
+          <div className="pop-in bg-white rounded-lg overflow-hidden w-full max-w-xs">
               <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100">
                 <p className="text-sm font-medium text-sage-700">프레임 고르기 🖼️</p>
                 <button
@@ -432,10 +423,9 @@ export default function GuestSnap({
                   {uploading ? "올리는 중…" : "이대로 올리기"}
                 </button>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
