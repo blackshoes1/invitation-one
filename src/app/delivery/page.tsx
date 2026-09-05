@@ -91,7 +91,7 @@ function DeliveryPageInner() {
               <RiderProfile deliveredCount={taken ?? undefined} />
               <ReviewStrip />
               <MenuSelect onPick={setMode} />
-              <FindOrder />
+              <FindOrder defaultOpen={search.get("find") === "1"} />
             </>
           )}
 

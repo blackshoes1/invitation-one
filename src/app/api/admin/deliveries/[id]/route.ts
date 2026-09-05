@@ -7,6 +7,7 @@ import {
   formatYmdKo,
   slotsForDate,
   TIME_SLOTS,
+  INVITATION_KEY,
   DELIVERY_START,
   DELIVERY_END,
 } from "@/lib/wedding";
@@ -189,6 +190,9 @@ export async function PATCH(
 
   // 상태 전이 시 참여자 전원에게 SMS (참여 시스템 — 연락처 보유자 대상, 키 없으면 자동 skip)
   let sms: unknown = null;
+  const origin = siteOrigin(req);
+  // 문자에 넣는 청첩장 링크 — 카톡이 밀려도 문자함에 남아 재방문 경로가 된다
+  const invitationUrl = INVITATION_KEY ? `${origin}/?key=${INVITATION_KEY}` : origin;
   if (statusChanged && (patch.status === "확정" || patch.status === "취소")) {
     const { data: parts } = await supabaseAdmin!
       .from("participants")
@@ -212,7 +216,8 @@ export async function PATCH(
         .replace(/\{이름\}/g, name)
         .replace(/\{날짜\}/g, dateK)
         .replace(/\{시간\}/g, data.time_slot)
-        .replace(/\{장소\}/g, data.location ?? "");
+        .replace(/\{장소\}/g, data.location ?? "")
+        .replace(/\{청첩장\}/g, invitationUrl);
 
     const targets = (parts ?? []) as { name: string; phone: string }[];
     const results = await Promise.all(
@@ -221,7 +226,7 @@ export async function PATCH(
           patch.status === "확정"
             ? confirmTpl
               ? fill(confirmTpl, p.name)
-              : `[청첩장 배달] ${p.name}님, 소중한 마음으로 신청해주셔서 감사합니다 🙏 ${dateK} ${data.time_slot} ${data.location}(으)로 찾아뵙겠습니다. 곧 만나요!`
+              : `[청첩장 배달] ${p.name}님, 소중한 마음으로 신청해주셔서 감사합니다 🙏 ${dateK} ${data.time_slot} ${data.location}(으)로 찾아뵙겠습니다. 곧 만나요!\n💌 청첩장 다시 보기: ${invitationUrl}`
             : `[청첩장 배달] ${p.name}님, 부득이하게 ${dateK} ${data.time_slot} 일정이 취소되었습니다. 자세한 안내는 곧 연락드리겠습니다. 양해 부탁드립니다.`;
         return sendSms(p.phone, text).then((r) => ({ name: p.name, ...r }));
       })
@@ -250,7 +255,6 @@ export async function PATCH(
       .maybeSingle();
     if (typeof st?.value === "string") reviewTpl = st.value.trim();
 
-    const origin = siteOrigin(req);
     const dateK = formatYmdKo(data.date);
     const targets = (parts ?? []) as { id: string; name: string; phone: string }[];
     const results = await Promise.all(
@@ -265,7 +269,8 @@ export async function PATCH(
             .replace(/\{날짜\}/g, dateK)
             .replace(/\{시간\}/g, data.time_slot)
             .replace(/\{장소\}/g, data.location ?? "")
-            .replace(/\{링크\}/g, link);
+            .replace(/\{링크\}/g, link)
+            .replace(/\{청첩장\}/g, invitationUrl);
         const text = reviewTpl
           ? fill(reviewTpl)
           : `[청첩장 배달] ${p.name}님, 청첩장 잘 받으셨나요? 😊 짧은 한줄 후기를 남겨주시면 큰 힘이 됩니다 🙏 ${link}`;

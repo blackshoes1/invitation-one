@@ -24,3 +24,20 @@ test("정상 키로 접근하면 청첩장 본문이 렌더된다", async ({ pag
   await expect(page.getByAltText(/웨딩 사진/)).toBeVisible();
   await expect(page.getByText("아직 공개 전이에요")).toHaveCount(0);
 });
+
+test("한 번 열어본 기기는 키 없이 다시 들어와도 열린다", async ({ page }) => {
+  await page.goto(`/?key=${encodeURIComponent(KEY)}`);
+  await expect(page.getByAltText(/웨딩 사진/)).toBeVisible();
+  // 링크를 잃어버리고 주소만 다시 여는 상황
+  await page.goto("/");
+  await expect(page.getByAltText(/웨딩 사진/)).toBeVisible();
+  await expect(page.getByText("아직 공개 전이에요")).toHaveCount(0);
+});
+
+test("잠금 화면에서 '내 신청 찾기'로 복구할 수 있다", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: /내 신청 찾기/ }).click();
+  await expect(page).toHaveURL(/\/delivery\?find=1/);
+  // 찾기 폼이 접힌 상태가 아니라 바로 열려 있어야 한다
+  await expect(page.getByPlaceholder("연락처 끝 4자리")).toBeVisible();
+});

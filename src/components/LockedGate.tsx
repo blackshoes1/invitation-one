@@ -71,6 +71,16 @@ export default function LockedGate() {
           >
             🛵 청첩장 받으러 가기
           </Link>
+          <p className="text-[11px] text-neutral-400 pt-1">
+            이미 신청하셨는데 링크를 잃어버리셨나요?
+            <br />
+            <Link
+              href="/delivery?find=1"
+              className="text-sage-700 underline underline-offset-2"
+            >
+              내 신청 찾기 🔍
+            </Link>
+          </p>
         </div>
 
         {/* 기본 정보 — 일시·장소 */}

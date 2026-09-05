@@ -20,7 +20,7 @@ export default function ReviewSmsSection({
         <br />
         치환: <code>{"{이름}"}</code> <code>{"{날짜}"}</code>{" "}
         <code>{"{시간}"}</code> <code>{"{장소}"}</code>{" "}
-        <code>{"{링크}"}</code>(개인 리뷰 페이지)
+        <code>{"{링크}"}</code>(개인 리뷰 페이지) <code>{"{청첩장}"}</code>(청첩장 주소)
       </p>
       <textarea
         value={reviewSms}

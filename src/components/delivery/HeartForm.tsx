@@ -15,6 +15,7 @@ import { OVERSEAS, joinRegion } from "@/lib/regions";
 import StampPicker from "@/components/delivery/StampPicker";
 import RegionPicker from "@/components/delivery/RegionPicker";
 import { notifyAdmin } from "@/lib/notify";
+import SaveInvitationLink from "@/components/delivery/SaveInvitationLink";
 import { randomAnonAlias } from "@/lib/anonAlias";
 import { getSiteSettings } from "@/lib/settings";
 
@@ -149,6 +150,7 @@ export default function HeartForm({
         >
           💌 모바일 청첩장 보기
         </Link>
+        <SaveInvitationLink />
 
         {/* 마음 → 직접 배달 전환 (거절이 아니라 마음이 바뀔 여지) */}
         {onSwitchToDelivery && (

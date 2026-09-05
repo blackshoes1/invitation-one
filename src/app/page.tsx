@@ -13,7 +13,10 @@ import TextSizeToggle from "@/components/TextSizeToggle";
 import BgmToggle from "@/components/BgmToggle";
 import PostWeddingBanner from "@/components/PostWeddingBanner";
 import LockedGate from "@/components/LockedGate";
+import { cookies } from "next/headers";
 import { INVITATION_KEY } from "@/lib/wedding";
+import { INVITATION_COOKIE } from "@/lib/inviteAccess";
+import RememberInvitationKey from "@/components/RememberInvitationKey";
 import { issueUploadToken } from "@/lib/signedToken";
 
 /**
@@ -68,7 +71,10 @@ export default async function Home({
       "[invitation] NEXT_PUBLIC_INVITATION_KEY 가 설정되지 않았습니다 — 청첩장이 전면 잠금 상태입니다."
     );
   }
-  if (!INVITATION_KEY || key !== INVITATION_KEY) {
+  // 유효한 키로 한 번 들어온 기기는 쿠키로 기억 — 링크를 다시 찾지 않아도 열린다
+  const remembered =
+    (await cookies()).get(INVITATION_COOKIE)?.value === INVITATION_KEY;
+  if (!INVITATION_KEY || (key !== INVITATION_KEY && !remembered)) {
     return <LockedGate />;
   }
 
@@ -77,6 +83,7 @@ export default async function Home({
 
   return (
     <main className="w-full min-h-screen bg-white text-neutral-800 antialiased">
+      <RememberInvitationKey />
       <TextSizeToggle />
       <BgmToggle />
       <PostWeddingBanner />

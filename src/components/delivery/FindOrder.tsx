@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { formatYmdKo } from "@/lib/wedding";
 import DeliveryCalendar from "@/components/DeliveryCalendar";
+import { invitationHref } from "@/lib/inviteAccess";
 import type {
   TimeSlotValue,
   DeliveryStatus,
@@ -29,8 +30,8 @@ const EMPTY_SET = new Set<string>();
  * 내 신청 찾기 — 이름 + 연락처 끝 4자리 + 신청(배송)일자(달력 선택)
  * 일치하면 manage 페이지로 재접근 (취소/변경/배송 현황)
  */
-export default function FindOrder() {
-  const [open, setOpen] = useState(false);
+export default function FindOrder({ defaultOpen = false }: { defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
   const [name, setName] = useState("");
   const [last4, setLast4] = useState("");
   const [date, setDate] = useState<string | null>(null);
@@ -38,6 +39,12 @@ export default function FindOrder() {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<Found[] | null>(null);
   const last4Ref = useRef<HTMLInputElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  // 잠금 화면에서 '내 신청 찾기'로 들어온 경우(?find=1) 폼까지 스크롤
+  useEffect(() => {
+    if (defaultOpen) boxRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [defaultOpen]);
 
   const search = async () => {
     if (name.trim().length < 2) return setError("성함을 입력해주세요 🙏");
@@ -85,7 +92,7 @@ export default function FindOrder() {
   }
 
   return (
-    <div className="max-w-sm mx-auto px-6 py-4">
+    <div ref={boxRef} className="max-w-sm mx-auto px-6 py-4">
       <div className="bg-white rounded-2xl border border-delivery/10 p-5 space-y-3">
         <p className="text-center text-sm font-bold text-neutral-700">
           내 신청 찾기 🔍
@@ -167,6 +174,15 @@ export default function FindOrder() {
               ))}
             </ul>
           ))}
+
+        {results !== null && results.length > 0 && (
+          <Link
+            href={invitationHref}
+            className="block text-center text-xs text-delivery font-bold underline underline-offset-2"
+          >
+            💌 모바일 청첩장 바로 보기
+          </Link>
+        )}
 
         <div className="flex gap-2">
           <button

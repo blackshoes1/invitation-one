@@ -19,7 +19,8 @@ export default function ConfirmSmsSection({
         주문을 <b>확정</b> 처리할 때 하객에게 자동 발송돼요 (연락처 보유자만).
         <br />
         치환: <code>{"{이름}"}</code> <code>{"{날짜}"}</code>{" "}
-        <code>{"{시간}"}</code> <code>{"{장소}"}</code>
+        <code>{"{시간}"}</code> <code>{"{장소}"}</code>{" "}
+        <code>{"{청첩장}"}</code>(청첩장 주소)
       </p>
       <textarea
         value={confirmSms}

@@ -8,6 +8,7 @@ import { formatYmdKo, groom, bride, VIDEO_URL, INVITATION_KEY } from "@/lib/wedd
 import type { TimeSlot } from "@/lib/wedding";
 import { getSiteSettings } from "@/lib/settings";
 import TrackingView from "@/components/delivery/TrackingView";
+import SaveInvitationLink from "@/components/delivery/SaveInvitationLink";
 
 export default function CompletePage({
   name,
@@ -288,6 +289,7 @@ export default function CompletePage({
       >
         💌 모바일 청첩장 보기
       </Link>
+      <SaveInvitationLink />
     </div>
   );
 }
