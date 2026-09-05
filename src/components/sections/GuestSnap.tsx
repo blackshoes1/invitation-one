@@ -304,7 +304,9 @@ export default function GuestSnap({
         </FadeIn>
 
         {photos.length === 0 ? (
-          <p className="text-xs text-neutral-300 py-6">
+          // neutral-300 은 흰 배경에서 1.5:1 로 사실상 보이지 않았다 —
+          // 사진을 올려 달라고 권하는 안내문이라 읽히는 게 우선
+          <p className="text-xs text-neutral-500 py-6">
             첫 사진의 주인공이 되어주세요 🌿
           </p>
         ) : (
