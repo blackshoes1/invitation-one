@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { groom, bride, DELIVERY_CAPACITY } from "@/lib/wedding";
+import type { InvitePrefill } from "@/lib/invite";
 import IntroAnimation from "@/components/delivery/IntroAnimation";
 import BikeIcon from "@/components/delivery/BikeIcon";
 import MenuSelect, { type DeliveryMode } from "@/components/delivery/MenuSelect";
@@ -20,11 +21,30 @@ function DeliveryPageInner() {
   const search = useSearchParams();
   /** 마음배송 → 직접배달 전환으로 들어온 참여자 id (?convert=) */
   const convertId = search.get("convert");
+  /**
+   * 개인 주문 초대 링크 (?i=) — 그룹에 묶이지 않는 본인 주문.
+   * 이름·마스킹 번호만 프리필하고, 실제 연락처는 제출 시 서버가 토큰으로 채운다.
+   */
+  const inviteToken = search.get("i");
+  const [invite, setInvite] = useState<InvitePrefill | null>(null);
+  const [inviteReady, setInviteReady] = useState(!inviteToken);
+  useEffect(() => {
+    if (!inviteToken) return;
+    fetch(`/api/delivery/invite?i=${encodeURIComponent(inviteToken)}`, {
+      cache: "no-store",
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { invite?: InvitePrefill } | null) => {
+        if (j?.invite) setInvite(j.invite);
+      })
+      .catch(() => {})
+      .finally(() => setInviteReady(true));
+  }, [inviteToken]);
 
   /** 신청 인원 — 아직 못 불러왔으면 null (숫자가 0→실제값으로 튀지 않게) */
   const [taken, setTaken] = useState<number | null>(null);
   const [mode, setMode] = useState<DeliveryMode | null>(
-    convertId ? "delivery" : null
+    convertId || inviteToken ? "delivery" : null
   );
 
   useEffect(() => {
@@ -82,7 +102,11 @@ function DeliveryPageInner() {
         </div>
       </section>
 
-      {closed ? (
+      {!inviteReady ? (
+        <div className="h-[40vh] flex items-center justify-center text-neutral-400 text-sm">
+          불러오는 중…
+        </div>
+      ) : closed ? (
         <DeliveryClosed />
       ) : (
         <section className="pb-6">
@@ -105,9 +129,18 @@ function DeliveryPageInner() {
               </button>
             </div>
           )}
-          {mode === "delivery" && <DeliveryForm convertId={convertId} />}
+          {mode === "delivery" && (
+            <DeliveryForm
+              convertId={convertId}
+              invite={invite}
+              inviteToken={invite ? inviteToken : null}
+            />
+          )}
           {mode === "heart" && (
-            <HeartForm onSwitchToDelivery={() => setMode("delivery")} />
+            <HeartForm
+              inviteName={invite?.name ?? null}
+              onSwitchToDelivery={() => setMode("delivery")}
+            />
           )}
         </section>
       )}

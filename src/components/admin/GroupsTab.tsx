@@ -222,9 +222,32 @@ export default function GroupsTab({
     }
   };
 
+  /** 이번 세션에 발급한 링크 (같은 토큰의 개인/그룹 두 주소) — 재발급 없이 다시 복사용 */
+  const [issued, setIssued] = useState<
+    Record<string, { url: string; personalUrl: string }>
+  >({});
+
   /** 개인 초대 링크 발급 + 클립보드 복사 (member 없으면 그룹 전체) */
-  const issueInvite = async (gid: string, mem?: GroupMemberRow) => {
-    if (mem?.invited_at && !confirm(`${mem.name} 님 링크를 다시 만들까요? 이전 링크는 무효가 됩니다.`)) return;
+  const issueInvite = async (
+    gid: string,
+    mem?: GroupMemberRow,
+    kind: "personal" | "group" = "personal"
+  ) => {
+    // 이미 이번 세션에 발급했다면 재발급 없이 그대로 복사 (다른 종류 링크도 그대로 유효)
+    const cached = mem ? issued[mem.id] : null;
+    if (cached) {
+      const url = kind === "group" ? cached.url : cached.personalUrl;
+      try {
+        await navigator.clipboard.writeText(url);
+        setNotice(
+          `${mem!.name} 님 ${kind === "group" ? "그룹" : "개인 주문"} 링크를 복사했어요`
+        );
+      } catch {
+        setNotice("복사가 막혀 있어요. 링크: " + url);
+      }
+      return;
+    }
+    if (mem?.invited_at && !confirm(`${mem.name} 님 링크를 다시 만들까요? 이전에 보낸 링크는 무효가 됩니다.`)) return;
     if (!mem && !confirm("명단 전체의 개인 링크를 (다시) 만들까요? 이전에 보낸 링크는 모두 무효가 됩니다.")) return;
     try {
       const res = await api(`/api/admin/groups/${gid}/members/invite`, {
@@ -233,19 +256,31 @@ export default function GroupsTab({
         body: JSON.stringify(mem ? { member_id: mem.id } : { all: true }),
       });
       const j = (await res.json().catch(() => ({}))) as {
-        links?: { id: string; name: string; url: string }[];
+        links?: { id: string; name: string; url: string; personalUrl: string }[];
         error?: string;
       };
       if (!res.ok || !j.links) {
         if (res.status !== 401) setError(j.error ?? "개인 링크 발급에 실패했습니다.");
         return;
       }
+      const pick = (l: { url: string; personalUrl: string }) =>
+        kind === "group" ? l.url : l.personalUrl;
       const text = mem
-        ? j.links[0].url
-        : j.links.map((l) => `${l.name}: ${l.url}`).join("\n");
+        ? pick(j.links[0])
+        : j.links.map((l) => `${l.name}: ${pick(l)}`).join("\n");
+      const kindLabel = kind === "group" ? "그룹" : "개인 주문";
+      setIssued((prev) => {
+        const next = { ...prev };
+        for (const l of j.links!) next[l.id] = { url: l.url, personalUrl: l.personalUrl };
+        return next;
+      });
       try {
         await navigator.clipboard.writeText(text);
-        setNotice(mem ? `${mem.name} 님 개인 링크를 복사했어요 (1:1 로 보내주세요)` : `${j.links.length}명 개인 링크를 복사했어요 (이름: 링크)`);
+        setNotice(
+          mem
+            ? `${mem.name} 님 ${kindLabel} 링크를 복사했어요 (1:1 로 보내주세요)`
+            : `${j.links.length}명 ${kindLabel} 링크를 복사했어요 (이름: 링크)`
+        );
       } catch {
         setNotice("링크를 만들었어요. 복사가 막혀 있어 아래 목록에서 다시 발급해 복사해주세요.");
       }
@@ -670,7 +705,11 @@ export default function GroupsTab({
                 </div>
                 {(members[g.id] ?? []).length > 0 && (
                   <div className="flex items-center justify-between text-[11px] text-neutral-400 px-1">
-                    <span>연락처를 넣고 개인 링크를 1:1 로 보내면 이름·번호가 자동 입력돼요</span>
+                    <span>
+                      연락처를 넣고 1:1 로 보내면 이름·번호가 자동 입력돼요 ·{" "}
+                      <b className="text-neutral-500">개인</b>=본인 주문,{" "}
+                      <b className="text-neutral-500">그룹</b>=그룹 주문 현황
+                    </span>
                     <button
                       onClick={() => issueInvite(g.id)}
                       className="text-sage-700 underline underline-offset-2 whitespace-nowrap"
@@ -695,12 +734,27 @@ export default function GroupsTab({
                         onBlur={(e) => savePhone(g.id, mem, e.target.value)}
                         className="flex-1 min-w-0 border border-neutral-200 px-2 py-1 text-xs"
                       />
+                      {mem.applied && (
+                        <span
+                          className="text-[10px] whitespace-nowrap text-sage-700"
+                          title={mem.personal ? "개인 주문으로 신청함" : "그룹 주문으로 신청함"}
+                        >
+                          {mem.personal ? "신청(개인)" : "신청"}
+                        </span>
+                      )}
                       <button
-                        onClick={() => issueInvite(g.id, mem)}
+                        onClick={() => issueInvite(g.id, mem, "personal")}
                         className={`text-xs whitespace-nowrap ${mem.invited_at ? "text-neutral-400" : "text-sage-700"}`}
-                        title={mem.invited_at ? "발급됨 — 누르면 재발급(이전 링크 무효)" : "개인 링크 발급·복사"}
+                        title="개인 주문 링크 — 그룹에 묶이지 않고 본인 주문만 진행"
                       >
-                        {mem.invited_at ? "링크 ✓" : "개인 링크"}
+                        {mem.invited_at ? "개인 ✓" : "개인"}
+                      </button>
+                      <button
+                        onClick={() => issueInvite(g.id, mem, "group")}
+                        className="text-xs whitespace-nowrap text-neutral-400"
+                        title="그룹 링크 — 그룹 주문 현황·합류 흐름으로 진입"
+                      >
+                        그룹
                       </button>
                       <button
                         onClick={() => removeMember(g.id, mem.id)}

@@ -44,8 +44,12 @@ export async function POST(req: Request) {
   const clientGroupId = parseUuid(b.groupId);
   if (invite && clientGroupId && clientGroupId !== invite.groupId)
     return json({ error: "invite_group_mismatch" }, 403);
+  // 개인 주문(/delivery?i=) — 초대 토큰이 있어도 그룹에 묶지 않는다.
+  // 그룹을 바꿔치기하는 게 아니라 '그룹 없음'이라 권한 문제는 없고,
+  // 명단 연결(group_member_id)은 그대로라 관리자는 누가 신청했는지 볼 수 있다.
+  const personal = b.personal === true;
   // 초대가 있으면 group 은 항상 토큰의 group (클라이언트 값 불신)
-  const groupId = invite ? invite.groupId : clientGroupId;
+  const groupId = personal ? null : invite ? invite.groupId : clientGroupId;
 
   const name = parseName(b.name) ?? (invite ? parseName(invite.name) : null);
   if (!name) return json({ error: "name_invalid" }, 400);

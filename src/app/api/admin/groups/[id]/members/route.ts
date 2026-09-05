@@ -17,7 +17,28 @@ export async function GET(
     .eq("group_id", id)
     .order("created_at", { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ members: data });
+
+  // 개인 링크로 신청한 사람은 그룹(group_id) 집계에 안 잡히므로, 명단에서 놓치지 않도록
+  // participants.group_member_id 로 신청 여부를 함께 내려준다.
+  const ids = (data ?? []).map((m) => m.id);
+  const applied = new Map<string, boolean>();
+  if (ids.length > 0) {
+    const { data: parts } = await supabaseAdmin!
+      .from("participants")
+      .select("group_member_id, group_id")
+      .in("group_member_id", ids);
+    for (const p of parts ?? []) {
+      if (!p.group_member_id) continue;
+      // 하나라도 그룹 주문이면 그룹 신청으로 표시
+      applied.set(p.group_member_id, applied.get(p.group_member_id) || !!p.group_id);
+    }
+  }
+  const members = (data ?? []).map((m) => ({
+    ...m,
+    applied: applied.has(m.id),
+    personal: applied.has(m.id) && applied.get(m.id) === false,
+  }));
+  return NextResponse.json({ members });
 }
 
 export async function POST(

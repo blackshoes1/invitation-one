@@ -2,13 +2,16 @@ import { NextResponse } from "next/server";
 import { adminGuard } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { generateManageToken, hashManageToken } from "@/lib/manageToken";
-import { inviteUrl } from "@/lib/invite";
+import { inviteUrl, personalInviteUrl } from "@/lib/invite";
 import { siteOrigin } from "@/lib/siteUrl";
 
 /**
  * 개인 초대 링크 발급 — body { member_id } 또는 { all: true }
  * 토큰은 128-bit 무작위, DB 에는 sha256 해시만 저장(재복사 = 재발급, 이전 링크 무효).
- * 응답: { links: [{ id, name, url }] }
+ * 한 토큰으로 두 가지 링크를 함께 내려준다 (둘 다 유효):
+ *   - personalUrl: /delivery?i=…  개인 주문 (그룹에 묶이지 않음)
+ *   - url:         /delivery/group/<slug>?i=…  그룹 주문 흐름
+ * 응답: { links: [{ id, name, url, personalUrl }] }
  */
 export async function POST(
   req: Request,
@@ -38,7 +41,7 @@ export async function POST(
 
   const origin = siteOrigin(req);
   const now = new Date().toISOString();
-  const links: { id: string; name: string; url: string }[] = [];
+  const links: { id: string; name: string; url: string; personalUrl: string }[] = [];
   for (const m of members) {
     const token = generateManageToken();
     const { error: upErr } = await supabaseAdmin!
@@ -46,7 +49,12 @@ export async function POST(
       .update({ invite_token_hash: hashManageToken(token), invited_at: now })
       .eq("id", m.id);
     if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
-    links.push({ id: m.id, name: m.name, url: inviteUrl(origin, g.slug, token) });
+    links.push({
+      id: m.id,
+      name: m.name,
+      url: inviteUrl(origin, g.slug, token),
+      personalUrl: personalInviteUrl(origin, token),
+    });
   }
   return NextResponse.json({ links });
 }

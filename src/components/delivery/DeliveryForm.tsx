@@ -210,6 +210,8 @@ export default function DeliveryForm({
           convertToken: convertId,
           rider: rider ?? "신랑",
           inviteToken: useInvitePhone ? inviteToken : null,
+          // 개인 링크(/delivery?i=)로 들어온 경우 — 초대 토큰이 있어도 그룹에 묶지 않는다
+          personal: !group?.id && Boolean(useInvitePhone && inviteToken),
         }),
       }).catch(() => null);
       const row = res ? await res.json().catch(() => null) : null;

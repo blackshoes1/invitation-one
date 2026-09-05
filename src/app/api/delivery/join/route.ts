@@ -37,7 +37,9 @@ export async function POST(req: Request) {
   const invite = inviteToken ? await resolveInvite(inviteToken) : null;
   if (inviteToken && !invite) return json({ error: "invite_invalid" }, 401);
 
-  // 초대 결속: 합류하려는 주문의 그룹 == 토큰의 그룹 (서버 검증 — 클라이언트 불신)
+  // 초대 결속: 합류하려는 주문이 토큰의 그룹이거나, 그룹에 묶이지 않은 개인 주문일 것.
+  // (개인 링크로 들어온 하객도 같은 날 개인 주문에 합석할 수 있어야 한다.
+  //  다른 그룹의 주문으로 넘어가는 것만 막는다 — 서버 검증, 클라이언트 불신)
   if (invite) {
     const { data: d } = await supabaseAdmin
       .from("deliveries")
@@ -45,7 +47,7 @@ export async function POST(req: Request) {
       .eq("id", deliveryId)
       .maybeSingle();
     if (!d) return json({ error: "not_found" }, 404);
-    if (d.group_id !== invite.groupId)
+    if (d.group_id !== null && d.group_id !== invite.groupId)
       return json({ error: "invite_group_mismatch" }, 403);
   }
 

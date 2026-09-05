@@ -247,6 +247,10 @@ export interface GroupMemberRow {
   phone?: string | null;
   /** 개인 초대 링크 발급 시각 (재발급 시 갱신) */
   invited_at?: string | null;
+  /** 이 사람이 신청했는지 (participants.group_member_id 기준) */
+  applied?: boolean;
+  /** 신청했지만 그룹에 묶이지 않은 개인 주문인지 */
+  personal?: boolean;
   created_at: string;
 }
 

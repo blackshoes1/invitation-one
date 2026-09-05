@@ -15,6 +15,15 @@ export function maskPhone(phone: string | null | undefined): string | null {
   return `${d.slice(0, 3)}-****-${d.slice(-4)}`;
 }
 
+/** 그룹 페이지용 초대 링크 — 그룹의 주문 현황·합류·제안 수락 흐름으로 들어간다 */
 export function inviteUrl(origin: string, slug: string, token: string): string {
   return `${origin}/delivery/group/${encodeURIComponent(slug)}?i=${token}`;
+}
+
+/**
+ * 개인 주문용 초대 링크 — 일반 배달 페이지에서 본인 주문만 진행한다.
+ * 같은 토큰이라 그룹용 링크와 함께 발급·사용할 수 있다.
+ */
+export function personalInviteUrl(origin: string, token: string): string {
+  return `${origin}/delivery?i=${token}`;
 }
