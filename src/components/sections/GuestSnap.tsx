@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { Camera, X } from "lucide-react";
+import { Camera, Image as ImageIcon, X } from "lucide-react";
 import { supabase, isSupabaseConfigured, type GuestPhoto } from "@/lib/supabase";
 import {
   INVITATION_KEY,
@@ -76,7 +76,9 @@ export default function GuestSnap({
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [frame, setFrame] = useState<FrameId>("none");
   const [preview, setPreview] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  /** 카메라로 바로 찍기 (capture) · 앨범에서 고르기 (capture 없음) */
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const albumRef = useRef<HTMLInputElement>(null);
 
   const signature = `${groom.name} ♥ ${bride.name} · ${formatShortDate()}`;
 
@@ -137,10 +139,14 @@ export default function GuestSnap({
     return () => timers.forEach(clearTimeout);
   }, []);
 
-  /** 미션을 고르면 표시명을 준비하고 곧바로 카메라/앨범을 엽니다 */
+  /**
+   * 미션을 고르면 표시명을 준비하고 곧바로 카메라를 엽니다 ("지금 찍어보세요" 성격).
+   * 카메라를 닫아도 미션 선택은 남아 있어, 아래 '앨범에서 고르기' 로 예전 사진을
+   * 올려도 같은 미션으로 기록됩니다.
+   */
   const pickMission = (m: string) => {
     setMission((cur) => (cur === m ? null : m));
-    if (mission !== m) fileRef.current?.click();
+    if (mission !== m) cameraRef.current?.click();
   };
 
   const markMissionDone = (m: string) => {
@@ -161,6 +167,13 @@ export default function GuestSnap({
     setError(null);
     setFrame("none");
     setPendingFile(file);
+  };
+
+  /** 카메라·앨범 두 input 이 공유하는 처리 — 값을 비워 같은 사진을 다시 골라도 동작하게 한다 */
+  const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) beginDecorate(f);
+    e.target.value = "";
   };
 
   // 선택한 프레임으로 미리보기 갱신 (원본은 그대로 미리보기)
@@ -232,7 +245,7 @@ export default function GuestSnap({
           <p className="text-xs text-neutral-500 leading-relaxed pt-1">
             오늘 담아주신 순간을 함께 나눠요 📸
             <br />
-            사진을 올려주시면 저희에게 소중히 간직됩니다
+            지금 찍으셔도, 앨범에 있던 사진을 고르셔도 좋아요
           </p>
         </FadeIn>
 
@@ -279,26 +292,44 @@ export default function GuestSnap({
             placeholder="이름 (선택)"
             className="w-full p-2.5 text-base border border-wedding-gold/20 bg-white rounded-none focus:outline-none focus:border-sage-600 text-center"
           />
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading}
-            className="w-full flex items-center justify-center gap-2 py-3.5 bg-sage-700 text-white text-sm font-medium tracking-wide disabled:opacity-60"
-          >
-            <Camera size={16} />
-            {uploading ? "올리는 중…" : "사진 올리기"}
-          </button>
+          {/* 찍기와 앨범을 각각의 버튼으로 — capture 속성이 붙은 input 하나로는
+              휴대폰이 카메라를 바로 열어버려 앨범에서 고를 방법이 없다. */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => cameraRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center justify-center gap-1.5 py-3.5 bg-sage-700 text-white text-sm font-medium tracking-wide disabled:opacity-60"
+            >
+              <Camera size={16} />
+              {uploading ? "올리는 중…" : "지금 찍기"}
+            </button>
+            <button
+              type="button"
+              onClick={() => albumRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center justify-center gap-1.5 py-3.5 bg-white text-sage-700 border border-sage-700 text-sm font-medium tracking-wide disabled:opacity-60"
+            >
+              <ImageIcon size={16} />
+              앨범에서 고르기
+            </button>
+          </div>
+          {/* capture 있음 = 카메라 바로 열기 */}
           <input
-            ref={fileRef}
+            ref={cameraRef}
             type="file"
             accept="image/*"
             capture="environment"
             className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) beginDecorate(f);
-              e.target.value = "";
-            }}
+            onChange={onPickFile}
+          />
+          {/* capture 없음 = 사진 보관함에서 고르기 */}
+          <input
+            ref={albumRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={onPickFile}
           />
           {error && <p className="text-xs text-red-400">{error}</p>}
         </FadeIn>
