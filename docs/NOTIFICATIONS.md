@@ -21,15 +21,19 @@ participants INSERT
 2. **클라이언트 fire-and-forget** — 기존 `notifyAdmin()` → `POST /api/notify`
    (rate limit 30/10분). 서버 경로의 보조.
 3. **안전망 cron (2중)**
-   - GitHub Actions `notify-drain.yml`: **30분 간격**으로 `GET /api/notify` 호출.
+   - GitHub Actions `notify-drain.yml`: **3시간 간격**으로 `GET /api/notify` 호출.
      저장소 secret `CRON_SECRET` 은 등록돼 있고, **Vercel 환경변수에 같은 값을
-     넣어야 동작한다** (다르면 401 경고만 내고 skip). 비공개 레포 Actions 무료
-     한도(월 2,000분) 고려해 15분이 아닌 30분 간격. 예식 후 비활성화 가능.
+     넣어야 동작한다** (다르면 401 경고만 내고 skip). 예식 후 비활성화 가능.
+     ※ 2026-09-05: 30분 간격(월 ~1,440분)이 비공개 레포 Actions 무료 한도
+     (월 2,000분)를 거의 소진해 CI job 이 시작조차 못 하는 상태가 되어
+     3시간(월 ~240분)으로 낮췄다. 급하면 Actions 탭에서 수동 실행(workflow_dispatch).
    - Vercel cron(`vercel.json`): 매일 00:00 UTC 1회 (최후 안전망).
 
 ## cron 주기에 대해
 
-`*/15 * * * *` 로 올리면 무트래픽 상황에서도 15분 내 재시도가 보장되지만,
+더 촘촘하게(`*/15`, `*/30`) 올리면 무트래픽 상황의 재시도 지연은 줄지만,
+비공개 레포 Actions 분(분 단위 반올림 과금)을 그만큼 먹어 CI 가 막힐 수 있다.
+아래는 Vercel 쪽 제약: 
 **Vercel Hobby 플랜은 cron 을 하루 1회로 제한**한다 (더 촘촘한 스케줄은 배포
 검증에서 거부됨). 그래서 코드에서는 임의로 올리지 않았다.
 
