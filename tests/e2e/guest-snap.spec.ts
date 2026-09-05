@@ -53,3 +53,139 @@ test("앨범에서 고른 사진도 프레임 고르기 단계로 이어진다",
   // 프레임을 입힌 미리보기가 실제로 그려져야 한다 (canvas 합성 실패 시 안 보인다)
   await expect(modal.getByAltText("미리보기")).toBeVisible();
 });
+
+/**
+ * 앨범 다중 선택 업로드.
+ *
+ * 업로드 API 는 요청당 한 장만 받고 토큰당 10분 30장 제한이 있어, 여러 장은
+ * 한 장씩 차례로 올린다. 여기서 지키는 것은 그 과정에서 쉽게 깨지는 두 가지다:
+ * 중간에 실패했을 때 (1) 이미 올라간 사진을 다시 올리지 않을 것,
+ * (2) 몇 장이 올라갔는지 하객에게 알릴 것.
+ *
+ * 실제 Supabase 없이 검증하려고 업로드·토큰 API 를 가로챈다.
+ */
+type StubOpts = { failAt?: number[]; rateLimitAt?: number };
+
+async function stubUploads(page: import("@playwright/test").Page, opts: StubOpts = {}) {
+  const seen: number[] = [];
+  await page.route("**/api/guest-photos/token*", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", json: { token: "stub" } })
+  );
+  await page.route("**/api/guest-photos", (route) => {
+    const n = seen.length + 1;
+    seen.push(n);
+    if (opts.rateLimitAt === n)
+      return route.fulfill({
+        status: 429,
+        contentType: "application/json",
+        json: { error: "너무 많이 올렸어요", code: "rate_limited" },
+      });
+    if (opts.failAt?.includes(n))
+      return route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        json: { error: "일부러 실패" },
+      });
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      json: {
+        photo: {
+          id: `p${n}`,
+          url: "/pic/gallery1.jpg",
+          name: null,
+          message: null,
+          created_at: new Date().toISOString(),
+        },
+      },
+    });
+  });
+  return { count: () => seen.length };
+}
+
+const THREE = [
+  "public/pic/gallery1.jpg",
+  "public/pic/gallery2.jpg",
+  "public/pic/gallery3.jpg",
+];
+
+async function pickFromAlbum(page: import("@playwright/test").Page, files: string[]) {
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "앨범에서 고르기" }).click();
+  const fc = await chooser;
+  expect(fc.isMultiple()).toBe(true); // multiple 이 빠지면 한 장밖에 못 고른다
+  await fc.setFiles(files);
+  const modal = page.getByRole("dialog", { name: "사진 프레임 고르기" });
+  await modal.waitFor({ state: "visible" });
+  return modal;
+}
+
+test("앨범에서 여러 장을 고르면 장수가 표시되고 장별로 업로드된다", async ({ page }) => {
+  const stub = await stubUploads(page);
+  await page.goto(HOME);
+
+  const modal = await pickFromAlbum(page, THREE);
+  await expect(modal.getByText("3장", { exact: false }).first()).toBeVisible();
+
+  await modal.getByRole("button", { name: "3장 이대로 올리기" }).click();
+  // 전부 성공하면 모달이 닫힌다
+  await expect(modal).toBeHidden({ timeout: 15_000 });
+  expect(stub.count()).toBe(3); // 요청당 한 장 — 3장이면 3회
+});
+
+test("일부만 실패하면 성공한 사진은 다시 올리지 않는다", async ({ page }) => {
+  const stub = await stubUploads(page, { failAt: [2] });
+  await page.goto(HOME);
+
+  const modal = await pickFromAlbum(page, THREE);
+  await modal.getByRole("button", { name: "3장 이대로 올리기" }).click();
+
+  // 안내는 반드시 모달 "안"에 있어야 한다 — 섹션 쪽에만 두면 검은 오버레이에
+  // 가려 하객 눈에는 안 보인다 (CSS 로는 visible 이라 테스트만 통과하는 함정)
+  await expect(modal.getByText(/3장 중 2장을 올렸어요/)).toBeVisible({
+    timeout: 15_000,
+  });
+  expect(stub.count()).toBe(3);
+  // 실패한 한 장만 남아 모달이 열려 있어야 한다
+  await expect(modal).toBeVisible();
+
+  const before = stub.count();
+  await modal.getByRole("button", { name: "이대로 올리기", exact: true }).click();
+  await expect(modal).toBeHidden({ timeout: 15_000 });
+  // 재시도는 남은 1장만 — 이미 올라간 2장이 또 올라가면 방명록에 중복으로 쌓인다
+  expect(stub.count() - before).toBe(1);
+});
+
+test("업로드 한도에 걸리면 남은 사진을 더 시도하지 않는다", async ({ page }) => {
+  const stub = await stubUploads(page, { rateLimitAt: 2 });
+  await page.goto(HOME);
+
+  const modal = await pickFromAlbum(page, THREE);
+  await modal.getByRole("button", { name: "3장 이대로 올리기" }).click();
+
+  await expect(modal.getByText(/3장 중 1장을 올렸어요/)).toBeVisible({
+    timeout: 15_000,
+  });
+  // 2번째에서 한도 → 3번째는 보내지 않는다 (보내봐야 똑같이 막힌다)
+  expect(stub.count()).toBe(2);
+});
+
+test("한 번에 올릴 수 있는 장수를 넘기면 잘라내되 그 사실을 알린다", async ({
+  page,
+}) => {
+  await stubUploads(page);
+  await page.goto(HOME);
+
+  // 상한(10장)보다 많이 고른 상황
+  const many = Array.from(
+    { length: 12 },
+    (_, i) => `public/pic/gallery${(i % 3) + 1}.jpg`
+  );
+  const modal = await pickFromAlbum(page, many);
+
+  await expect(
+    modal.getByRole("button", { name: "10장 이대로 올리기" })
+  ).toBeVisible();
+  // 말없이 사라지면 하객은 12장을 다 올린 줄 안다
+  await expect(modal.getByText(/한 번에 10장까지 올릴 수 있어요/)).toBeVisible();
+});

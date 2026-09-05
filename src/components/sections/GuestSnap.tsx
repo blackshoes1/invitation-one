@@ -16,6 +16,14 @@ import { applyFrame, FRAMES, type FrameId } from "@/lib/frames";
 import FadeIn from "@/components/FadeIn";
 
 /**
+ * 앨범에서 한 번에 고를 수 있는 최대 장수.
+ * 업로드 API 는 요청당 한 장이고 토큰당 10분 30장 제한이 있어, 한 번에 너무 많이
+ * 고르면 뒷장부터 429 로 막힌다. 10장이면 예식장 Wi-Fi 에서도 부담이 적고
+ * 여러 번 나눠 올릴 여유도 남는다.
+ */
+const MAX_BATCH = 10;
+
+/**
  * 하객 스냅 — 하객이 찍은 사진을 청첩장에서 올리고 함께 보는 갤러리 (Epic A).
  * 업로드 → Supabase 'guest-photos' 버킷 → (NAS Cloud Sync 로 아카이브).
  * 사진은 브라우저에서 압축·EXIF 제거 후 전송.
@@ -43,7 +51,12 @@ export default function GuestSnap({
     }
   };
   /** 업로드 POST — 토큰 만료/무효(401)면 재발급 후 1회 재시도 */
-  const postUpload = async (fd: FormData) => {
+  const postUpload = async (
+    fd: FormData
+  ): Promise<{
+    res: Response | null;
+    j: { photo?: GuestPhoto; error?: string; code?: string };
+  }> => {
     const send = async (tok: string) => {
       fd.set("token", tok);
       const res = await fetch("/api/guest-photos", { method: "POST", body: fd });
@@ -72,10 +85,12 @@ export default function GuestSnap({
   const [mission, setMission] = useState<string | null>(null);
   /** 완료한 미션 (기기 로컬 기억 — 재방문해도 체크 유지) */
   const [doneMissions, setDoneMissions] = useState<string[]>([]);
-  /** 프레임 선택 단계 (GS-7) — 사진 고른 뒤 프레임 미리보기 */
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  /** 프레임 선택 단계 (GS-7) — 사진 고른 뒤 프레임 미리보기. 앨범 다중 선택이라 배열 */
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [frame, setFrame] = useState<FrameId>("none");
   const [preview, setPreview] = useState<string | null>(null);
+  /** 여러 장 올리는 중 진행 표시 (몇 장까지 끝났는지) */
+  const [done, setDone] = useState(0);
   /** 카메라로 바로 찍기 (capture) · 앨범에서 고르기 (capture 없음) */
   const cameraRef = useRef<HTMLInputElement>(null);
   const albumRef = useRef<HTMLInputElement>(null);
@@ -95,13 +110,13 @@ export default function GuestSnap({
   }, []);
 
   // 모달(라이트박스·프레임 선택) 열림: ESC 로 닫기 + 배경 스크롤 잠금
-  const modalOpen = lightbox !== null || pendingFile !== null;
+  const modalOpen = lightbox !== null || pendingFiles.length > 0;
   useEffect(() => {
     if (!modalOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       setLightbox(null);
-      if (!uploading) setPendingFile(null);
+      if (!uploading) setPendingFiles([]);
     };
     window.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
@@ -163,22 +178,31 @@ export default function GuestSnap({
   };
 
   /** 사진을 고르면 곧바로 업로드하지 않고 프레임 선택 단계로 (GS-7) */
-  const beginDecorate = (file: File) => {
+  const beginDecorate = (files: File[]) => {
     setError(null);
     setFrame("none");
-    setPendingFile(file);
+    setDone(0);
+    if (files.length > MAX_BATCH) {
+      // 말없이 잘라내면 몇 장이 사라진 줄 모른다 — 앞의 MAX_BATCH 장만 진행한다고 알린다
+      setError(
+        `한 번에 ${MAX_BATCH}장까지 올릴 수 있어요. 먼저 고른 ${MAX_BATCH}장만 준비했어요 🙏`
+      );
+    }
+    setPendingFiles(files.slice(0, MAX_BATCH));
   };
 
   /** 카메라·앨범 두 input 이 공유하는 처리 — 값을 비워 같은 사진을 다시 골라도 동작하게 한다 */
   const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) beginDecorate(f);
+    const files = Array.from(e.target.files ?? []);
+    if (files.length) beginDecorate(files);
     e.target.value = "";
   };
 
-  // 선택한 프레임으로 미리보기 갱신 (원본은 그대로 미리보기)
+  // 선택한 프레임으로 미리보기 갱신. 여러 장을 골랐어도 미리보기는 첫 장만 그린다 —
+  // 고른 프레임은 배치 전체에 똑같이 적용되므로 한 장이면 결과를 충분히 보여준다.
+  const firstFile = pendingFiles[0] ?? null;
   useEffect(() => {
-    if (!pendingFile) {
+    if (!firstFile) {
       // 파일 선택 해제 시 미리보기 즉시 정리 (파생 상태 리셋)
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setPreview(null);
@@ -187,7 +211,7 @@ export default function GuestSnap({
     let alive = true;
     let url: string | null = null;
     (async () => {
-      const framed = await applyFrame(pendingFile, frame, signature);
+      const framed = await applyFrame(firstFile, frame, signature);
       if (!alive) return;
       url = URL.createObjectURL(framed);
       setPreview(url);
@@ -198,32 +222,69 @@ export default function GuestSnap({
     };
     // signature 는 렌더마다 동일 문자열 (deps 제외)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingFile, frame]);
+  }, [firstFile, frame]);
 
-  /** 실제 업로드 (프레임 적용 후) */
-  const uploadFile = async (file: File) => {
+  /**
+   * 실제 업로드 (프레임 적용 후). 고른 사진을 한 장씩 차례로 올린다.
+   *
+   * 동시에 보내지 않는 이유: 업로드 API 는 요청당 한 장만 받고, 토큰당 10분 30장
+   * rate limit 이 걸려 있다. 병렬로 쏘면 예식장 공용 Wi-Fi 에서 뒷장부터 무더기로
+   * 실패하고, 어디까지 올라갔는지도 알 수 없게 된다.
+   *
+   * 중간에 실패해도 이미 올라간 장은 그대로 두고, 몇 장이 올라갔는지 알려준다.
+   */
+  const uploadFiles = async (files: File[]) => {
     setError(null);
     setUploading(true);
-    try {
-      const framed = await applyFrame(file, frame, signature);
-      const compressed = await compressImage(framed);
-      const fd = new FormData();
-      fd.append("file", compressed);
+    setDone(0);
+    // 이름 + 선택한 미션을 함께 기록 (미션만 있어도 태그로 남김)
+    const label = [name.trim(), mission].filter(Boolean).join(" · ");
+    let ok = 0;
+    let failure: string | null = null;
+    // 실패한 것만 남겨 둔다 — 다시 누르면 이미 올라간 사진이 중복 업로드되지 않도록
+    const remaining: File[] = [];
 
-      // 이름 + 선택한 미션을 함께 기록 (미션만 있어도 태그로 남김)
-      const label = [name.trim(), mission].filter(Boolean).join(" · ");
-      if (label) fd.append("name", label);
-      const { res, j } = await postUpload(fd);
-      if (!res || !res.ok || !j.photo) {
-        setError(j.error ?? "업로드에 실패했어요. 잠시 후 다시 시도해주세요 🙏");
+    try {
+      for (const [i, file] of files.entries()) {
+        try {
+          const framed = await applyFrame(file, frame, signature);
+          const compressed = await compressImage(framed);
+          const fd = new FormData();
+          fd.append("file", compressed);
+          if (label) fd.append("name", label);
+
+          const { res, j } = await postUpload(fd);
+          if (!res || !res.ok || !j.photo) {
+            failure = j.error ?? "업로드에 실패했어요. 잠시 후 다시 시도해주세요 🙏";
+            // 한도에 걸렸다면 남은 장도 똑같이 막힌다 — 더 시도해봐야 기다림만 길어진다
+            if (j.code === "rate_limited") {
+              remaining.push(...files.slice(i));
+              break;
+            }
+            remaining.push(file);
+            continue;
+          }
+          setPhotos((prev) => [j.photo as GuestPhoto, ...prev]);
+          ok += 1;
+          setDone(ok);
+        } catch {
+          failure = "업로드 중 오류가 발생했어요.";
+          remaining.push(file);
+        }
+      }
+
+      if (ok > 0 && mission) markMissionDone(mission);
+      setPendingFiles(remaining);
+      if (remaining.length === 0) {
+        // 전부 성공 — 모달이 닫히고 미션 선택도 비워진다
+        setMission(null);
         return;
       }
-      setPhotos((prev) => [j.photo as GuestPhoto, ...prev]);
-      if (mission) markMissionDone(mission);
-      setMission(null);
-      setPendingFile(null);
-    } catch {
-      setError("업로드 중 오류가 발생했어요.");
+      setError(
+        ok === 0
+          ? failure ?? "업로드에 실패했어요. 잠시 후 다시 시도해주세요 🙏"
+          : `${files.length}장 중 ${ok}장을 올렸어요. 남은 ${remaining.length}장은 다시 시도해주세요 🙏`
+      );
     } finally {
       setUploading(false);
     }
@@ -323,15 +384,21 @@ export default function GuestSnap({
             className="hidden"
             onChange={onPickFile}
           />
-          {/* capture 없음 = 사진 보관함에서 고르기 */}
+          {/* capture 없음 = 사진 보관함에서 고르기. multiple 로 여러 장 선택 */}
           <input
             ref={albumRef}
             type="file"
             accept="image/*"
+            multiple
             className="hidden"
             onChange={onPickFile}
           />
-          {error && <p className="text-xs text-red-400">{error}</p>}
+          {/* 모달이 열려 있으면 모달 안에서 같은 안내를 보여주므로 여기선 생략 (중복 낭독 방지) */}
+          {error && pendingFiles.length === 0 && (
+            <p role="status" className="text-xs text-red-600">
+              {error}
+            </p>
+          )}
         </FadeIn>
 
         {photos.length === 0 ? (
@@ -394,7 +461,7 @@ export default function GuestSnap({
       )}
 
       {/* 프레임 선택 (GS-7) */}
-      {pendingFile && (
+      {pendingFiles.length > 0 && (
         <div
           role="dialog"
           aria-modal="true"
@@ -403,11 +470,18 @@ export default function GuestSnap({
         >
           <div className="pop-in bg-white rounded-lg overflow-hidden w-full max-w-xs">
               <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100">
-                <p className="text-sm font-medium text-sage-700">프레임 고르기 🖼️</p>
+                <p className="text-sm font-medium text-sage-700">
+                  프레임 고르기 🖼️
+                  {pendingFiles.length > 1 && (
+                    <span className="ml-1.5 text-xs font-normal text-neutral-500">
+                      {pendingFiles.length}장
+                    </span>
+                  )}
+                </p>
                 <button
                   type="button"
                   aria-label="닫기"
-                  onClick={() => !uploading && setPendingFile(null)}
+                  onClick={() => !uploading && setPendingFiles([])}
                   className="text-neutral-500"
                 >
                   <X size={18} />
@@ -426,6 +500,25 @@ export default function GuestSnap({
                   <div className="w-40 h-40 bg-neutral-200 animate-pulse rounded" />
                 )}
               </div>
+
+              {/* 미리보기는 첫 장만 — 고른 프레임이 전체에 적용된다는 걸 알려준다 */}
+              {pendingFiles.length > 1 && (
+                <p className="px-4 pt-2 text-[11px] text-neutral-500 text-center">
+                  첫 장 미리보기예요 · 고른 프레임이 {pendingFiles.length}장 모두에
+                  적용됩니다
+                </p>
+              )}
+
+              {/* 장수 상한·부분 실패 안내는 모달 안에서 보여야 한다 —
+                  섹션 쪽에만 두면 검은 오버레이에 가려 하객이 볼 수 없다 */}
+              {error && (
+                <p
+                  role="status"
+                  className="px-4 pt-2 text-[11px] text-red-600 text-center"
+                >
+                  {error}
+                </p>
+              )}
 
               <div className="flex gap-2 px-4 py-3 overflow-x-auto">
                 {FRAMES.map((f) => (
@@ -448,13 +541,25 @@ export default function GuestSnap({
               <div className="px-4 pb-4 pt-1">
                 <button
                   type="button"
-                  onClick={() => pendingFile && uploadFile(pendingFile)}
+                  onClick={() => uploadFiles(pendingFiles)}
                   disabled={uploading || !preview}
                   className="w-full flex items-center justify-center gap-2 py-3 bg-sage-700 text-white text-sm font-medium disabled:opacity-60"
                 >
                   <Camera size={16} />
-                  {uploading ? "올리는 중…" : "이대로 올리기"}
+                  {uploading
+                    ? pendingFiles.length > 1
+                      ? `올리는 중… ${done}/${pendingFiles.length}`
+                      : "올리는 중…"
+                    : pendingFiles.length > 1
+                    ? `${pendingFiles.length}장 이대로 올리기`
+                    : "이대로 올리기"}
                 </button>
+                {/* 여러 장은 시간이 걸린다 — 진행 상황을 스크린리더에도 알린다 */}
+                <p className="sr-only" role="status">
+                  {uploading && pendingFiles.length > 1
+                    ? `${pendingFiles.length}장 중 ${done}장 올렸어요`
+                    : ""}
+                </p>
               </div>
           </div>
         </div>
