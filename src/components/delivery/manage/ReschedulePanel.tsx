@@ -34,7 +34,7 @@ export default function ReschedulePanel({
     <div className="space-y-4">
       <p className="text-sm font-bold text-neutral-700">
         새 날짜를 골라주세요 📅{" "}
-        <span className="text-xs text-neutral-400 font-normal">
+        <span className="text-xs text-neutral-500 font-normal">
           {memberCount > 1
             ? `(함께 받는 분들껜 문자로 여쭤봐요 — 동의하신 분만 함께 이동해요)`
             : `(바로 변경돼요)`}
@@ -50,7 +50,7 @@ export default function ReschedulePanel({
         selectedClass="bg-delivery text-white font-bold"
       />
       {newDate && slotsForDate(newDate).length === 1 && (
-        <p className="text-[11px] text-neutral-400 text-center">
+        <p className="text-[11px] text-neutral-500 text-center">
           평일은 점심·저녁에 찾아뵐 수 있어요 🍚🌙
         </p>
       )}

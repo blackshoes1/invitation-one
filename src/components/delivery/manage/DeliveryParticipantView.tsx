@@ -110,7 +110,7 @@ export default function DeliveryParticipantView({
           — 함께 받는 분 {memberCount}명
         </p>
         {detail.member_names && detail.member_names.length > 0 && (
-          <p className="text-xs text-neutral-400">
+          <p className="text-xs text-neutral-500">
             참여: {detail.member_names.join(", ")}
           </p>
         )}
@@ -280,7 +280,7 @@ export default function DeliveryParticipantView({
         <div className="text-center pt-1">
           <Link
             href={invitationHref}
-            className="text-sm text-neutral-400 underline underline-offset-2"
+            className="text-sm text-neutral-500 underline underline-offset-2"
           >
             💌 모바일 청첩장 보기
           </Link>

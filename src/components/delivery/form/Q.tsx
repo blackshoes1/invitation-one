@@ -15,7 +15,7 @@ export default function Q({
         <h2 className="text-xl font-extrabold text-neutral-800 leading-snug">
           {title}
         </h2>
-        {sub && <p className="text-sm text-neutral-400">{sub}</p>}
+        {sub && <p className="text-sm text-neutral-500">{sub}</p>}
       </div>
       {children}
     </div>

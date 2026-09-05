@@ -30,7 +30,7 @@ export default function OrderSummary({
     <div className="max-w-md mx-auto px-5 py-6 space-y-5">
       <div className="text-center space-y-1">
         <h2 className="text-xl font-extrabold text-neutral-800">이대로 주문할까요? 🛵</h2>
-        <p className="text-sm text-neutral-400">한 번만 확인해주세요!</p>
+        <p className="text-sm text-neutral-500">한 번만 확인해주세요!</p>
       </div>
 
       <div className="bg-white rounded-2xl border border-delivery/10 p-5 space-y-2.5 text-sm">
@@ -80,7 +80,7 @@ export default function OrderSummary({
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between gap-3">
-      <span className="text-neutral-400">{label}</span>
+      <span className="text-neutral-500">{label}</span>
       <span className="text-right text-neutral-700 font-medium">{value}</span>
     </div>
   );

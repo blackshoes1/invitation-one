@@ -164,7 +164,7 @@ export function AcceptOfferForm({
           {formatYmdKo(group.offer_date)} {group.offer_time}
           <br />이 날 받을게요 🛵
         </h2>
-        <p className="text-sm text-neutral-400">
+        <p className="text-sm text-neutral-500">
           {group.offer_location
             ? `📍 ${group.offer_location}`
             : "장소는 단톡방에서 함께 정해요"}

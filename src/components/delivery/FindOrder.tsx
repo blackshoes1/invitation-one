@@ -97,7 +97,7 @@ export default function FindOrder({ defaultOpen = false }: { defaultOpen?: boole
         <p className="text-center text-sm font-bold text-neutral-700">
           내 신청 찾기 🔍
         </p>
-        <p className="text-center text-[11px] text-neutral-400">
+        <p className="text-center text-[11px] text-neutral-500">
           신청할 때 입력한 정보로 찾아드려요
         </p>
         <input
@@ -149,7 +149,7 @@ export default function FindOrder({ defaultOpen = false }: { defaultOpen?: boole
 
         {results !== null &&
           (results.length === 0 ? (
-            <p className="text-center text-xs text-neutral-400 py-2">
+            <p className="text-center text-xs text-neutral-500 py-2">
               신청 내역을 찾지 못했어요 😢
               <br />
               성함·끝 4자리·날짜를 다시 확인해주세요
@@ -168,7 +168,7 @@ export default function FindOrder({ defaultOpen = false }: { defaultOpen?: boole
                         관리하기 →
                       </span>
                     </p>
-                    <p className="text-[11px] text-neutral-400 mt-0.5">
+                    <p className="text-[11px] text-neutral-500 mt-0.5">
                       {r.status} · {r.tracking_stage}
                     </p>
                   </Link>

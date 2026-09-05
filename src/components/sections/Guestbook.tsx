@@ -165,7 +165,7 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
 
         {empty ? (
           <FadeIn>
-            <p className="text-sm text-neutral-400 py-8">
+            <p className="text-sm text-neutral-500 py-8">
               첫 손님을 기다리고 있어요 🛵
               <br />
               가장 먼저 축하 마음을 남겨주세요 💐

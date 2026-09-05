@@ -32,10 +32,10 @@ export default function OrderList({
       </p>
 
       {!loaded ? (
-        <p className="text-center text-sm text-neutral-400 py-4">불러오는 중…</p>
+        <p className="text-center text-sm text-neutral-500 py-4">불러오는 중…</p>
       ) : orders.length === 0 ? (
         <div className="bg-white rounded-2xl border border-delivery/10 p-5 text-center">
-          <p className="text-sm text-neutral-400">
+          <p className="text-sm text-neutral-500">
             아직 주문이 없어요.
             <br />첫 주문을 열어주세요! 🥇
           </p>
@@ -71,7 +71,7 @@ export default function OrderList({
                     {STAGE_EMOJI[o.tracking_stage] ?? "📦"} {o.tracking_stage}
                   </span>
                 </div>
-                <p className="text-xs text-neutral-400">
+                <p className="text-xs text-neutral-500">
                   참여: {o.member_names.join(", ")}
                 </p>
                 {joinable ? (
@@ -83,7 +83,7 @@ export default function OrderList({
                     여기 합류하기 ➕
                   </button>
                 ) : (
-                  <p className="text-center text-[11px] text-neutral-400 py-1">
+                  <p className="text-center text-[11px] text-neutral-500 py-1">
                     이 주문은 배송이 끝났어요 ✅
                   </p>
                 )}
@@ -92,7 +92,7 @@ export default function OrderList({
           })}
 
           <div className="text-center pt-1">
-            <p className="text-xs text-neutral-400 mb-2">다 안 맞아요?</p>
+            <p className="text-xs text-neutral-500 mb-2">다 안 맞아요?</p>
             <button
               type="button"
               onClick={onPropose}

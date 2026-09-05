@@ -53,7 +53,7 @@ export default function SaveInvitationLink() {
       >
         청첩장 링크 복사해두기 🔗
       </button>
-      <p className="text-[11px] text-neutral-400 leading-relaxed">
+      <p className="text-[11px] text-neutral-500 leading-relaxed">
         이 폰에서는 다음에 그냥 들어오셔도 열려요
         <br />
         홈 화면에 추가해두시면 더 편해요 📲

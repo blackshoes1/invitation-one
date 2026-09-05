@@ -46,7 +46,7 @@ export default function HeartParticipantView({
           >
             역시 직접 만나서 받고 싶어요 🛵
           </Link>
-          <p className="mt-1.5 text-[11px] text-neutral-400">
+          <p className="mt-1.5 text-[11px] text-neutral-500">
             언제든 마음이 바뀌면 직접 배달로 전환할 수 있어요
           </p>
         </div>

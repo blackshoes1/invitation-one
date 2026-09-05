@@ -21,7 +21,7 @@ export default function InvitePhoneBox({
         <button
           type="button"
           onClick={onUseOther}
-          className="shrink-0 text-[11px] text-neutral-400 underline underline-offset-2"
+          className="shrink-0 text-[11px] text-neutral-500 underline underline-offset-2"
         >
           다른 번호 입력
         </button>

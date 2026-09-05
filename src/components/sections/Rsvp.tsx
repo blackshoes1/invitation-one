@@ -265,7 +265,7 @@ export default function Rsvp({ submitToken }: { submitToken: string | null }) {
                           className={`py-2 border transition-all ${
                             form.eating === item.value
                               ? "border-sage-600 bg-sage-600 text-white"
-                              : "border-wedding-gold/20 text-neutral-400"
+                              : "border-wedding-gold/20 text-neutral-500"
                           }`}
                         >
                           {item.label}
@@ -344,7 +344,7 @@ export default function Rsvp({ submitToken }: { submitToken: string | null }) {
               </div>
             )}
             {updated && form.attending && (
-              <p className="pt-2 text-[11px] text-neutral-400 leading-relaxed font-light">
+              <p className="pt-2 text-[11px] text-neutral-500 leading-relaxed font-light">
                 이전에 받으신 입장 QR 은 계속 사용하실 수 있어요.
                 <br />
                 링크를 잃어버리셨다면 예식장 안내데스크에서 도와드릴게요.
@@ -385,7 +385,7 @@ function Toggle({
       className={`py-2 text-xs tracking-wider transition-all border-b-2 ${
         active
           ? "border-wedding-gold text-sage-700 font-normal"
-          : "border-transparent text-neutral-400"
+          : "border-transparent text-neutral-500"
       }`}
     >
       {label}

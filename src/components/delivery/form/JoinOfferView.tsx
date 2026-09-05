@@ -32,7 +32,7 @@ export default function JoinOfferView({
           <br />
           먼저 신청하신 분이 있어요!
         </h2>
-        <p className="text-sm text-neutral-400">
+        <p className="text-sm text-neutral-500">
           같은 자리에서 함께 받으시면 좋아요. 합석하시겠어요?
         </p>
       </div>
@@ -74,7 +74,7 @@ export default function JoinOfferView({
       <button
         type="button"
         onClick={onBack}
-        className="w-full text-xs text-neutral-400 underline underline-offset-2"
+        className="w-full text-xs text-neutral-500 underline underline-offset-2"
       >
         ← 날짜 다시 고르기
       </button>

@@ -92,7 +92,7 @@ export default function Gallery() {
                   className="crossfade absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-wedding-cream to-sage-100"
                 >
                   <Heart size={26} className="text-wedding-gold" strokeWidth={1.2} />
-                  <p className="text-[11px] text-neutral-400 tracking-wide">
+                  <p className="text-[11px] text-neutral-500 tracking-wide">
                     사진 준비 중
                   </p>
                 </div>
