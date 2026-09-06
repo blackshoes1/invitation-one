@@ -27,6 +27,24 @@ test.describe("E2E-2 개인 초대", () => {
     expect(html).not.toMatch(/010-\d{3,4}-\d{4}/);
   });
 
+  test("개인 링크(/delivery?i=)로 들어와도 이름·번호가 실제로 채워진다", async ({ page }) => {
+    // 그룹에 속한 사람(시드 '초대손님')에게 개인 링크를 보낸 경우.
+    // 그룹 페이지를 안 거쳐도 자동 입력은 그대로 되어야 한다 —
+    // 자동 입력은 초대 토큰이 하는 일이고, 그룹과는 무관하기 때문이다.
+    await page.goto(`/delivery?i=${INVITE_TOKEN}`);
+
+    // 이름 칸이 채워진 채로 시작한다 (하객이 다시 칠 필요가 없다)
+    await expect(page.getByLabel("성함")).toHaveValue("초대손님");
+    // 번호는 마스킹만 — 실제 번호는 제출 시 서버가 토큰으로 채운다
+    await expect(page.getByText("010-****-5432")).toBeVisible();
+    await expect(page.getByText("초대 링크로 확인됨")).toBeVisible();
+    // 다른 번호를 쓸 길도 열려 있어야 한다 (눌러도 신원은 유지된다 — 결함 ①)
+    await expect(page.getByRole("button", { name: "다른 번호 입력" })).toBeVisible();
+
+    await page.waitForLoadState("networkidle");
+    expect(await page.content()).not.toMatch(/010-\d{3,4}-\d{4}/);
+  });
+
   test("초대 해석 API 는 이름 + 마스킹 번호만 반환한다", async ({ request }) => {
     const res = await request.get(`/api/delivery/invite?i=${INVITE_TOKEN}`);
     expect(res.status()).toBe(200);

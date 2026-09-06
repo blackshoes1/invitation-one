@@ -186,6 +186,24 @@ test.describe.serial("그룹/개인 주문 분리", () => {
     expect(m.personal, "그룹 페이지에서 들어왔으면 그룹 주문").toBe(false);
   });
 
+  test("그룹 소속인데 개인 링크를 받은 경우 — 아무것도 입력하지 않아도 신청된다", async ({
+    request,
+  }) => {
+    // 관리자가 그룹 사람에게 실수로(또는 일부러) 개인 링크를 보낸 상황.
+    // 자동 입력은 그대로 되고 명단 연결도 남지만, 주문은 그룹에 묶이지 않는다.
+    const headers = await admin(request);
+    const gid = await groupId(request, headers);
+    const me = await newMember(request, headers, gid, `E2E그룹개인${Date.now()}`);
+
+    // 이름도 번호도 보내지 않는다 — 둘 다 서버가 토큰으로 채워야 한다
+    const res = await createOrder(request, { inviteToken: me.token });
+    expect(res.status(), await res.text()).toBe(200);
+
+    const m = await memberById(request, headers, gid, me.id);
+    expect(m.applied, "명단 연결이 남아야 한다").toBe(true);
+    expect(m.personal, "개인 링크로 들어왔으므로 그룹 주문이 아니다").toBe(true);
+  });
+
   test("그룹 없이 개별 초대 — 링크만으로 이름·번호가 자동 입력된다", async ({
     request,
   }) => {
