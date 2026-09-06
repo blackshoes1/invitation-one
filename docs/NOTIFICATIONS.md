@@ -21,12 +21,20 @@ participants INSERT
 2. **클라이언트 fire-and-forget** — 기존 `notifyAdmin()` → `POST /api/notify`
    (rate limit 30/10분). 서버 경로의 보조.
 3. **안전망 cron (2중)**
-   - GitHub Actions `notify-drain.yml`: **3시간 간격**으로 `GET /api/notify` 호출.
-     저장소 secret `CRON_SECRET` 은 등록돼 있고, **Vercel 환경변수에 같은 값을
-     넣어야 동작한다** (다르면 401 경고만 내고 skip). 예식 후 비활성화 가능.
+   - GitHub Actions `notify-drain.yml`: **3시간 간격**으로 `POST /api/notify` 호출.
+     **공유 비밀이 필요 없다** — POST 는 파라미터를 받지 않는 "보낼 게 있으면
+     보내라" 신호이고(참여자 지정 불가·PII 없음·rate limit 있음), 하객 브라우저가
+     신청 직후 부르는 것과 같은 공개 경로다. 한 번에 5건까지만 꺼내므로 응답의
+     `claimed` 가 0이 될 때까지(최대 5회) 반복한다. 예식 후 비활성화 가능.
      ※ 2026-09-05: 30분 간격(월 ~1,440분)이 비공개 레포 Actions 무료 한도
      (월 2,000분)를 거의 소진해 CI job 이 시작조차 못 하는 상태가 되어
      3시간(월 ~240분)으로 낮췄다. 급하면 Actions 탭에서 수동 실행(workflow_dispatch).
+     ※ 2026-09-06: 원래 `GET` + `CRON_SECRET` 이었는데 저장소 secret 과 Vercel
+     환경변수 값이 어긋나 **401 로 조용히 죽어 있었다.** 워크플로가 401 에
+     `exit 0` 이라 매번 초록으로 끝나 아무도 몰랐고, 그 사이 중단된 알림이
+     재시도되지 못했다. 비밀을 맞출 필요가 없는 POST 로 바꾸고, 드레인이 안 되면
+     **워크플로를 실패시킨다**(카카오 미설정·발송 0건 포함). 안전망이 안 도는 것은
+     그 자체로 장애다.
    - Vercel cron(`vercel.json`): 매일 00:00 UTC 1회 (최후 안전망).
 
 ## cron 주기에 대해
