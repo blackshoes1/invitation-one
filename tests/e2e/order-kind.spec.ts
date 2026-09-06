@@ -23,12 +23,20 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "e2e-admin-pass";
 const GROUP_SLUG = "e2e-group";
 
 /** 평일(점심·저녁) 후보 — 기존 스펙이 쓰는 주말 날짜와 겹치지 않게 */
-const WEEKDAYS = ["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17"];
+const WEEKDAYS = [
+  "2026-09-14",
+  "2026-09-15",
+  "2026-09-16",
+  "2026-09-17",
+  "2026-09-21",
+  "2026-09-22",
+];
 let nextDate = 0;
 
 interface Member {
   id: string;
   name: string;
+  group_id: string | null;
   applied: boolean;
   personal: boolean;
 }
@@ -176,6 +184,71 @@ test.describe.serial("그룹/개인 주문 분리", () => {
     const m = await memberById(request, headers, gid, me.id);
     expect(m.applied).toBe(true);
     expect(m.personal, "그룹 페이지에서 들어왔으면 그룹 주문").toBe(false);
+  });
+
+  test("그룹 없이 개별 초대 — 링크만으로 이름·번호가 자동 입력된다", async ({
+    request,
+  }) => {
+    const headers = await admin(request);
+
+    // 그룹을 만들지 않고 사람 + 연락처 등록
+    const add = await request.post("/api/admin/invitees", {
+      headers,
+      data: { name: `E2E개별${Date.now()}`, phone: "010-3333-2222" },
+    });
+    expect(add.status()).toBe(200);
+    const member = (await add.json()).member as { id: string; group_id: string | null };
+    expect(member.group_id, "그룹에 묶이지 않아야 한다").toBeNull();
+
+    const inv = await request.post("/api/admin/invitees/invite", {
+      headers,
+      data: { member_id: member.id },
+    });
+    expect(inv.status()).toBe(200);
+    const links = (await inv.json()).links as { personalUrl: string }[];
+    // 그룹이 없으니 주소도 개인 링크 하나뿐이다
+    expect(links[0].personalUrl).toContain("/delivery?i=");
+    const token = /\?i=([0-9a-f]{32})/.exec(links[0].personalUrl)![1];
+
+    // 하객이 이름·번호를 하나도 입력하지 않는다 — 서버가 토큰으로 채운다
+    const res = await createOrder(request, { inviteToken: token });
+    expect(res.status(), await res.text()).toBe(200);
+
+    const list = await request.get("/api/admin/invitees", { headers });
+    expect(list.status()).toBe(200);
+    const me = ((await list.json()).members as Member[]).find((x) => x.id === member.id);
+    expect(me?.applied, "명단 연결이 남아야 한다").toBe(true);
+    expect(me?.personal, "그룹 없는 초대의 주문은 항상 개인 주문").toBe(true);
+  });
+
+  test("그룹 없는 초대 토큰으로는 그룹 주문을 만들 수 없다", async ({ request }) => {
+    const headers = await admin(request);
+    const add = await request.post("/api/admin/invitees", {
+      headers,
+      data: { name: `E2E개별거부${Date.now()}`, phone: "010-3333-1111" },
+    });
+    expect(add.status()).toBe(200);
+    const id = (await add.json()).member.id as string;
+    const inv = await request.post("/api/admin/invitees/invite", {
+      headers,
+      data: { member_id: id },
+    });
+    const token = /\?i=([0-9a-f]{32})/.exec(
+      ((await inv.json()).links as { personalUrl: string }[])[0].personalUrl
+    )![1];
+
+    const res = await request.post("/api/delivery/create", {
+      data: {
+        name: "개별초대자",
+        inviteToken: token,
+        groupSlug: GROUP_SLUG,
+        location: "서울 강남구 테스트로 1",
+        date: WEEKDAYS[WEEKDAYS.length - 1],
+        time: "저녁",
+      },
+    });
+    expect(res.status()).toBe(403);
+    expect((await res.json()).error).toBe("invite_group_mismatch");
   });
 
   test("형식이 틀린 번호는 초대 번호로 조용히 대체하지 않고 400", async ({ request }) => {

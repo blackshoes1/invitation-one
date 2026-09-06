@@ -26,7 +26,8 @@ export function json(body: unknown, status = 200) {
  * ------------------------------------------------------------------ */
 export interface ResolvedInvite {
   memberId: string;
-  groupId: string;
+  /** 그룹 없는 개별 초대면 null (20260906000200 마이그레이션) */
+  groupId: string | null;
   groupSlug: string | null;
   name: string;
   phone: string | null;
@@ -37,16 +38,18 @@ export async function resolveInvite(
 ): Promise<ResolvedInvite | null> {
   if (typeof token !== "string" || !INVITE_TOKEN_RE.test(token)) return null;
   if (!supabaseAdmin) return null;
+  // groups 는 **left join** — inner 로 조이면 그룹 없는 개별 초대가 조용히
+  // "토큰 없음"으로 떨어져 이름·번호 자동 입력이 안 된다
   const { data } = await supabaseAdmin
     .from("group_members")
-    .select("id, group_id, name, phone, groups!inner(slug)")
+    .select("id, group_id, name, phone, groups(slug)")
     .eq("invite_token_hash", hashManageToken(token))
     .maybeSingle();
   if (!data) return null;
-  const g = data.groups as unknown as { slug: string } | { slug: string }[];
+  const g = data.groups as unknown as { slug: string } | { slug: string }[] | null;
   return {
     memberId: data.id as string,
-    groupId: data.group_id as string,
+    groupId: (data.group_id as string | null) ?? null,
     groupSlug: (Array.isArray(g) ? g[0]?.slug : g?.slug) ?? null,
     name: (data.name as string) ?? "",
     phone: (data.phone as string | null) ?? null,

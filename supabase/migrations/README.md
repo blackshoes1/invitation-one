@@ -35,6 +35,7 @@ db/rsvp.sql → db/deliveries.sql → db/groups.sql → db/group_members.sql
 | `20260823000100_anon_alias.sql` | 익명 별명(`participants.anon_alias`, `_anon_alias()`), 기존 마음배송 전부 익명 전환, `get_celebrations` 별명 표시, `send_heart_v2` 에 `p_anon_alias` 추가 |
 | `20260905000100_participant_phone_optional.sql` | 관리자 일괄 신청 처리용 — `participants_delivery_shape` 에서 직접배달 phone 필수 조건 제거 (delivery_id 필수는 유지) |
 | `20260906000100_outbox_claim_window_7d.sql` | `claim_notifications` 클레임 창 2일 → 7일. 드레인이 이틀 넘게 멈추면 그 사이 알림이 재시도 대상에서 영구히 빠지던 문제 (2026-09-05 안전망 401 장애에서 드러남) |
+| `20260906000200_groupless_invites.sql` | 그룹 없이 개별 초대 — `group_members.group_id` 를 nullable 로. 개인 한 명에게 자동 입력 링크를 주려고 그 사람만을 위한 그룹을 만들어야 하던 문제. **읽는 쪽은 `groups` 를 left join 할 것** (inner 면 그룹 없는 초대가 조용히 사라진다) |
 
 ## 적용 확인
 

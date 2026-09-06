@@ -241,7 +241,8 @@ export interface GroupStatusMember {
 /** 관리자용 명단 행 */
 export interface GroupMemberRow {
   id: string;
-  group_id: string;
+  /** 그룹 없는 개별 초대면 null (20260906000200) */
+  group_id: string | null;
   name: string;
   /** 개인 초대 링크용 연락처 (관리자만 조회) */
   phone?: string | null;

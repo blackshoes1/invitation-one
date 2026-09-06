@@ -3,7 +3,8 @@ export interface InvitePrefill {
   name: string;
   /** 010-****-1234 — 실제 번호는 서버에만 있고 제출 시 토큰으로 채워진다 */
   phoneMasked: string | null;
-  groupSlug: string;
+  /** 그룹 없는 개별 초대면 null — 개인 링크(/delivery?i=)로만 쓴다 */
+  groupSlug: string | null;
 }
 
 export const INVITE_TOKEN_RE = /^[0-9a-f]{32}$/;
