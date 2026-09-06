@@ -2,7 +2,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   sendToMe,
   isKakaoConfigured,
-  kakaoTokenStatus,
+  kakaoTokenStatusThrottled,
   type KakaoTokenStatus,
 } from "@/lib/kakao";
 import { formatYmdKo } from "@/lib/wedding";
@@ -89,47 +89,68 @@ export async function drainNotifications(limit = 5): Promise<DrainResult> {
   // 아무리 자주 돌아도 토큰이 그대로 늙는다. 그러다 정작 필요한 날 먹통이 된다.
   // 여기서 한 번 확인해 두면 안전망이 도는 것만으로 토큰이 살아 있고, 만료도
   // 결과에 드러나 크론 워크플로가 미리 잡아낸다.
+  //
+  // 5분마다 도는 안전망(pg_cron)에서도 매번 카카오를 치지 않도록 간격 제한이
+  // 걸려 있다. 건너뛴 회차는 tokenStatus 가 비어서 나간다 ("이번엔 모름").
   if (rows.length === 0) {
-    out.tokenStatus = await kakaoTokenStatus();
+    const status = await kakaoTokenStatusThrottled();
+    if (status) out.tokenStatus = status;
     return out;
   }
 
   for (const row of rows) {
-    const text = row.participant_id ? await buildText(row.participant_id) : null;
-    if (!text) {
-      out.skipped++;
-      await supabaseAdmin
-        .from("notification_outbox")
-        .update({ status: "skipped", last_error: "participant_missing", updated_at: now() })
-        .eq("id", row.id);
-      continue;
-    }
-    const r = await sendToMe(text);
-    if (r.ok && !r.skipped) {
-      out.sent++;
-      await Promise.all([
-        supabaseAdmin
+    // 한 행이 터져도 나머지는 계속 보낸다. 그리고 무엇보다 — 던져진 예외가
+    // 이 루프를 빠져나가면 그 행은 'sending' 인 채로 남고, 3분 스테일 락이
+    // 회수해 줄 때까지(=다음 드레인이 돌 때까지) 아무 흔적 없이 멈춰 있다.
+    // 실제로 2026-09-06 에 그렇게 묶여 16분간 알림이 안 갔다. 여기서 잡아
+    // failed 로 기록하면 사유가 남고 백오프 재시도 대상이 된다.
+    try {
+      const text = row.participant_id ? await buildText(row.participant_id) : null;
+      if (!text) {
+        out.skipped++;
+        await supabaseAdmin
           .from("notification_outbox")
-          .update({ status: "sent", sent_at: now(), last_error: null, updated_at: now() })
-          .eq("id", row.id),
-        supabaseAdmin
-          .from("participants")
-          .update({ notified_at: now() })
-          .eq("id", row.participant_id!)
-          .is("notified_at", null),
-      ]);
-    } else {
+          .update({ status: "skipped", last_error: "participant_missing", updated_at: now() })
+          .eq("id", row.id);
+        continue;
+      }
+      const r = await sendToMe(text);
+      if (r.ok && !r.skipped) {
+        out.sent++;
+        await Promise.all([
+          supabaseAdmin
+            .from("notification_outbox")
+            .update({ status: "sent", sent_at: now(), last_error: null, updated_at: now() })
+            .eq("id", row.id),
+          supabaseAdmin
+            .from("participants")
+            .update({ notified_at: now() })
+            .eq("id", row.participant_id!)
+            .is("notified_at", null),
+        ]);
+      } else {
+        out.failed++;
+        await markFailed(row, r.error ?? "kakao_skipped");
+      }
+    } catch (e) {
       out.failed++;
-      await supabaseAdmin
-        .from("notification_outbox")
-        .update({
-          status: "failed",
-          last_error: (r.error ?? "kakao_skipped").slice(0, 500),
-          next_attempt_at: new Date(Date.now() + backoffMs(row.attempts)).toISOString(),
-          updated_at: now(),
-        })
-        .eq("id", row.id);
+      console.error("[outbox] row failed:", row.id, e);
+      // 이 기록마저 실패하면 그 행은 'sending' 으로 남는다 — 스테일 락이 회수한다
+      await markFailed(row, `throw: ${String(e)}`).catch(() => {});
     }
   }
   return out;
+}
+
+/** 실패 기록 + 지수 백오프 예약 (성공/실패 어느 쪽도 안 남기면 행이 갇힌다) */
+async function markFailed(row: OutboxRow, error: string): Promise<void> {
+  await supabaseAdmin!
+    .from("notification_outbox")
+    .update({
+      status: "failed",
+      last_error: error.slice(0, 500),
+      next_attempt_at: new Date(Date.now() + backoffMs(row.attempts)).toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", row.id);
 }

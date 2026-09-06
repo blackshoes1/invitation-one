@@ -106,6 +106,52 @@ export async function kakaoTokenStatus(): Promise<KakaoTokenStatus> {
   }
 }
 
+const CHECKED_KEY = "kakao_token_checked_at";
+/** 유휴 확인 간격 — 이보다 자주 부르면 건너뛴다 (토큰을 살려두기엔 충분한 간격) */
+const IDLE_CHECK_INTERVAL_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * 보낼 게 없을 때의 토큰 점검 — **간격 제한이 걸린** 버전.
+ *
+ * `kakaoTokenStatus()` 는 매번 카카오에 refresh 요청을 보낸다. 아웃박스 드레인이
+ * 5분마다 돌게 되면서(pg_cron 안전망) 그대로 두면 하루 288번을 카카오에 치게 되고,
+ * refresh token 회전까지 그만큼 자주 일어난다. 토큰을 살려두는 목적에는 몇 시간에
+ * 한 번이면 충분하므로 마지막 확인 시각을 기록해 두고 건너뛴다.
+ *
+ * 확인을 건너뛰면 `null` 을 돌려준다 — 호출자는 "이번엔 모름"으로 다뤄야 하고,
+ * 상태를 단정해선 안 된다.
+ */
+export async function kakaoTokenStatusThrottled(): Promise<KakaoTokenStatus | null> {
+  if (!isKakaoConfigured) return "unconfigured";
+  if (!supabaseAdmin) return kakaoTokenStatus();
+
+  try {
+    const { data } = await supabaseAdmin
+      .from("site_settings")
+      .select("value")
+      .eq("key", CHECKED_KEY)
+      .maybeSingle();
+    const last = typeof data?.value === "string" ? Date.parse(data.value) : NaN;
+    if (Number.isFinite(last) && Date.now() - last < IDLE_CHECK_INTERVAL_MS) return null;
+  } catch {
+    /* 조회 실패 → 그냥 확인한다 (막는 쪽보다 확인하는 쪽이 안전) */
+  }
+
+  const status = await kakaoTokenStatus();
+  // 확인 시각은 결과와 무관하게 남긴다 — 만료 상태에서 5분마다 재시도해도
+  // 사람이 재발급하기 전엔 달라지지 않는다 (크론 워크플로가 따로 알린다)
+  try {
+    await supabaseAdmin.from("site_settings").upsert({
+      key: CHECKED_KEY,
+      value: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+  } catch {
+    /* 기록 실패해도 상태 자체는 유효하다 */
+  }
+  return status;
+}
+
 /** 나에게 보내기 (텍스트 + 링크 버튼) */
 export async function sendToMe(text: string, linkUrl?: string): Promise<SendResult> {
   if (!isKakaoConfigured) {
