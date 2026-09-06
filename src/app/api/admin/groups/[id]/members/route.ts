@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminGuard } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { orderKindOf } from "@/lib/orderKind";
 import { formatPhone, isValidPhone } from "@/lib/wedding";
 
 export async function GET(
@@ -20,8 +21,9 @@ export async function GET(
 
   // 개인 링크로 신청한 사람은 그룹(group_id) 집계에 안 잡히므로, 명단에서 놓치지 않도록
   // participants.group_member_id 로 신청 여부를 함께 내려준다.
+  // 종류 판정은 폼·API 와 같은 규칙을 쓴다 (src/lib/orderKind.ts).
   const ids = (data ?? []).map((m) => m.id);
-  const applied = new Map<string, boolean>();
+  const hasGroupOrder = new Map<string, boolean>();
   if (ids.length > 0) {
     const { data: parts } = await supabaseAdmin!
       .from("participants")
@@ -30,13 +32,17 @@ export async function GET(
     for (const p of parts ?? []) {
       if (!p.group_member_id) continue;
       // 하나라도 그룹 주문이면 그룹 신청으로 표시
-      applied.set(p.group_member_id, applied.get(p.group_member_id) || !!p.group_id);
+      hasGroupOrder.set(
+        p.group_member_id,
+        (hasGroupOrder.get(p.group_member_id) ?? false) ||
+          orderKindOf(p.group_id) === "group"
+      );
     }
   }
   const members = (data ?? []).map((m) => ({
     ...m,
-    applied: applied.has(m.id),
-    personal: applied.has(m.id) && applied.get(m.id) === false,
+    applied: hasGroupOrder.has(m.id),
+    personal: hasGroupOrder.get(m.id) === false,
   }));
   return NextResponse.json({ members });
 }

@@ -5,11 +5,12 @@ import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { groom, bride, DELIVERY_CAPACITY } from "@/lib/wedding";
-import type { InvitePrefill } from "@/lib/invite";
 import IntroAnimation from "@/components/delivery/IntroAnimation";
 import BikeIcon from "@/components/delivery/BikeIcon";
 import MenuSelect, { type DeliveryMode } from "@/components/delivery/MenuSelect";
 import DeliveryForm from "@/components/delivery/DeliveryForm";
+import InviteNotice from "@/components/delivery/InviteNotice";
+import { useInvite } from "@/components/delivery/useInvite";
 import HeartForm from "@/components/delivery/HeartForm";
 import RiderProfile from "@/components/delivery/RiderProfile";
 import ReviewStrip from "@/components/delivery/ReviewStrip";
@@ -26,20 +27,9 @@ function DeliveryPageInner() {
    * 이름·마스킹 번호만 프리필하고, 실제 연락처는 제출 시 서버가 토큰으로 채운다.
    */
   const inviteToken = search.get("i");
-  const [invite, setInvite] = useState<InvitePrefill | null>(null);
-  const [inviteReady, setInviteReady] = useState(!inviteToken);
-  useEffect(() => {
-    if (!inviteToken) return;
-    fetch(`/api/delivery/invite?i=${encodeURIComponent(inviteToken)}`, {
-      cache: "no-store",
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j: { invite?: InvitePrefill } | null) => {
-        if (j?.invite) setInvite(j.invite);
-      })
-      .catch(() => {})
-      .finally(() => setInviteReady(true));
-  }, [inviteToken]);
+  // 개인 주문이라 어느 그룹의 토큰이든 신원 확인용으로 받는다 (그룹에는 묶지 않는다)
+  const inviteState = useInvite(inviteToken, null);
+  const { prefill: invite, token: usableToken, ready: inviteReady } = inviteState;
 
   /** 신청 인원 — 아직 못 불러왔으면 null (숫자가 0→실제값으로 튀지 않게) */
   const [taken, setTaken] = useState<number | null>(null);
@@ -110,6 +100,7 @@ function DeliveryPageInner() {
         <DeliveryClosed />
       ) : (
         <section className="pb-6">
+          <InviteNotice state={inviteState} token={inviteToken} />
           {mode === null && (
             <>
               <RiderProfile deliveredCount={taken ?? undefined} />
@@ -133,7 +124,7 @@ function DeliveryPageInner() {
             <DeliveryForm
               convertId={convertId}
               invite={invite}
-              inviteToken={invite ? inviteToken : null}
+              inviteToken={usableToken}
             />
           )}
           {mode === "heart" && (

@@ -103,9 +103,10 @@ export function AcceptOfferForm({
         body: JSON.stringify({
           slug,
           name: name.trim(),
+          // 신원(토큰)과 연락처를 분리 — 번호를 바꿔도 명단 연결은 유지된다
           phone: useInvitePhone ? null : phone.trim(),
           convertToken: convertId,
-          inviteToken: useInvitePhone ? inviteToken : null,
+          inviteToken,
         }),
       }).catch(() => null);
       setSending(false);

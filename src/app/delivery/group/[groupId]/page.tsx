@@ -10,11 +10,12 @@ import {
   type GroupOrder,
 } from "@/lib/supabase";
 import { groom, bride, DELIVERY_CAPACITY } from "@/lib/wedding";
-import type { InvitePrefill } from "@/lib/invite";
 import MenuSelect, { type DeliveryMode } from "@/components/delivery/MenuSelect";
 import BikeIcon from "@/components/delivery/BikeIcon";
 import IntroAnimation from "@/components/delivery/IntroAnimation";
 import DeliveryForm from "@/components/delivery/DeliveryForm";
+import InviteNotice from "@/components/delivery/InviteNotice";
+import { useInvite } from "@/components/delivery/useInvite";
 import JoinForm from "@/components/delivery/JoinForm";
 import OrderList from "@/components/delivery/OrderList";
 import HeartForm from "@/components/delivery/HeartForm";
@@ -39,18 +40,9 @@ function GroupPageInner() {
   const convertId = search.get("convert");
   /** 개인 초대 링크 토큰 (?i=) — 이름·마스킹 번호 프리필, 제출 시 서버가 실제 번호 채움 */
   const inviteToken = search.get("i");
-  const [invite, setInvite] = useState<InvitePrefill | null>(null);
-  const [inviteReady, setInviteReady] = useState(!inviteToken);
-  useEffect(() => {
-    if (!inviteToken) return;
-    fetch(`/api/delivery/invite?i=${encodeURIComponent(inviteToken)}`, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j: { invite?: InvitePrefill } | null) => {
-        if (j?.invite && j.invite.groupSlug === slug) setInvite(j.invite);
-      })
-      .catch(() => {})
-      .finally(() => setInviteReady(true));
-  }, [inviteToken, slug]);
+  // 이 그룹의 토큰만 쓴다. 다른 그룹·만료 토큰은 버리되 조용히 버리지 않고 안내한다.
+  const inviteState = useInvite(inviteToken, slug);
+  const { prefill: invite, token: usableToken, ready: inviteReady } = inviteState;
 
   const [group, setGroup] = useState<Group | null | undefined>(undefined);
   const [orders, setOrders] = useState<GroupOrder[]>([]);
@@ -154,6 +146,8 @@ function GroupPageInner() {
         </p>
       </section>
 
+      <InviteNotice state={inviteState} token={inviteToken} />
+
       {view.kind === "menu" && (
         <div className="px-6 pb-6 max-w-md mx-auto space-y-4">
           {group.offer_date && group.offer_time && !closed && (
@@ -212,7 +206,7 @@ function GroupPageInner() {
               slug={slug}
               convertId={convertId}
               invite={invite}
-              inviteToken={invite ? inviteToken : null}
+              inviteToken={usableToken}
               onBack={() => setView({ kind: "menu" })}
               onJoined={loadOrders}
             />
@@ -223,7 +217,7 @@ function GroupPageInner() {
               groupSlug={slug}
               convertId={convertId}
               invite={invite}
-              inviteToken={invite ? inviteToken : null}
+              inviteToken={usableToken}
               onBack={() => setView({ kind: "menu" })}
               onJoined={loadOrders}
             />
@@ -234,7 +228,7 @@ function GroupPageInner() {
               groupSlug={slug}
               convertId={convertId}
               invite={invite}
-              inviteToken={invite ? inviteToken : null}
+              inviteToken={usableToken}
               onSubmitted={loadOrders}
             />
           )}
