@@ -34,6 +34,7 @@ db/rsvp.sql → db/deliveries.sql → db/groups.sql → db/group_members.sql
 | `20260822000100_heart_privacy.sql` | 마음배송 공개 설정(`display_mode/is_private/show_region`)·참석 여부(`attendance`), `_mask_name()`, `get_celebrations` 마스킹/비공개 제외, `send_heart_v2` 인자 추가(구 시그니처 drop 후 재생성) — 기존 마음배송 행은 `name` 유지 |
 | `20260823000100_anon_alias.sql` | 익명 별명(`participants.anon_alias`, `_anon_alias()`), 기존 마음배송 전부 익명 전환, `get_celebrations` 별명 표시, `send_heart_v2` 에 `p_anon_alias` 추가 |
 | `20260905000100_participant_phone_optional.sql` | 관리자 일괄 신청 처리용 — `participants_delivery_shape` 에서 직접배달 phone 필수 조건 제거 (delivery_id 필수는 유지) |
+| `20260906000100_outbox_claim_window_7d.sql` | `claim_notifications` 클레임 창 2일 → 7일. 드레인이 이틀 넘게 멈추면 그 사이 알림이 재시도 대상에서 영구히 빠지던 문제 (2026-09-05 안전망 401 장애에서 드러남) |
 
 ## 적용 확인
 
