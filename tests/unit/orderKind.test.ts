@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   resolveOrderKind,
+  inviteMatchesGroupSlug,
   inviteMayJoin,
   orderKindOf,
   type GroupRef,
@@ -62,6 +63,35 @@ describe("resolveOrderKind — 종류는 진입 경로가 결정한다", () => {
       kind: "group",
       groupId: groupA.id,
     });
+  });
+});
+
+describe("그룹 없는 개별 초대 (group_id = null)", () => {
+  // 그룹을 만들지 않고 개인에게만 링크를 주는 경우 — 20260906000200
+  const solo: InviteRef = { groupId: null, groupSlug: null };
+
+  it("/delivery?i= → 개인 주문 + 이름·번호 자동 입력", () => {
+    expect(resolveOrderKind({ group: null, invite: solo })).toEqual({
+      ok: true,
+      kind: "personal",
+      groupId: null,
+    });
+  });
+
+  it("그룹 페이지에서는 거부된다 — 어느 그룹에도 속하지 않으므로", () => {
+    expect(resolveOrderKind({ group: groupA, invite: solo })).toEqual({
+      ok: false,
+      error: "invite_group_mismatch",
+    });
+  });
+
+  it("그룹 제안 수락도 거부", () => {
+    expect(inviteMatchesGroupSlug(solo, "a-team")).toBe(false);
+  });
+
+  it("개인 주문 합석은 허용, 그룹 주문 합석은 거부", () => {
+    expect(inviteMayJoin(solo, null)).toBe(true);
+    expect(inviteMayJoin(solo, groupA.id)).toBe(false);
   });
 });
 

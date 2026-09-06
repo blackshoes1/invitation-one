@@ -17,14 +17,15 @@ export async function GET(req: Request) {
   if (!(await rateLimitAllow(`invite:${clientIp(req)}`, 60, 600)))
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
 
+  // groups 는 left join — 그룹 없는 개별 초대(group_id null)도 해석돼야 한다
   const { data } = await supabaseAdmin
     .from("group_members")
-    .select("name, phone, groups!inner(slug)")
+    .select("name, phone, groups(slug)")
     .eq("invite_token_hash", hashManageToken(t))
     .maybeSingle();
   if (!data) return NextResponse.json({ error: "invalid" }, { status: 401 });
-  const g = data.groups as unknown as { slug: string } | { slug: string }[];
-  const slug = Array.isArray(g) ? g[0]?.slug : g?.slug;
+  const g = data.groups as unknown as { slug: string } | { slug: string }[] | null;
+  const slug = (Array.isArray(g) ? g[0]?.slug : g?.slug) ?? null;
   return NextResponse.json(
     { invite: { name: data.name, phoneMasked: maskPhone(data.phone), groupSlug: slug } },
     { headers: { "Cache-Control": "no-store, private" } }

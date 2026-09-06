@@ -14,7 +14,7 @@
  * | `/delivery?i=<t>`              | 유효      | 개인 (group_id = null, 신원만 연결) |
  * | `/delivery/group/<slug>`       | 없음      | 그룹 (group_id = slug 의 그룹) |
  * | `/delivery/group/<slug>?i=<t>` | 같은 그룹 | 그룹 |
- * | `/delivery/group/<slug>?i=<t>` | 다른 그룹 | 거부 (invite_group_mismatch) |
+ * | `/delivery/group/<slug>?i=<t>` | 다른 그룹 · 그룹 없음 | 거부 (invite_group_mismatch) |
  *
  * 저장된 주문의 종류는 `deliveries.group_id` 하나로 결정된다 (`orderKindOf`).
  * 종류를 따로 저장하지 않는 이유: 진실의 출처가 둘이 되면 어긋날 수 있다.
@@ -31,9 +31,14 @@ export interface GroupRef {
   slug: string;
 }
 
-/** 초대 토큰이 가리키는 명단의 한 사람 — 판정에 필요한 부분만 */
+/**
+ * 초대 토큰이 가리키는 명단의 한 사람 — 판정에 필요한 부분만.
+ * `groupId` 가 null 이면 **그룹에 속하지 않은 개별 초대**다. 이 사람은 어느
+ * 그룹 주문에도 섞이지 않고, 아래 규칙들이 자연스럽게 그렇게 처리한다
+ * (null 은 어떤 그룹 id 와도 같지 않다).
+ */
 export interface InviteRef {
-  groupId: string;
+  groupId: string | null;
   groupSlug: string | null;
 }
 

@@ -10,6 +10,7 @@ import {
   DELIVERY_END,
 } from "@/lib/wedding";
 import type { TabCtx } from "@/app/admin/shared";
+import SoloInvites from "@/components/admin/SoloInvites";
 
 /**
  * 그룹 탭 — 그룹 생성·제안 일정·명단(roster) 관리.
@@ -332,6 +333,9 @@ export default function GroupsTab({
 
   return (
     <>
+      {/* 그룹 없이 개인에게만 링크를 주는 경우 — 그룹을 만들 필요가 없다 */}
+      <SoloInvites api={api} setError={setError} setNotice={setNotice} />
+
       <div className="bg-white border border-wedding-gold/15 p-3 space-y-2">
         <div className="flex gap-2">
           <input
