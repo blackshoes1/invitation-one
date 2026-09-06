@@ -27,22 +27,39 @@ test.describe("E2E-2 개인 초대", () => {
     expect(html).not.toMatch(/010-\d{3,4}-\d{4}/);
   });
 
-  test("개인 링크(/delivery?i=)로 들어와도 이름·번호가 실제로 채워진다", async ({ page }) => {
-    // 그룹에 속한 사람(시드 '초대손님')에게 개인 링크를 보낸 경우.
-    // 그룹 페이지를 안 거쳐도 자동 입력은 그대로 되어야 한다 —
-    // 자동 입력은 초대 토큰이 하는 일이고, 그룹과는 무관하기 때문이다.
+  test("개인 링크로 들어오면 묻지 않고 이름을 부르며 확인만 받는다", async ({ page }) => {
+    // 이미 아는 정보를 "알려주세요"라고 묻지 않는다 — 초대 링크의 목적이
+    // 다시 입력하는 번거로움을 없애는 것이므로 첫 화면부터 그게 드러나야 한다.
     await page.goto(`/delivery?i=${INVITE_TOKEN}`);
 
-    // 이름 칸이 채워진 채로 시작한다 (하객이 다시 칠 필요가 없다)
-    await expect(page.getByLabel("성함")).toHaveValue("초대손님");
+    await expect(page.getByRole("heading", { name: "초대손님님, 반가워요 👋" })).toBeVisible();
+    await expect(page.getByText("받는 분 정보를 알려주세요")).toHaveCount(0);
     // 번호는 마스킹만 — 실제 번호는 제출 시 서버가 토큰으로 채운다
     await expect(page.getByText("010-****-5432")).toBeVisible();
     await expect(page.getByText("초대 링크로 확인됨")).toBeVisible();
-    // 다른 번호를 쓸 길도 열려 있어야 한다 (눌러도 신원은 유지된다 — 결함 ①)
-    await expect(page.getByRole("button", { name: "다른 번호 입력" })).toBeVisible();
 
     await page.waitForLoadState("networkidle");
     expect(await page.content()).not.toMatch(/010-\d{3,4}-\d{4}/);
+  });
+
+  test("'정보 수정'을 누르면 직접 입력할 수 있다 (명단 이름이 틀릴 수 있으므로)", async ({
+    page,
+  }) => {
+    await page.goto(`/delivery?i=${INVITE_TOKEN}`);
+    await page.getByRole("button", { name: "정보 수정" }).click();
+
+    // 이름 칸은 초대값이 채워진 채로 열린다 — 지우고 고칠 수 있다
+    await expect(page.getByLabel("성함")).toHaveValue("초대손님");
+    // 번호는 여전히 마스킹 확인 박스 + "다른 번호 입력" 경로
+    // (눌러도 inviteToken 은 계속 전송되어 명단 연결이 유지된다 — 결함 ①)
+    await expect(page.getByRole("button", { name: "다른 번호 입력" })).toBeVisible();
+    expect(await page.content()).not.toMatch(/010-\d{3,4}-\d{4}/);
+  });
+
+  test("초대 없이 들어오면 화면이 그대로다", async ({ page }) => {
+    await page.goto("/delivery");
+    await page.getByRole("button", { name: /종이 청첩장 직접 받기/ }).click();
+    await expect(page.getByText("받는 분 정보를 알려주세요")).toBeVisible();
   });
 
   test("초대 해석 API 는 이름 + 마스킹 번호만 반환한다", async ({ request }) => {
