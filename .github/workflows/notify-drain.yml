@@ -53,6 +53,15 @@ jobs:
             [ "$(jq -r '.kakao' /tmp/out.json)" = "false" ] && {
               echo "::error::카카오 미설정 — 알림이 발송되지 않는다"; exit 1; }
 
+            # 보낼 게 없을 때 서버가 확인해 준 토큰 상태. refresh token 은 약 2개월
+            # 만료라, 주문이 없는 조용한 기간에 만료되면 정작 필요한 날 먹통이 된다.
+            # 여기서 걸러 예식 전에 재발급할 시간을 번다.
+            token=$(jq -r '.tokenStatus // empty' /tmp/out.json)
+            if [ "$token" = "expired" ]; then
+              echo "::error::카카오 토큰 만료 — 재발급 필요 (src/lib/kakao.ts 헤더 참고)"
+              exit 1
+            fi
+
             # 꺼냈는데 한 건도 못 보냈다 = 토큰 만료 등 발송 자체가 깨진 상태.
             # 백오프가 걸려 지금 다시 꺼내도 소용없으니 멈추고, 조용히 넘기지 않는다.
             # (refresh token 은 약 2개월 만료 — 예식 전에 알아채야 한다)
