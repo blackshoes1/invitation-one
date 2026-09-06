@@ -172,6 +172,41 @@ export default function GroupsTab({
     reload();
   };
 
+  /**
+   * 그룹 삭제. 되돌릴 수 없는 것들을 먼저 이름과 숫자로 보여준 뒤 확인받는다.
+   * (살아 있는 주문이 있으면 서버가 409 로 막고 무엇이 막는지 알려준다)
+   */
+  const deleteGroup = async (g: Group) => {
+    const roster = g.roster_count ?? 0;
+    const warn =
+      `'${g.name}' 그룹을 삭제할까요?\n\n` +
+      (roster > 0
+        ? `· 명단 ${roster}명이 함께 삭제되고, 그분들께 보낸 개인 초대 링크가 모두 무효가 됩니다\n`
+        : "") +
+      `· 그룹 링크(/delivery/group/${g.slug})가 더는 열리지 않습니다\n\n` +
+      `되돌릴 수 없어요.`;
+    if (!confirm(warn)) return;
+
+    const res = await api(`/api/admin/groups/${g.id}`, { method: "DELETE" });
+    const j = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      removed?: { roster: number; canceled_orders: number; hearts: number };
+    };
+    if (!res.ok) return setError(j.error ?? "그룹 삭제에 실패했습니다.");
+
+    const r = j.removed;
+    setNotice(
+      `'${g.name}' 그룹을 삭제했어요` +
+        (r
+          ? ` (명단 ${r.roster}명 삭제` +
+            (r.canceled_orders > 0 ? ` · 취소된 주문 ${r.canceled_orders}건 연결 해제` : "") +
+            (r.hearts > 0 ? ` · 마음배송 ${r.hearts}건 연결 해제` : "") +
+            ")"
+          : "")
+    );
+    reload();
+  };
+
   const copyLink = (slug: string) => {
     navigator.clipboard?.writeText(
       `${window.location.origin}/delivery/group/${slug}`
@@ -517,6 +552,13 @@ export default function GroupsTab({
                   className="px-3 py-1.5 text-xs border border-sage-300 text-sage-600"
                 >
                   링크 복사
+                </button>
+                <button
+                  onClick={() => deleteGroup(g)}
+                  className="px-3 py-1.5 text-xs border border-red-200 text-red-600"
+                  title="그룹 삭제 — 명단과 초대 링크가 함께 사라집니다"
+                >
+                  삭제
                 </button>
               </div>
             </div>
