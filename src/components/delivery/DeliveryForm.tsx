@@ -154,9 +154,10 @@ export default function DeliveryForm({
         body: JSON.stringify({
           deliveryId: order.id,
           name: name.trim(),
+          // 신원(토큰)과 연락처를 분리 — 번호를 바꿔도 명단 연결은 유지된다
           phone: useInvitePhone ? null : phone.trim(),
           convertToken: convertId,
-          inviteToken: useInvitePhone ? inviteToken : null,
+          inviteToken,
         }),
       }).catch(() => null);
       setSending(false);
@@ -200,8 +201,10 @@ export default function DeliveryForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          groupId: group?.id ?? null,
+          // 종류(그룹/개인)는 서버가 판정한다 — 폼은 어느 페이지에서 왔는지만 알린다
+          groupSlug,
           name: name.trim(),
+          // 신원(토큰)과 연락처를 분리 — "다른 번호 쓰기"를 눌러도 명단 연결은 유지된다
           phone: useInvitePhone ? null : phone.trim(),
           location: location.trim(),
           date,
@@ -209,9 +212,7 @@ export default function DeliveryForm({
           message: message.trim() || null,
           convertToken: convertId,
           rider: rider ?? "신랑",
-          inviteToken: useInvitePhone ? inviteToken : null,
-          // 개인 링크(/delivery?i=)로 들어온 경우 — 초대 토큰이 있어도 그룹에 묶지 않는다
-          personal: !group?.id && Boolean(useInvitePhone && inviteToken),
+          inviteToken,
         }),
       }).catch(() => null);
       const row = res ? await res.json().catch(() => null) : null;

@@ -440,3 +440,55 @@ alter table deliveries add constraint deliveries_kind_shape
    타그룹 토큰 안내 / 기존 링크 호환
 
 각 단계는 독립 커밋. 3번(결함 ①)은 단독으로도 가치가 있어 먼저 배포 가능.
+
+---
+---
+
+# 3단계 — A안 구현 기록
+
+작성: 2026-09-06 · 사용자 결정: **A안만** (개인 링크 대량 발송 계획 없음 → `kind` 저장은 예식 후)
+
+## 한 일
+
+| # | 내용 | 파일 |
+|---|---|---|
+| 1 | 판정 단일화 — 순수 함수 + 유닛 테스트 | `src/lib/orderKind.ts`, `tests/unit/orderKind.test.ts` |
+| 2 | 클라이언트 `personal` 플래그 제거, 서버가 진입 경로로 판정 | `api/delivery/create`, `DeliveryForm` |
+| 3 | 신원(토큰)과 연락처 분리 — **결함 ①** | `resolvePhone`, 폼 4곳 |
+| 4 | 타그룹·만료 토큰 안내 — **결함 ②** | `useInvite.ts`, `InviteNotice.tsx` |
+| 5 | 어드민 읽기도 같은 규칙 | `api/admin/groups/[id]/members` |
+| 6 | E2E 회귀 방지 | `tests/e2e/order-kind.spec.ts` |
+
+## 설계에서 달라진 점 (그리고 이유)
+
+- **`resolveOrderKind` 는 slug 가 아니라 group.id 로 판정한다.** 설계안에는
+  `{ groupSlug, invite }` 로 적었는데, 클라이언트가 보낸 slug 를 그대로 믿으면
+  판정 근거가 다시 클라이언트로 돌아간다. 폼은 slug 만 보내고 **서버가 조회한
+  그룹**(`loadGroupBySlug`)을 판정에 쓴다. 없는 슬러그면 `group_invalid` 400.
+
+- **그룹 제안 수락(`/api/delivery/group/accept`)은 그룹을 조회하지 않는다.**
+  이 경로는 정의상 그룹 주문이라 판정할 게 없고, 남는 규칙은 초대 결속뿐이다.
+  슬러그 판(`inviteMatchesGroupSlug`)을 쓴다 — 실재하지 않는 슬러그라도 "다른
+  그룹의 토큰"이라는 사실은 그대로여서, 기존 403 계약이 유지된다.
+
+- **형식이 틀린 연락처는 거부한다.** 토큰을 항상 보내게 되면서 "입력했는데
+  형식이 틀린" 경우가 새로 생겼다. 조용히 초대 번호로 대체하면 하객은 번호를
+  바꾼 줄 알지만 실제로는 옛 번호로 배송된다 → `phone_invalid` 400.
+
+- **만료·오타 토큰 안내를 `/delivery` 에도 넣었다.** 설계안에는 그룹 페이지만
+  적었지만 같은 "조용히 버림" 결함이라 한 컴포넌트로 함께 처리했다.
+
+- **구버전 폼 호환 경로를 남겼다** (`loadGroupById`). 배포 전에 그룹 페이지를
+  열어둔 탭이 `groupSlug` 없이 `groupId` 만 보낸다. 모든 하객이 새 폼을 받고
+  나면 지울 수 있다.
+
+## 안 한 것
+
+- `deliveries.kind` 저장(B안) — 예식 후. 단, **개인 초대 링크를 명단에 대량
+  발송하기 전에** 해야 한다 (상태 C 가 쌓이면 기계적 분류가 애매해진다)
+- 라우트·API 분리(C안) — 예식 후 재검토
+
+## 검증
+
+- `npm run lint` · `npx tsc --noEmit` · `npm test` (48 통과) · `npm run build`
+- 비-DB E2E 전량 통과. DB E2E(`order-kind.spec.ts`)는 CI 의 `e2e-db` 잡에서 실행

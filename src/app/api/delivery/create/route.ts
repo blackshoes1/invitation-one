@@ -5,23 +5,29 @@ import { rateLimitAllow, clientIp } from "@/lib/rateLimit";
 import {
   json,
   parseName,
-  parsePhone,
   parseText,
-  parseUuid,
   parseManageTokenParam,
+  resolvePhone,
   resolveInvite,
+  loadGroupBySlug,
+  loadGroupById,
   linkGroupMember,
   firstRow,
   rpcErrorCode,
 } from "@/lib/deliveryApi";
+import { resolveOrderKind } from "@/lib/orderKind";
 import { slotsForDate, TIME_SLOTS } from "@/lib/wedding";
 import type { TimeSlot } from "@/lib/wedding";
 
 /**
  * 새 직접배달 주문 생성 (공개) — P1-1: 브라우저 create_delivery_v3 직접 호출 대체.
- * 개인 초대 토큰(P1-2): 토큰이 있으면 group 은 서버가 토큰의 group 으로 강제하고
- * (클라이언트 groupId 와 불일치 시 403 invite_group_mismatch), 연락처는 RPC 가
- * 토큰 해시로 채운다. 생성된 참여자는 group_member 와 연결한다.
+ *
+ * 주문 종류(그룹/개인)는 **서버가 진입 경로로 판정한다** (`resolveOrderKind`).
+ * 폼은 자기가 어느 페이지에서 왔는지(`groupSlug`)만 알려주고, 종류를 계산해
+ * 보내지 않는다 — 규칙이 갈라지지 않게.
+ *
+ * 초대 토큰(P1-2)은 **신원**만 담당한다: 폼은 연락처를 바꿔도 토큰을 계속 보내고,
+ * 서버는 연락처만 분기한 뒤(`resolvePhone`) 참여자를 명단(group_member)과 연결한다.
  */
 const RIDERS = ["신랑", "신부", "신랑+신부"] as const;
 
@@ -41,22 +47,25 @@ export async function POST(req: Request) {
   const invite = inviteToken ? await resolveInvite(inviteToken) : null;
   if (inviteToken && !invite) return json({ error: "invite_invalid" }, 401);
 
-  const clientGroupId = parseUuid(b.groupId);
-  if (invite && clientGroupId && clientGroupId !== invite.groupId)
-    return json({ error: "invite_group_mismatch" }, 403);
-  // 개인 주문(/delivery?i=) — 초대 토큰이 있어도 그룹에 묶지 않는다.
-  // 그룹을 바꿔치기하는 게 아니라 '그룹 없음'이라 권한 문제는 없고,
-  // 명단 연결(group_member_id)은 그대로라 관리자는 누가 신청했는지 볼 수 있다.
-  const personal = b.personal === true;
-  // 초대가 있으면 group 은 항상 토큰의 group (클라이언트 값 불신)
-  const groupId = personal ? null : invite ? invite.groupId : clientGroupId;
+  // 진입 경로 → 그룹. 클라이언트가 보낸 값이 아니라 서버가 조회한 그룹만 쓴다.
+  // (groupId 는 구버전 폼 호환 경로 — loadGroupById 주석 참고)
+  const claimsGroup =
+    (typeof b.groupSlug === "string" && b.groupSlug.trim() !== "") ||
+    (typeof b.groupId === "string" && b.groupId !== "");
+  const group =
+    (await loadGroupBySlug(b.groupSlug)) ?? (await loadGroupById(b.groupId));
+  if (claimsGroup && !group) return json({ error: "group_invalid" }, 400);
+
+  const kind = resolveOrderKind({ group, invite });
+  if (!kind.ok) return json({ error: kind.error }, 403);
+  const groupId = kind.groupId;
 
   const name = parseName(b.name) ?? (invite ? parseName(invite.name) : null);
   if (!name) return json({ error: "name_invalid" }, 400);
 
-  // 연락처 — 초대 토큰이 있으면 RPC 가 서버측 값으로 채움. 없으면 형식 검증.
-  const phone = invite ? null : parsePhone(b.phone);
-  if (!invite && !phone) return json({ error: "phone_invalid" }, 400);
+  // 연락처 — 직접 입력했으면 그 번호, 아니면 RPC 가 초대 토큰으로 채움
+  const ph = resolvePhone(b.phone, Boolean(invite));
+  if (!ph.ok) return json({ error: "phone_invalid" }, 400);
 
   const location = parseText(b.location, 200);
   if (!location || location.length < 2) return json({ error: "location_invalid" }, 400);
@@ -75,7 +84,7 @@ export async function POST(req: Request) {
   const { data, error } = await supabaseAdmin.rpc("create_delivery_v3", {
     p_group_id: groupId,
     p_name: name,
-    p_phone: phone ?? "",
+    p_phone: ph.phone ?? "",
     p_location: location,
     p_date: date,
     p_time: slot,

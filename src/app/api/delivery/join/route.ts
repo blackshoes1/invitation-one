@@ -5,18 +5,22 @@ import { rateLimitAllow, clientIp } from "@/lib/rateLimit";
 import {
   json,
   parseName,
-  parsePhone,
   parseUuid,
   parseManageTokenParam,
+  resolvePhone,
   resolveInvite,
   linkGroupMember,
   firstRow,
   rpcErrorCode,
 } from "@/lib/deliveryApi";
+import { inviteMayJoin } from "@/lib/orderKind";
 
 /**
  * 기존 배송(주문) 합류 (공개) — P1-1: 브라우저 join_delivery_v2 직접 호출 대체.
- * 초대 토큰(P1-2): 대상 주문의 그룹이 토큰의 그룹과 다르면 403.
+ *
+ * 합류는 새 주문을 만들지 않으므로 종류를 판정하지 않는다 — 대상 주문의
+ * group_id 가 그대로 그 주문의 종류다. 초대 토큰(P1-2)이 막는 것은 **다른
+ * 그룹의 주문으로 넘어가는 것** 하나뿐이다 (`inviteMayJoin`).
  */
 export async function POST(req: Request) {
   if (!isAdminConfigured || !supabaseAdmin)
@@ -37,9 +41,7 @@ export async function POST(req: Request) {
   const invite = inviteToken ? await resolveInvite(inviteToken) : null;
   if (inviteToken && !invite) return json({ error: "invite_invalid" }, 401);
 
-  // 초대 결속: 합류하려는 주문이 토큰의 그룹이거나, 그룹에 묶이지 않은 개인 주문일 것.
-  // (개인 링크로 들어온 하객도 같은 날 개인 주문에 합석할 수 있어야 한다.
-  //  다른 그룹의 주문으로 넘어가는 것만 막는다 — 서버 검증, 클라이언트 불신)
+  // 초대 결속 — 서버 검증, 클라이언트 불신. 판정 규칙은 orderKind 에 모아둔다.
   if (invite) {
     const { data: d } = await supabaseAdmin
       .from("deliveries")
@@ -47,19 +49,20 @@ export async function POST(req: Request) {
       .eq("id", deliveryId)
       .maybeSingle();
     if (!d) return json({ error: "not_found" }, 404);
-    if (d.group_id !== null && d.group_id !== invite.groupId)
+    if (!inviteMayJoin(invite, d.group_id))
       return json({ error: "invite_group_mismatch" }, 403);
   }
 
   const name = parseName(b.name) ?? (invite ? parseName(invite.name) : null);
   if (!name) return json({ error: "name_invalid" }, 400);
-  const phone = invite ? null : parsePhone(b.phone);
-  if (!invite && !phone) return json({ error: "phone_invalid" }, 400);
+  // 연락처 — 직접 입력했으면 그 번호, 아니면 RPC 가 초대 토큰으로 채움
+  const ph = resolvePhone(b.phone, Boolean(invite));
+  if (!ph.ok) return json({ error: "phone_invalid" }, 400);
 
   const { data, error } = await supabaseAdmin.rpc("join_delivery_v2", {
     p_delivery: deliveryId,
     p_name: name,
-    p_phone: phone ?? "",
+    p_phone: ph.phone ?? "",
     p_convert_token: parseManageTokenParam(b.convertToken),
     p_invite_token: invite ? inviteToken : null,
   });
