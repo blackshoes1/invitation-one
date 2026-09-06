@@ -1,14 +1,9 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import {
-  sendToMe,
-  isKakaoConfigured,
-  kakaoTokenStatusThrottled,
-  type KakaoTokenStatus,
-} from "@/lib/kakao";
+import { notifyChannel, type ChannelStatus } from "@/lib/notifyChannel";
 import { formatYmdKo } from "@/lib/wedding";
 
 /**
- * 카카오 관리자 알림 아웃박스 드레인 (P1-3).
+ * 관리자 알림 아웃박스 드레인 (P1-3).
  * DB 트리거가 participants insert 마다 적재한 notification_outbox 행을
  * claim_notifications()(원자 클레임)로 꺼내 발송하고 결과를 기록한다.
  * - 성공: sent + participants.notified_at (v24 호환)
@@ -21,12 +16,15 @@ export interface DrainResult {
   sent: number;
   failed: number;
   skipped: number;
-  kakao: boolean;
+  /** 발송 채널 이름 — 'none' 이면 미설정이라 한 건도 못 보낸다 */
+  channel: string;
+  /** 보낼 수 있는 상태인가 (구 필드명 kakao 를 대체) */
+  ready: boolean;
   /**
-   * 보낼 게 없을 때만 채워진다 — 그때 확인한 카카오 연결 상태.
+   * 보낼 게 없을 때만 채워진다 — 그때 확인한 채널 연결 상태.
    * 보낼 게 있었다면 발송 결과(sent/failed)가 곧 상태이므로 중복 확인하지 않는다.
    */
-  tokenStatus?: KakaoTokenStatus;
+  channelStatus?: ChannelStatus;
 }
 
 interface OutboxRow {
@@ -68,9 +66,18 @@ const backoffMs = (attempts: number) =>
   Math.min(2 ** Math.max(attempts, 1), 60) * 60 * 1000; // 2,4,8,…,60분
 
 export async function drainNotifications(limit = 5): Promise<DrainResult> {
-  const zero: DrainResult = { claimed: 0, sent: 0, failed: 0, skipped: 0, kakao: isKakaoConfigured };
-  // 카카오 미설정이면 클레임하지 않고 pending 으로 둔다 (설정 후 다음 드레인에서 발송)
-  if (!supabaseAdmin || !isKakaoConfigured) return zero;
+  const zero: DrainResult = {
+    claimed: 0,
+    sent: 0,
+    failed: 0,
+    skipped: 0,
+    channel: notifyChannel.name,
+    ready: notifyChannel.configured,
+  };
+  // 채널 미설정이면 클레임하지 않고 pending 으로 둔다 (설정 후 다음 드레인에서 발송).
+  // ⚠️ 채널을 갈아끼울 때 이 가드를 같이 안 고치면 알림이 outbox 에 쌓이기만 하고
+  //    조용히 멈춘다 — 그래서 안전망 워크플로가 ready=false 를 장애로 취급한다.
+  if (!supabaseAdmin || !notifyChannel.configured) return zero;
 
   const { data, error } = await supabaseAdmin.rpc("claim_notifications", { p_limit: limit });
   if (error) {
@@ -81,20 +88,18 @@ export async function drainNotifications(limit = 5): Promise<DrainResult> {
   const out: DrainResult = { ...zero, claimed: rows.length };
   const now = () => new Date().toISOString();
 
-  // 보낼 게 없어도 토큰을 한 번 확인한다.
+  // 보낼 게 없어도 채널 연결을 한 번 확인한다 — 고장을 주문이 들어온 뒤에
+  // 알게 되면 늦기 때문이다. 결과는 안전망 워크플로가 읽는다.
   //
-  // 카카오 refresh token 은 약 2개월 만료인데, 갱신 요청이 나가야 카카오가 만료
-  // 임박 시 새 토큰을 내려주고 그걸 저장해 자동 회전된다(kakao.ts). 그런데 회전은
-  // sendToMe → getAccessToken 경로에서만 일어나므로, 주문이 뜸한 기간에는 크론이
-  // 아무리 자주 돌아도 토큰이 그대로 늙는다. 그러다 정작 필요한 날 먹통이 된다.
-  // 여기서 한 번 확인해 두면 안전망이 도는 것만으로 토큰이 살아 있고, 만료도
-  // 결과에 드러나 크론 워크플로가 미리 잡아낸다.
-  //
-  // 5분마다 도는 안전망(pg_cron)에서도 매번 카카오를 치지 않도록 간격 제한이
-  // 걸려 있다. 건너뛴 회차는 tokenStatus 가 비어서 나간다 ("이번엔 모름").
+  // 채널마다 의미가 다르다:
+  //  - 카카오: refresh token 이 약 2개월 만료인데, 갱신 요청이 나가야 만료 임박 시
+  //    새 토큰을 받아 자동 회전된다. 즉 이 확인이 **토큰을 살려두는 일**을 겸한다.
+  //    5분 크론이 매번 카카오를 치지 않도록 3시간 간격 제한이 걸려 있고, 건너뛴
+  //    회차는 channelStatus 가 비어서 나간다 ("이번엔 모름").
+  //  - 텔레그램: 만료가 없어 살려둘 게 없다. getMe 로 토큰·봇 상태만 본다.
   if (rows.length === 0) {
-    const status = await kakaoTokenStatusThrottled();
-    if (status) out.tokenStatus = status;
+    const status = await notifyChannel.health();
+    if (status) out.channelStatus = status;
     return out;
   }
 
@@ -114,7 +119,7 @@ export async function drainNotifications(limit = 5): Promise<DrainResult> {
           .eq("id", row.id);
         continue;
       }
-      const r = await sendToMe(text);
+      const r = await notifyChannel.send(text);
       if (r.ok && !r.skipped) {
         out.sent++;
         await Promise.all([
@@ -130,7 +135,7 @@ export async function drainNotifications(limit = 5): Promise<DrainResult> {
         ]);
       } else {
         out.failed++;
-        await markFailed(row, r.error ?? "kakao_skipped");
+        await markFailed(row, r.error ?? `${notifyChannel.name}_skipped`);
       }
     } catch (e) {
       out.failed++;

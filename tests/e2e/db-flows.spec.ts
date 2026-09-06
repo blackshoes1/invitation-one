@@ -188,3 +188,22 @@ test.describe("E2E-6 체크인 운영 시간", () => {
     expect((await res.json()).error).toBe("event_key");
   });
 });
+
+test.describe("P1-4 알림 채널 가드", () => {
+  test.skip(!DB, "E2E_DB 필요");
+
+  test("채널 미설정이면 클레임하지 않고 조용히 0을 반환한다", async ({ request }) => {
+    // CI 에는 TELEGRAM_*/KAKAO_* 가 없다. 이때 드레인이 행을 꺼내 놓고 못 보내면
+    // 그 행은 'sending' 에 갇힌다 — 그래서 아예 클레임하지 않는 게 맞다.
+    //
+    // 이 테스트가 지키는 건 채널을 갈아끼울 때의 사고다: 환경변수만 지우고 가드를
+    // 안 고치면 알림이 outbox 에 쌓이기만 하고 조용히 멈춘다. ready=false 가
+    // 응답에 드러나야 안전망 워크플로가 그걸 장애로 잡는다.
+    const res = await request.post("/api/notify");
+    expect(res.status()).toBe(200);
+    const j = await res.json();
+    expect(j.ready).toBe(false);
+    expect(j.channel).toBe("none");
+    expect(j.claimed).toBe(0);
+  });
+});

@@ -27,7 +27,11 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [kakao, setKakao] = useState<"ok" | "expired" | "unconfigured" | null>(null);
+  /** 알림 채널 연결 상태 — 채널마다 실패 값이 다르다 (카카오 expired / 텔레그램 error) */
+  const [notify, setNotify] = useState<{
+    status: "ok" | "expired" | "error" | "unconfigured" | null;
+    channel: string;
+  } | null>(null);
 
   const groupName = (id: string | null) =>
     id ? groups.find((g) => g.id === id)?.name ?? "그룹" : "—";
@@ -80,10 +84,10 @@ export default function AdminPage() {
   const enter = async () => {
     setAuthed(true);
     await loadGroups(); // 주문 필터·그룹명 표시 공용 (주문 목록은 OrdersTab 이 자체 로드)
-    // 카카오 알림 연결 상태 (만료 사전 경고)
+    // 알림 채널 연결 상태 (고장 사전 경고)
     api("/api/admin/kakao-status")
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => j && setKakao(j.status));
+      .then((j) => j && setNotify({ status: j.status, channel: j.channel }));
   };
 
   // 새로고침 시 세션 쿠키(8시간)가 살아 있으면 재로그인 없이 바로 진입
@@ -210,14 +214,23 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {kakao === "expired" && (
+        {(notify?.status === "expired" || notify?.status === "error") && (
           <p className="text-xs text-center text-red-600 bg-red-50 py-2 border border-red-200">
-            🔔 카카오 알림 연결이 만료됐어요 — 새 주문 알림이 오지 않습니다. refresh
-            token 재발급이 필요해요 (README/kakao.ts 참고).
+            🔔 알림 연결이 끊겼어요 — 새 주문 알림이 오지 않습니다.{" "}
+            {notify.channel === "kakao"
+              ? "카카오 refresh token 재발급이 필요해요 (src/lib/kakao.ts 참고)."
+              : "봇 토큰을 확인해주세요 (src/lib/telegram.ts 참고)."}
           </p>
         )}
-        {kakao === "ok" && (
-          <p className="text-[11px] text-center text-sage-500">🔔 카카오 알림 연결됨</p>
+        {notify?.status === "unconfigured" && (
+          <p className="text-xs text-center text-red-600 bg-red-50 py-2 border border-red-200">
+            🔔 알림 채널이 설정되지 않았어요 — 새 주문 알림이 발송되지 않습니다.
+          </p>
+        )}
+        {notify?.status === "ok" && (
+          <p className="text-[11px] text-center text-sage-500">
+            🔔 {notify.channel === "telegram" ? "텔레그램" : "카카오"} 알림 연결됨
+          </p>
         )}
 
         {/* 알림 배너 — 목록을 내려본 상태에서 작업해도 보이도록 화면 상단에 고정.

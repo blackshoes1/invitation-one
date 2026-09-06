@@ -48,17 +48,22 @@ jobs:
             failed=$(jq -r '.failed // 0' /tmp/out.json)
             total_sent=$((total_sent + sent))
 
-            # 카카오가 꺼져 있으면 알림은 한 건도 못 나간다 — 이것도 장애다.
+            # 채널이 꺼져 있으면 알림은 한 건도 못 나간다 — 이것도 장애다.
             # (클레임 자체를 안 하므로 반복해도 의미 없다)
-            [ "$(jq -r '.kakao' /tmp/out.json)" = "false" ] && {
-              echo "::error::카카오 미설정 — 알림이 발송되지 않는다"; exit 1; }
+            # 채널을 갈아끼우면서 환경변수만 지우고 코드를 안 고치면 정확히 이 상태가
+            # 되는데, 겉으로는 조용해서 여기서 잡지 않으면 아무도 모른다.
+            [ "$(jq -r '.ready' /tmp/out.json)" = "false" ] && {
+              echo "::error::알림 채널 미설정($(jq -r '.channel' /tmp/out.json)) — 발송되지 않는다"
+              exit 1; }
 
-            # 보낼 게 없을 때 서버가 확인해 준 토큰 상태. refresh token 은 약 2개월
-            # 만료라, 주문이 없는 조용한 기간에 만료되면 정작 필요한 날 먹통이 된다.
-            # 여기서 걸러 예식 전에 재발급할 시간을 번다.
-            token=$(jq -r '.tokenStatus // empty' /tmp/out.json)
-            if [ "$token" = "expired" ]; then
-              echo "::error::카카오 토큰 만료 — 재발급 필요 (src/lib/kakao.ts 헤더 참고)"
+            # 보낼 게 없을 때 서버가 확인해 준 채널 연결 상태.
+            #  - 카카오: refresh token 이 약 2개월 만료 → expired 면 재발급 필요
+            #  - 텔레그램: 만료는 없고, error 면 봇 토큰이 잘못됐거나 봇이 차단·삭제됨
+            # 조용한 기간에 끊겨도 예식 전에 알아채려고 여기서 거른다.
+            # (간격 제한으로 확인을 건너뛴 회차는 값이 비어 있고, 그건 정상이다)
+            ch=$(jq -r '.channelStatus // empty' /tmp/out.json)
+            if [ "$ch" = "expired" ] || [ "$ch" = "error" ]; then
+              echo "::error::알림 채널($(jq -r '.channel' /tmp/out.json)) 연결 끊김: $ch"
               exit 1
             fi
 
@@ -66,7 +71,7 @@ jobs:
             # 백오프가 걸려 지금 다시 꺼내도 소용없으니 멈추고, 조용히 넘기지 않는다.
             # (refresh token 은 약 2개월 만료 — 예식 전에 알아채야 한다)
             if [ "$claimed" != "0" ] && [ "$sent" = "0" ] && [ "$failed" != "0" ]; then
-              echo "::error::클레임 ${claimed}건 중 발송 0건 — 카카오 발송이 깨졌다"
+              echo "::error::클레임 ${claimed}건 중 발송 0건 — 발송이 깨졌다"
               exit 1
             fi
 
