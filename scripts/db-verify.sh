@@ -76,4 +76,11 @@ echo "== 권한·시그니처 검증 =="
 "${PSQL[@]}" -f supabase/tests/permission_check.sql
 "${PSQL[@]}" -f supabase/tests/group_attendance_check.sql
 
+# 동작 테스트 — 데이터를 만들므로 권한 검증 뒤에 둔다 (새 DB 전용).
+echo "== 동작 검증 =="
+for f in $(ls supabase/tests/*_test.sql 2>/dev/null | sort); do
+  echo "  -> $f"
+  "${PSQL[@]}" -f "$f"
+done
+
 echo "✔ db-verify 통과"

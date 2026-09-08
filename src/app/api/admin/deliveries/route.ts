@@ -41,92 +41,39 @@ export async function GET(req: Request) {
  * 관리자 주문 생성 — 그룹 탭에서 담당자 대신 주문을 만든다 (전화·카톡 접수 대응).
  * 생성된 주문은 캘린더·주문 목록에 일반 주문과 동일하게 표시된다.
  *
- * - 대표자(name+phone)를 주면 create_delivery_v2 RPC 로 주문 + 대표 참여자를
- *   원자적으로 생성한다 (하객이 직접 신청한 것과 같은 구조 · 관리 토큰 흐름 동일).
+ * 주문 · 대표자 · 명단 일괄 등록 · 명단 연결 · 알림 제외를 **한 트랜잭션**으로
+ * 처리한다 (admin_create_order_v1). 예전에는 네 번의 왕복으로 나뉘어 있어서
+ *  - 중간에 실패하면 빈 주문이나 명단 일부만 등록된 주문이 남았고
+ *  - 명단 insert 오류가 "전원 이미 신청됨"과 구분되지 않았으며
+ *  - 알림 제외가 별도 트랜잭션이라 그 사이 드레인이 돌면 관리자 주문의 알림이
+ *    실제로 발송됐다.
+ * 자세한 배경은 supabase/migrations/20260907000100_admin_order_atomic.sql 참고.
+ *
+ * - 대표자(name+phone)를 주면 주문 + 대표 참여자를 함께 만든다. 대표자가 명단
+ *   구성원으로 확실히 특정되면 중복 생성하지 않고 연결한다.
  * - 대표자를 비우면 빈 주문(슬롯)만 만든다 — 그룹 멤버가 나중에 합류할 수 있다.
- * - 날짜 규칙은 v10 이후 기준: 기간 내 + 마감일(blocked_dates)이 아니면 허용
- *   (같은 날 여러 주문 허용).
+ * - 날짜 규칙은 v10 이후 기준: 기간 내 + 마감일(blocked_dates)이 아니면 허용.
+ * - 합석 정원(10명)은 하객 합류 규칙이라 관리자 일괄 등록에는 적용하지 않는다.
  */
 const RIDERS = ["신랑", "신부", "신랑+신부"] as const;
 
-/**
- * 그룹 명단(group_members) 전원을 이 주문의 참여자로 등록 (관리자 일괄 신청 처리).
- * 이미 신청한 사람은 건너뛴다:
- *  - 이 주문에 이미 같은 이름의 참여자가 있음 (대표자 등)
- *  - 명단 연결(group_member_id)로 이미 참여자가 있음 (본인이 직접 신청)
- *  - 같은 그룹의 취소되지 않은 주문에 같은 이름의 참여자가 있음 (연결 이전 신청분)
- * 관리자가 만든 건이므로 카카오 알림은 보내지 않는다 (트리거가 적재한 outbox 행을 skipped 로 마킹).
- * 합석 정원(10명)은 하객 합류 규칙이라 관리자 일괄 등록에는 적용하지 않는다.
- */
-async function addRosterParticipants(
-  deliveryId: string,
-  groupId: string
-): Promise<{ added: number; skipped: number }> {
-  const sb = supabaseAdmin!;
-  const { data: roster } = await sb
-    .from("group_members")
-    .select("id, name, phone")
-    .eq("group_id", groupId)
-    .order("created_at", { ascending: true });
-  if (!roster?.length) return { added: 0, skipped: 0 };
+/** 명단에서 제외/확인필요로 표시된 구성원 (사유 코드는 RPC 주석 참고) */
+interface RosterNote {
+  member_id: string;
+  name: string;
+  reason: string;
+}
 
-  const [{ data: onOrder }, { data: linked }, { data: inGroup }] = await Promise.all([
-    sb.from("participants").select("name").eq("delivery_id", deliveryId),
-    sb
-      .from("participants")
-      .select("group_member_id")
-      .in(
-        "group_member_id",
-        roster.map((m) => m.id)
-      ),
-    sb
-      .from("participants")
-      .select("name, deliveries!inner(status)")
-      .eq("group_id", groupId)
-      .neq("deliveries.status", "취소"),
-  ]);
-
-  const norm = (v: string) => v.trim();
-  const taken = new Set<string>((onOrder ?? []).map((p) => norm(p.name as string)));
-  for (const p of inGroup ?? []) taken.add(norm(p.name as string));
-  const linkedIds = new Set<string>(
-    (linked ?? []).map((p) => p.group_member_id as string).filter(Boolean)
-  );
-
-  const rows = roster
-    .filter((m) => !linkedIds.has(m.id) && !taken.has(norm(m.name)))
-    .map((m) => ({
-      delivery_id: deliveryId,
-      group_id: groupId,
-      type: "직접배달",
-      name: norm(m.name),
-      phone: m.phone ?? null,
-      is_owner: false,
-      group_member_id: m.id,
-    }));
-  if (rows.length === 0) return { added: 0, skipped: roster.length };
-
-  const { data: inserted, error } = await sb
-    .from("participants")
-    .insert(rows)
-    .select("id");
-  if (error) {
-    console.error("[admin/deliveries] 명단 일괄 등록 실패:", error.message);
-    return { added: 0, skipped: roster.length };
-  }
-  const ids = (inserted ?? []).map((p) => p.id as string);
-  if (ids.length > 0) {
-    await sb
-      .from("notification_outbox")
-      .update({
-        status: "skipped",
-        last_error: "admin_created",
-        updated_at: new Date().toISOString(),
-      })
-      .in("participant_id", ids)
-      .eq("status", "pending");
-  }
-  return { added: rows.length, skipped: roster.length - rows.length };
+interface AdminOrderResult {
+  delivery_id: string;
+  with_owner: boolean;
+  reused: boolean;
+  roster: {
+    added: number;
+    linked: number;
+    skipped: RosterNote[];
+    review: RosterNote[];
+  };
 }
 
 export async function POST(req: Request) {
@@ -160,11 +107,14 @@ export async function POST(req: Request) {
   if (location.length < 2)
     return NextResponse.json({ error: "배송지를 입력해주세요." }, { status: 400 });
 
-  const { data: blocked } = await supabaseAdmin!
+  const { data: blocked, error: blockedErr } = await supabaseAdmin!
     .from("blocked_dates")
     .select("date")
     .eq("date", date)
     .maybeSingle();
+  // 차단일 조회가 실패했는데 통과시키면 마감한 날에 주문이 들어간다 — 막는 쪽이 안전하다.
+  if (blockedErr)
+    return NextResponse.json({ error: blockedErr.message }, { status: 500 });
   if (blocked)
     return NextResponse.json(
       { error: "차단된 날짜예요. 캘린더 탭에서 차단을 해제한 뒤 생성하세요." },
@@ -179,7 +129,14 @@ export async function POST(req: Request) {
   const ownerName = String(b.owner_name ?? "").trim().slice(0, 40);
   const ownerPhone = String(b.owner_phone ?? "").trim();
 
-  // 대표자 있음 → 주문 + 대표 참여자 (하객 신청과 동일 경로)
+  // 멱등 키 — 같은 제출의 중복 클릭·네트워크 재시도를 흡수한다. 클라이언트가 제출
+  // 1회당 하나를 만들어 보내고, 재시도할 때 같은 값을 다시 보낸다. 없으면 서버가
+  // 만들어 주되(구 클라이언트 호환) 그 경우 재시도 보호는 받지 못한다.
+  const requestKey =
+    typeof b.request_key === "string" && b.request_key.length >= 8
+      ? b.request_key.slice(0, 100)
+      : crypto.randomUUID();
+
   if (ownerName || ownerPhone) {
     if (ownerName.length < 2)
       return NextResponse.json({ error: "대표자 성함을 2자 이상 입력해주세요." }, { status: 400 });
@@ -188,74 +145,50 @@ export async function POST(req: Request) {
         { error: "대표자 연락처 형식을 확인해주세요 (010-0000-0000)." },
         { status: 400 }
       );
-    const { data, error } = await supabaseAdmin!.rpc("create_delivery_v2", {
-      p_group_id: groupId,
-      p_name: ownerName,
-      p_phone: ownerPhone,
-      p_location: location,
-      p_date: date,
-      p_time: slot,
-      p_message: message,
-      p_convert: null,
-      p_rider: rider,
-    });
-    if (error) {
-      const msg = error.message.includes("date_taken")
-        ? "마감된 날짜예요."
-        : error.message.includes("out_of_range")
-          ? "배달 가능 기간을 벗어났어요."
-          : error.message;
-      return NextResponse.json({ error: msg }, { status: 400 });
-    }
-    const row = (Array.isArray(data) ? data[0] : data) as
-      | { delivery_id: string; participant_id?: string }
-      | undefined;
-    // 관리자가 직접 만든 주문은 본인이 이미 아는 내용이므로 카카오 알림을 보내지 않는다.
-    // (트리거가 적재한 outbox 행을 skipped 로 마킹 — 역할 추론 대신 명시적 처리)
-    if (row?.participant_id) {
-      await supabaseAdmin!
-        .from("notification_outbox")
-        .update({
-          status: "skipped",
-          last_error: "admin_created",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("participant_id", row.participant_id)
-        .eq("status", "pending");
-    }
-    const roster =
-      includeRoster && row?.delivery_id
-        ? await addRosterParticipants(row.delivery_id, groupId!)
-        : { added: 0, skipped: 0 };
-    return NextResponse.json({
-      delivery_id: row?.delivery_id ?? null,
-      with_owner: true,
-      roster_added: roster.added,
-      roster_skipped: roster.skipped,
-    });
   }
 
-  // 대표자 없음 → 빈 주문(슬롯)만 생성. 그룹 멤버가 나중에 합류.
-  const { data, error } = await supabaseAdmin!
-    .from("deliveries")
-    .insert({
-      group_id: groupId,
-      location,
-      date,
-      time_slot: slot,
-      message,
-      rider,
-    })
-    .select("id")
-    .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  const roster = includeRoster
-    ? await addRosterParticipants(data.id, groupId!)
-    : { added: 0, skipped: 0 };
+  const { data, error } = await supabaseAdmin!.rpc("admin_create_order_v1", {
+    p_request_key: requestKey,
+    p_group_id: groupId,
+    p_owner_name: ownerName || null,
+    p_owner_phone: ownerName ? ownerPhone : null,
+    p_location: location,
+    p_date: date,
+    p_time: slot,
+    p_message: message,
+    p_rider: rider,
+    p_include_roster: includeRoster,
+  });
+  if (error) {
+    // 예상 가능한 거절과 진짜 오류를 구분해서 내려준다 — 예전에는 명단 등록 실패가
+    // 성공 응답의 skipped 인원으로 둔갑했다.
+    if (error.message.includes("date_blocked"))
+      return NextResponse.json(
+        { error: "차단된 날짜예요. 캘린더 탭에서 차단을 해제한 뒤 생성하세요." },
+        { status: 409 }
+      );
+    if (error.message.includes("out_of_range"))
+      return NextResponse.json({ error: "배달 가능 기간을 벗어났어요." }, { status: 400 });
+    console.error("[admin/deliveries] 주문 생성 실패:", error.message);
+    return NextResponse.json(
+      { error: "주문을 만들지 못했어요. 아무것도 저장되지 않았으니 다시 시도해주세요." },
+      { status: 500 }
+    );
+  }
+
+  const r = data as AdminOrderResult | null;
+  if (!r?.delivery_id)
+    return NextResponse.json({ error: "주문 생성 결과를 확인하지 못했어요." }, { status: 500 });
+
   return NextResponse.json({
-    delivery_id: data.id,
-    with_owner: false,
-    roster_added: roster.added,
-    roster_skipped: roster.skipped,
+    delivery_id: r.delivery_id,
+    with_owner: r.with_owner,
+    reused: r.reused,
+    roster_added: r.roster.added,
+    roster_linked: r.roster.linked,
+    // 구 클라이언트가 숫자로 읽던 필드 — 사유별 목록과 함께 유지한다
+    roster_skipped: r.roster.skipped.length,
+    roster_skipped_detail: r.roster.skipped,
+    roster_review: r.roster.review,
   });
 }

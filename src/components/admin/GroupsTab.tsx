@@ -11,6 +11,7 @@ import {
 } from "@/lib/wedding";
 import type { TabCtx } from "@/app/admin/shared";
 import SoloInvites from "@/components/admin/SoloInvites";
+import { orderNotice } from "@/lib/adminOrderNotice";
 
 /**
  * 그룹 탭 — 그룹 생성·제안 일정·명단(roster) 관리.
@@ -59,6 +60,11 @@ export default function GroupsTab({
     ownerPhone: string;
     /** 명단 전원을 이 주문에 신청 처리 (기본 켜짐) */
     includeRoster: boolean;
+    /**
+     * 이 제출의 멱등 키 — 폼을 열 때 한 번 만들고 재시도해도 그대로 보낸다.
+     * 서버가 같은 키를 두 번 받으면 첫 결과를 돌려주고 주문을 새로 만들지 않는다.
+     */
+    requestKey: string;
   } | null>(null);
   const [creatingOrder, setCreatingOrder] = useState(false);
 
@@ -82,25 +88,14 @@ export default function GroupsTab({
           owner_name: newOrder.ownerName.trim() || null,
           owner_phone: newOrder.ownerPhone.trim() || null,
           include_roster: newOrder.includeRoster,
+          // 같은 제출을 두 번 눌러도 주문이 하나만 생기게 하는 키.
+          // 재시도 시 같은 값을 다시 보내야 하므로 제출 상태에 고정해 둔다.
+          request_key: newOrder.requestKey,
         }),
       });
       const j = await res.json();
       if (!res.ok) return setError(j.error ?? "주문 생성 실패");
-      const added = Number(j.roster_added ?? 0);
-      const skipped = Number(j.roster_skipped ?? 0);
-      const rosterMsg = newOrder.includeRoster
-        ? added > 0
-          ? ` 명단 ${added}명을 신청 처리했어요${skipped > 0 ? ` (이미 신청 ${skipped}명 제외)` : ""}.`
-          : skipped > 0
-            ? " 명단은 모두 이미 신청돼 있어요."
-            : ""
-        : "";
-      setNotice(
-        (j.with_owner
-          ? "주문을 만들었어요 🛵 주문 탭·캘린더에서 확인할 수 있어요."
-          : "빈 주문(슬롯)을 만들었어요 — 그룹 페이지에서 멤버가 합류할 수 있어요.") +
-          rosterMsg
-      );
+      setNotice(orderNotice(j, newOrder.includeRoster));
       setNewOrder(null);
       reload();
     } finally {
@@ -522,6 +517,7 @@ export default function GroupsTab({
                             ownerName: "",
                             ownerPhone: "",
                             includeRoster: true,
+                            requestKey: crypto.randomUUID(),
                           }
                     )
                   }
