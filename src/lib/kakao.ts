@@ -23,6 +23,13 @@ const REFRESH_TOKEN = process.env.KAKAO_REFRESH_TOKEN;
 export const isKakaoConfigured = Boolean(REST_KEY && REFRESH_TOKEN);
 
 /**
+ * 카카오 호출 timeout. 클레임 lease(3분)보다 충분히 짧아야 한다 — 느린 발송 하나가
+ * lease 를 넘기면 다른 worker 가 같은 아웃박스 행을 회수해 알림이 두 번 간다.
+ * 토큰 갱신과 발송이 이어지므로 둘을 합쳐도 lease 안에 들어오게 잡았다.
+ */
+const KAKAO_TIMEOUT_MS = 15_000;
+
+/**
  * refresh token 자동 회전 저장 (site_settings).
  * 카카오는 만료 임박(~1개월 전) 갱신 요청에 새 refresh token 을 내려주는데,
  * 이를 저장해 계속 사용하면 알림이 도는 한 토큰이 무한 연장된다
@@ -75,6 +82,7 @@ async function getAccessToken(): Promise<string | null> {
   const res = await fetch("https://kauth.kakao.com/oauth/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    signal: AbortSignal.timeout(KAKAO_TIMEOUT_MS),
     body: new URLSearchParams({
       grant_type: "refresh_token",
       client_id: REST_KEY as string,
@@ -173,6 +181,9 @@ export async function sendToMe(text: string, linkUrl?: string): Promise<SendResu
 
     const res = await fetch("https://kapi.kakao.com/v2/api/talk/memo/default/send", {
       method: "POST",
+      // timeout 이 없으면 이 발송이 클레임 lease(3분)를 넘겨 다른 worker 가 같은
+      // 행을 회수하고 같은 알림이 두 번 간다.
+      signal: AbortSignal.timeout(KAKAO_TIMEOUT_MS),
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
         Authorization: `Bearer ${token}`,
