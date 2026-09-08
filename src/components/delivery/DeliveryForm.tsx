@@ -237,7 +237,8 @@ export default function DeliveryForm({
         notifyAdmin();
       }
     } else {
-      console.info("[delivery demo]", { group, name, phone, location, date, slot, message });
+      // 데모(Supabase 미설정) 경로. 번호는 찍지 않는다 — 브라우저 콘솔도 로그다.
+      console.info("[delivery demo]", { group, name, location, date, slot, hasMessage: Boolean(message) });
       await new Promise((r) => setTimeout(r, 500));
     }
     clearDraft();

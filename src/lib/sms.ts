@@ -22,7 +22,10 @@ interface SendResult {
 
 export async function sendSms(to: string, text: string): Promise<SendResult> {
   if (!isSmsConfigured) {
-    console.info("[sms skipped — 키 미설정]", { to, text });
+    // ⚠️ to(전화번호)와 text(관리·복구 링크가 들어 있다)를 절대 찍지 않는다.
+    //    개발 편의로 찍던 것인데, 키가 빠진 배포에서 그대로 돌면 서버 로그에
+    //    번호와 링크가 평문으로 쌓인다.
+    console.info("[sms skipped — 키 미설정]", { chars: text.length });
     return { ok: true, skipped: true };
   }
 
