@@ -12,7 +12,7 @@ import SnapTab from "@/components/admin/SnapTab";
 import ContentTab from "@/components/admin/ContentTab";
 import GroupsTab from "@/components/admin/GroupsTab";
 import { Metric } from "@/components/admin/ui";
-import { type AdminStats, type View } from "@/app/admin/shared";
+import { type AdminStats, type Totals, type View } from "@/app/admin/shared";
 
 export default function AdminPage() {
   const [password, setPassword] = useState("");
@@ -22,6 +22,8 @@ export default function AdminPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   /** 전체 등록인원 (취소 주문 참여자 제외, 그룹 미지정 포함) */
   const [totalMembers, setTotalMembers] = useState<number | null>(null);
+  /** 전체 신청 **기록 수** 내역 (그룹 미지정 포함) — 고유 인원이 아니다 */
+  const [totals, setTotals] = useState<Totals | null>(null);
   const [stats, setStats] = useState<AdminStats | null>(null);
 
   const [loading, setLoading] = useState(false);
@@ -57,12 +59,22 @@ export default function AdminPage() {
   const loadGroups = async () => {
     try {
       const res = await api("/api/admin/groups");
-      if (res.ok) {
-        const j = await res.json();
-        setGroups(j.groups ?? []);
-        setTotalMembers(typeof j.total_members === "number" ? j.total_members : null);
+      if (!res.ok) {
+        // 집계 실패를 0명으로 보여주지 않는다 — "아무도 신청 안 함"으로 오해된다
+        setTotals(null);
+        setTotalMembers(null);
+        if (res.status !== 401) setError("그룹 목록을 불러오지 못했습니다.");
+        return;
       }
+      const j = await res.json();
+      setGroups(j.groups ?? []);
+      setTotalMembers(typeof j.total_members === "number" ? j.total_members : null);
+      setTotals(
+        j.totals && typeof j.totals.orders === "number" ? (j.totals as Totals) : null
+      );
     } catch {
+      setTotals(null);
+      setTotalMembers(null);
       setError("그룹 목록을 불러오지 못했습니다.");
     }
   };
@@ -357,6 +369,7 @@ export default function AdminPage() {
             setNotice={setNotice}
             groups={groups}
             totalMembers={totalMembers}
+            totals={totals}
             reload={loadGroups}
             bumpRoster={bumpRoster}
           />

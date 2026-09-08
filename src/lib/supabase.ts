@@ -218,9 +218,17 @@ export interface Group {
   offer_time?: TimeSlotValue | null;
   offer_location?: string | null;
   offer_delivery_id?: string | null;
-  /** Admin 그룹 목록 전용 — 실제 참여(주문)한 인원 (취소 직접배달 제외) */
+  /**
+   * Admin 그룹 목록 전용 — order_count + heart_count.
+   * ⚠️ **기록 수**이지 고유 인원도 식수도 아니다 (docs/COUNTING.md).
+   * 같은 사람이 마음배송 뒤 직접배달을 신청하면 2로 잡힌다.
+   */
   member_count?: number;
-  /** Admin 그룹 목록 전용 — 관리자가 등록한 명단(group_members) 인원 */
+  /** Admin 그룹 목록 전용 — 취소되지 않은 직접배달 신청 기록 수 */
+  order_count?: number;
+  /** Admin 그룹 목록 전용 — 마음배송 기록 수 */
+  heart_count?: number;
+  /** Admin 그룹 목록 전용 — 관리자가 등록한 명단(group_members) 인원 (= 사람 수) */
   roster_count?: number;
 }
 
@@ -248,10 +256,15 @@ export interface GroupMemberRow {
   phone?: string | null;
   /** 개인 초대 링크 발급 시각 (재발급 시 갱신) */
   invited_at?: string | null;
-  /** 이 사람이 신청했는지 (participants.group_member_id 기준) */
+  /**
+   * 유효한 직접배달 신청이 있는지 (취소된 주문·마음배송은 제외).
+   * 그룹 카드의 order_count 와 같은 기준이다 — 배지와 집계가 어긋나면 안 된다.
+   */
   applied?: boolean;
   /** 신청했지만 그룹에 묶이지 않은 개인 주문인지 */
   personal?: boolean;
+  /** 마음배송 기록이 있는지 — 직접배달 신청과 별개다 */
+  heart?: boolean;
   /** 결혼식 참석 응답 — 청첩장 신청과 별도, 관리자 전용 조회 */
   attendance?: "yes" | "maybe" | "no" | null;
   attendance_shared?: boolean;
