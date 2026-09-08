@@ -20,7 +20,9 @@ test.describe("E2E-2 개인 초대", () => {
 
   test("초대 링크 진입 — 페이지 어디에도 전체 전화번호가 노출되지 않는다", async ({ page }) => {
     await page.goto(`/delivery/group/e2e-group?i=${INVITE_TOKEN}`);
-    await expect(page.getByText("E2E그룹")).toBeVisible();
+    // 제목(h1)을 콕 집는다. GroupSpaceCard 가 "<그룹명> 분들과 함께 초대했어요." 를
+    // 함께 렌더하므로 getByText("E2E그룹") 은 두 요소에 걸려 strict mode 위반이 난다.
+    await expect(page.getByRole("heading", { name: "E2E그룹" })).toBeVisible();
     // 초대 해석(fetch) 완료 후에도 전체 번호는 HTML 에 없어야 한다 (마스킹만)
     await page.waitForLoadState("networkidle");
     const html = await page.content();
