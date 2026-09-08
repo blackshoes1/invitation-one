@@ -163,7 +163,8 @@ export async function kakaoTokenStatusThrottled(): Promise<KakaoTokenStatus | nu
 /** 나에게 보내기 (텍스트 + 링크 버튼) */
 export async function sendToMe(text: string, linkUrl?: string): Promise<SendResult> {
   if (!isKakaoConfigured) {
-    console.info("[kakao skipped — 키 미설정]", text);
+    // 본문에는 하객 이름·배송지가 들어 있다 — 길이만 남긴다
+    console.info("[kakao skipped — 키 미설정]", { chars: text.length });
     return { ok: true, skipped: true };
   }
   try {

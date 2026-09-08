@@ -45,7 +45,8 @@ interface SendResult {
  */
 export async function sendToAdmin(text: string): Promise<SendResult> {
   if (!isTelegramConfigured) {
-    console.info("[telegram skipped — 키 미설정]", text);
+    // 본문에는 하객 이름·배송지가 들어 있다 — 길이만 남긴다
+    console.info("[telegram skipped — 키 미설정]", { chars: text.length });
     return { ok: true, skipped: true };
   }
   try {
