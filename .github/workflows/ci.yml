@@ -14,9 +14,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 나스(시놀로지 DS920+)의 self-hosted 러너에서 돈다 — 설치는 docs/NAS_RUNNER.md.
+  # self-hosted 러너는 Actions 분을 전혀 소모하지 않는다. 2026-09-08 에 무료 한도가
+  # 소진돼 잡이 시작조차 못 하게 되면서 옮겼다.
+  # 러너가 꺼져 있으면 이 잡은 실패가 아니라 **대기**한다 (queued 로 남는다).
   verify:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 30
     env:
       # 빌드/테스트용 더미 값 — 실제 Supabase·SMS·카카오 운영 자원에는 접근하지 않는다.
       # (NEXT_PUBLIC_* 가 비어 있으면 앱은 '미설정' 분기로 동작하고, 서버 키는 전혀 주지 않는다)
@@ -35,8 +39,16 @@ jobs:
       - run: npm test
       - run: npm run build
       # P1-5 E2E — 방금 빌드한 앱을 next start 로 띄워 검증 (DB 필요 시나리오는 skip)
-      - run: npx playwright install --with-deps chromium
+      # `--with-deps` 를 쓰지 않는다: apt-get 을 부르는데 나스 러너에는 sudo 가 없다.
+      # 러너 이미지가 Playwright 공식 이미지 기반이라 시스템 의존성은 이미 들어 있다
+      # (docs/NAS_RUNNER.md). 브라우저 바이너리만 버전에 맞춰 받는다.
+      - run: npx playwright install chromium
       - run: npm run test:e2e
+
+  # ⚠️ 아래 두 잡은 아직 GitHub 러너에 남아 있다 (나스 이전 2단계 — docs/NAS_RUNNER.md).
+  #    Actions 한도가 소진된 동안에는 **시작조차 못 하고 즉시 실패**한다.
+  #    끄지 않고 남겨 둔다 — 검증을 지워서 초록을 만드는 건 고장을 감추는 것이다.
+  #    그동안은 로컬에서 돌린다: `bash scripts/db-verify.sh` · `bash scripts/e2e-db-ci.sh`
 
   # P1-5 — DB 필요 E2E (초대·배송신청·관리자 세션·체크인 운영시간)
   # 레거시를 타임스탬프 사본으로 복사해 supabase start 가 전체 스키마를 적용,
