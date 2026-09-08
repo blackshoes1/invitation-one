@@ -379,7 +379,7 @@ export default function GroupsTab({
             onKeyDown={(e) => e.key === "Enter" && createGroup()}
             enterKeyHint="done"
             placeholder="새 그룹명 (예: 대학 친구들)"
-            className="flex-1 p-3 border border-wedding-gold/25 bg-white text-base rounded-none focus:outline-none focus:border-sage-600"
+            className="flex-1 min-w-0 p-3 border border-wedding-gold/25 bg-white text-base rounded-none focus:outline-none focus:border-sage-600"
           />
           <button
             onClick={createGroup}
@@ -466,8 +466,8 @@ export default function GroupsTab({
             key={g.id}
             className="bg-white border border-wedding-gold/15 p-4 space-y-3"
           >
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0 flex-1 break-words">
                 <p className="font-medium text-sage-700 text-sm">
                   {g.name}{" "}
                   <span className="text-xs text-neutral-400 font-normal">
@@ -489,7 +489,7 @@ export default function GroupsTab({
                   </p>
                 )}
               </div>
-              <div className="flex gap-2 whitespace-nowrap">
+              <div className="flex flex-wrap gap-2 lg:max-w-[65%]">
                 <button
                   onClick={() =>
                     setEditOffer(
@@ -770,7 +770,7 @@ export default function GroupsTab({
                     onKeyDown={(e) => e.key === "Enter" && addMember(g.id)}
                     enterKeyHint="done"
                     placeholder="멤버 이름 추가"
-                    className="flex-1 p-2 text-sm border border-wedding-gold/20 bg-white rounded-none focus:outline-none focus:border-sage-600"
+                    className="flex-1 min-w-0 p-2 text-sm border border-wedding-gold/20 bg-white rounded-none focus:outline-none focus:border-sage-600"
                   />
                   <button
                     onClick={() => addMember(g.id)}
@@ -780,7 +780,7 @@ export default function GroupsTab({
                   </button>
                 </div>
                 {(members[g.id] ?? []).length > 0 && (
-                  <div className="flex items-center justify-between text-[11px] text-neutral-400 px-1">
+                  <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between text-[11px] text-neutral-400 px-1">
                     <span>
                       연락처를 넣고 1:1 로 보내면 이름·번호가 자동 입력돼요 ·{" "}
                       <b className="text-neutral-500">개인</b>=본인 주문,{" "}
@@ -794,13 +794,13 @@ export default function GroupsTab({
                     </button>
                   </div>
                 )}
-                <ul className="space-y-1">
+                <ul className="space-y-3">
                   {(members[g.id] ?? []).map((mem) => (
                     <li
                       key={mem.id}
-                      className="flex items-center gap-2 text-sm text-neutral-600 px-1"
+                      className="flex flex-wrap items-center gap-2 text-sm text-neutral-600 border border-neutral-100 p-3"
                     >
-                      <span className="shrink-0 min-w-[3.5rem]">
+                      <span className="w-full min-w-0 break-words sm:w-40">
                         {mem.name}
                         <span className="block text-[10px] text-neutral-500">
                           예식: {mem.attendance === "yes" ? "참석" : mem.attendance === "maybe" ? "미정" : mem.attendance === "no" ? "불참" : "응답 전"}
@@ -810,12 +810,14 @@ export default function GroupsTab({
                       <input
                         key={`${mem.id}-${mem.phone ?? ""}`}
                         type="tel"
+                        aria-label={`${mem.name} 연락처`}
                         inputMode="tel"
                         defaultValue={mem.phone ?? ""}
                         placeholder="010-0000-0000"
                         onBlur={(e) => savePhone(g.id, mem, e.target.value)}
-                        className="flex-1 min-w-0 border border-neutral-200 px-2 py-1 text-xs"
+                        className="w-full min-w-0 border border-neutral-200 px-2 py-2 text-sm sm:w-auto sm:min-w-[140px] sm:flex-1"
                       />
+                      <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 sm:w-auto">
                       {mem.applied && (
                         <span
                           className="text-[10px] whitespace-nowrap text-sage-700"
@@ -844,6 +846,7 @@ export default function GroupsTab({
                       >
                         삭제
                       </button>
+                      </div>
                     </li>
                   ))}
                   {(members[g.id] ?? []).length === 0 && (
