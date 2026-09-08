@@ -97,7 +97,8 @@ test.describe("E2E-3/4 배송 신청 + manage token", () => {
   test.skip(!DB, "E2E_DB 필요");
 
   test("신규 배송 신청 → manage token 발급 → 관리 페이지 접근", async ({ request, page }) => {
-    // 주말 후보 날짜 — 재시도(retry)로 이미 점유됐으면 다음 날짜 사용
+    // 주말 후보 날짜 — 재시도(retry)로 이미 점유됐으면 다음 날짜 사용.
+    // 평일을 쓰면 안 된다: slotsForDate() 가 평일엔 점심·저녁만 허용해 '오후' 는 400.
     const dates = ["2026-10-10", "2026-10-11", "2026-10-03", "2026-10-04"];
     let token: string | null = null;
     for (const date of dates) {
@@ -288,7 +289,10 @@ test.describe("문제 7 마감 상태에서도 기존 신청 복구", () => {
   });
 
   test("마감이어도 유효한 관리 링크는 그대로 동작한다", async ({ request, page }) => {
-    const dates = ["2026-10-05", "2026-10-12", "2026-10-06", "2026-10-13"];
+    // ⚠️ **주말** 날짜여야 한다. 평일은 slotsForDate() 가 점심·저녁만 허용해서
+    //    '오후' 로 신청하면 409(마감)가 아니라 400 이 온다.
+    //    위 E2E-3 이 쓰는 날짜(10/10·10/11·10/03·10/04)와 겹치지 않게 고른다.
+    const dates = ["2026-09-26", "2026-09-27", "2026-09-19", "2026-09-20"];
     let token: string | null = null;
     for (const date of dates) {
       const res = await request.post("/api/delivery/create", {
