@@ -800,7 +800,13 @@ export default function GroupsTab({
                       key={mem.id}
                       className="flex items-center gap-2 text-sm text-neutral-600 px-1"
                     >
-                      <span className="shrink-0 min-w-[3.5rem]">{mem.name}</span>
+                      <span className="shrink-0 min-w-[3.5rem]">
+                        {mem.name}
+                        <span className="block text-[10px] text-neutral-500">
+                          예식: {mem.attendance === "yes" ? "참석" : mem.attendance === "maybe" ? "미정" : mem.attendance === "no" ? "불참" : "응답 전"}
+                          {mem.attendance && (mem.attendance_shared ? " · 그룹 공유" : " · 관리자만")}
+                        </span>
+                      </span>
                       <input
                         key={`${mem.id}-${mem.phone ?? ""}`}
                         type="tel"

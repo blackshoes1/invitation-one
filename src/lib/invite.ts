@@ -5,6 +5,7 @@ export interface InvitePrefill {
   phoneMasked: string | null;
   /** 그룹 없는 개별 초대면 null — 개인 링크(/delivery?i=)로만 쓴다 */
   groupSlug: string | null;
+  groupName?: string | null;
 }
 
 export const INVITE_TOKEN_RE = /^[0-9a-f]{32}$/;

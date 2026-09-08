@@ -15,6 +15,7 @@ import BikeIcon from "@/components/delivery/BikeIcon";
 import IntroAnimation from "@/components/delivery/IntroAnimation";
 import DeliveryForm from "@/components/delivery/DeliveryForm";
 import InviteNotice from "@/components/delivery/InviteNotice";
+import GroupSpaceCard from "@/components/delivery/GroupSpaceCard";
 import { useInvite } from "@/components/delivery/useInvite";
 import JoinForm from "@/components/delivery/JoinForm";
 import OrderList from "@/components/delivery/OrderList";
@@ -147,6 +148,9 @@ function GroupPageInner() {
       </section>
 
       <InviteNotice state={inviteState} token={inviteToken} />
+      {invite?.groupSlug && usableToken && (
+        <GroupSpaceCard key={usableToken} token={usableToken} invite={invite} />
+      )}
 
       {view.kind === "menu" && (
         <div className="px-6 pb-6 max-w-md mx-auto space-y-4">

@@ -19,6 +19,11 @@ export async function GET(
     .order("created_at", { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  const { data: attendanceRows, error: attendanceError } = await supabaseAdmin!
+    .from("group_attendance").select("member_id, attendance, share_with_group").eq("group_id", id);
+  if (attendanceError) return NextResponse.json({ error: "참석 응답 조회 실패" }, { status: 503 });
+  const attendance = new Map((attendanceRows ?? []).map((r) => [r.member_id, r]));
+
   // 개인 링크로 신청한 사람은 그룹(group_id) 집계에 안 잡히므로, 명단에서 놓치지 않도록
   // participants.group_member_id 로 신청 여부를 함께 내려준다.
   // 종류 판정은 폼·API 와 같은 규칙을 쓴다 (src/lib/orderKind.ts).
@@ -43,6 +48,8 @@ export async function GET(
     ...m,
     applied: hasGroupOrder.has(m.id),
     personal: hasGroupOrder.get(m.id) === false,
+    attendance: attendance.get(m.id)?.attendance ?? null,
+    attendance_shared: attendance.get(m.id)?.share_with_group ?? false,
   }));
   return NextResponse.json({ members });
 }

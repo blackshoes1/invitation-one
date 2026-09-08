@@ -10,6 +10,7 @@ import BikeIcon from "@/components/delivery/BikeIcon";
 import MenuSelect, { type DeliveryMode } from "@/components/delivery/MenuSelect";
 import DeliveryForm from "@/components/delivery/DeliveryForm";
 import InviteNotice from "@/components/delivery/InviteNotice";
+import GroupSpaceCard from "@/components/delivery/GroupSpaceCard";
 import { useInvite } from "@/components/delivery/useInvite";
 import HeartForm from "@/components/delivery/HeartForm";
 import RiderProfile from "@/components/delivery/RiderProfile";
@@ -92,6 +93,9 @@ function DeliveryPageInner() {
         </div>
       </section>
 
+      {invite?.groupSlug && usableToken && (
+        <GroupSpaceCard key={usableToken} token={usableToken} invite={invite} />
+      )}
       {!inviteReady ? (
         <div className="h-[40vh] flex items-center justify-center text-neutral-500 text-sm">
           불러오는 중…

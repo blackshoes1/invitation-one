@@ -252,6 +252,9 @@ export interface GroupMemberRow {
   applied?: boolean;
   /** 신청했지만 그룹에 묶이지 않은 개인 주문인지 */
   personal?: boolean;
+  /** 결혼식 참석 응답 — 청첩장 신청과 별도, 관리자 전용 조회 */
+  attendance?: "yes" | "maybe" | "no" | null;
+  attendance_shared?: boolean;
   created_at: string;
 }
 

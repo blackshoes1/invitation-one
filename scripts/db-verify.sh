@@ -74,5 +74,6 @@ done
 
 echo "== 권한·시그니처 검증 =="
 "${PSQL[@]}" -f supabase/tests/permission_check.sql
+"${PSQL[@]}" -f supabase/tests/group_attendance_check.sql
 
 echo "✔ db-verify 통과"

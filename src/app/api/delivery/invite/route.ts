@@ -20,14 +20,15 @@ export async function GET(req: Request) {
   // groups 는 left join — 그룹 없는 개별 초대(group_id null)도 해석돼야 한다
   const { data } = await supabaseAdmin
     .from("group_members")
-    .select("name, phone, groups(slug)")
+    .select("name, phone, groups(slug, name)")
     .eq("invite_token_hash", hashManageToken(t))
     .maybeSingle();
   if (!data) return NextResponse.json({ error: "invalid" }, { status: 401 });
-  const g = data.groups as unknown as { slug: string } | { slug: string }[] | null;
+  const g = data.groups as unknown as { slug: string; name: string } | { slug: string; name: string }[] | null;
   const slug = (Array.isArray(g) ? g[0]?.slug : g?.slug) ?? null;
   return NextResponse.json(
-    { invite: { name: data.name, phoneMasked: maskPhone(data.phone), groupSlug: slug } },
+    { invite: { name: data.name, phoneMasked: maskPhone(data.phone), groupSlug: slug,
+      groupName: (Array.isArray(g) ? g[0]?.name : g?.name) ?? null } },
     { headers: { "Cache-Control": "no-store, private" } }
   );
 }
