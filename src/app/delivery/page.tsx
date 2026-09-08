@@ -101,7 +101,16 @@ function DeliveryPageInner() {
           불러오는 중…
         </div>
       ) : closed ? (
-        <DeliveryClosed />
+        /*
+          마감은 **신규 직접배달 신청**에만 걸린다 (문제 7).
+          이미 신청한 사람의 관리·복구까지 같이 사라지면, 정원이 찬 순간부터
+          기존 하객이 취소·변경할 길이 없어진다 — 정원과 아무 상관이 없는 일이다.
+          `?find=1` 로 들어온 경우엔 복구 UI 를 펼친 채로 보여준다.
+        */
+        <section className="pb-6">
+          <DeliveryClosed />
+          <FindOrder defaultOpen={search.get("find") === "1"} />
+        </section>
       ) : (
         <section className="pb-6">
           <InviteNotice state={inviteState} token={inviteToken} />
