@@ -37,6 +37,7 @@ const TABLES = [
   "participants",
   "groups",
   "group_members",
+  "group_attendance",
   "waiting_list",
   "blocked_dates",
   "site_settings",

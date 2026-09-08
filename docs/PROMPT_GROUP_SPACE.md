@@ -22,3 +22,14 @@
 
 ## 비범위
 채팅/댓글, 그룹원의 전화번호·개인 배송지 공유, 기존 참석 시스템 전체 통합, 앞선 보안 리뷰의 다른 문제를 함께 수정하는 작업은 포함하지 않는다.
+
+## 구현·검증 기록 (2026-09-08)
+- 구현 커밋: `05301bf`. 기존 개인/그룹 링크에 모임 카드를 추가하고 관리자 명단에 예식 응답을 표시했다.
+- `20260908103011_group_attendance.sql` 운영 적용 완료. RLS 활성, anon/authenticated CRUD 권한 없음, service_role CRUD 권한 확인.
+- 운영 기존 명단·주문·참석 응답을 변환하거나 테스트 데이터를 등록하지 않았다. 문자/알림 테스트 발송 없음.
+- 격리 환경: npm ci 및 Next build 통과. 단위/API 72개, 모바일 Playwright 2개, TypeScript, ESLint 통과.
+- 별도 로컬 PostgreSQL에서 전체 migration·기존 권한 검사 및 신규 참석 테이블 기본값/제약/권한 검사 통과. 브라우저 테스트는 API mock이므로 운영 DB 연결을 포함한 E2E를 의미하지 않는다.
+- 새 테이블을 백업 대상과 복원 FK 순서에 포함했다. 실제 운영 백업·복원은 실행하지 않았다.
+- 새 테이블의 `RLS Enabled No Policy` INFO는 서버 전용 접근 설계에 따른 것이다. 공개 정책을 추가하지 않는다. [Supabase 설명](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy)
+- 기존 프로젝트의 search_path 및 공개 SECURITY DEFINER 관련 advisor 경고는 이번 기능의 변경 범위 밖이며 별도 보안 리뷰 대상이다.
+- 잔여 한계: 개인 초대 링크 소지자가 해당 명단 구성원 권한을 갖는다. 공유 철회는 다음 조회부터 반영되며 이미 본 정보·스크린샷은 회수할 수 없다. 기존 마음배송 attendance 및 checkin RSVP와는 자동 동기화하지 않는다.
