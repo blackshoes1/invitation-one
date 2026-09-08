@@ -76,7 +76,14 @@ participants INSERT
 2. **클라이언트 fire-and-forget** — 기존 `notifyAdmin()` → `POST /api/notify`
    (rate limit 30/10분). 서버 경로의 보조.
 3. **안전망 cron (2중)**
-   - GitHub Actions `notify-drain.yml`: **3시간 간격**으로 `POST /api/notify` 호출.
+   - **나스(시놀로지 DS920+) DSM 작업 스케줄러: 1시간 간격** — `scripts/notify-drain.sh`
+     를 직접 돌린다 (docs/NAS_RUNNER.md). 실패 시 DSM 이 메일을 보낸다.
+     ※ 2026-09-08: GitHub Actions 무료 한도가 이 크론 때문에 소진돼 **CI 잡이
+     시작조차 못 하는** 상태가 됐다(러너 미배정·3초 실패·로그 없음). 그래서 정기
+     실행을 나스로 옮겼다 — self-hosted 는 Actions 분을 쓰지 않는다.
+     판정 로직은 스크립트 한 곳에만 두어 나스와 GitHub 이 갈라지지 않게 했다.
+   - GitHub Actions `notify-drain.yml`: 이제 **수동 실행(workflow_dispatch) 전용**.
+     나스가 꺼져 있을 때의 대체 경로다. 아래는 스케줄이 있던 시절의 기록:
      **공유 비밀이 필요 없다** — POST 는 파라미터를 받지 않는 "보낼 게 있으면
      보내라" 신호이고(참여자 지정 불가·PII 없음·rate limit 있음), 하객 브라우저가
      신청 직후 부르는 것과 같은 공개 경로다. 한 번에 5건까지만 꺼내므로 응답의
