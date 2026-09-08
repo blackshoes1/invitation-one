@@ -18,6 +18,7 @@ declare
     -- 서버 전용 내부 헬퍼
     '_issue_manage_token', '_participant_by_token', '_invite_phone', '_after_leave',
     'rl_hit', 'claim_notifications', 'outbox_stuck_count',
+    'consume_recovery_token', 'purge_recovery_tokens',
     -- 참여자 관리 (Next API 경유 전용 — 20260731000200)
     'get_participant', 'switch_participant', 'leave_delivery', 'convert_to_heart',
     'propose_reschedule', 'respond_reschedule', 'reschedule_delivery_v2',

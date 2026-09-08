@@ -6,29 +6,18 @@ import { isSupabaseConfigured } from "@/lib/supabase";
 import { formatYmdKo } from "@/lib/wedding";
 import DeliveryCalendar from "@/components/DeliveryCalendar";
 import { invitationHref } from "@/lib/inviteAccess";
-import type {
-  TimeSlotValue,
-  DeliveryStatus,
-  TrackingStage,
-  ParticipantType,
-} from "@/lib/supabase";
-
-interface Found {
-  /** 관리 페이지 경로 (서버가 토큰을 재발급해 내려줌) */
-  manage_url: string;
-  type: ParticipantType;
-  name: string;
-  date: string | null;
-  time_slot: TimeSlotValue | null;
-  status: DeliveryStatus | null;
-  tracking_stage: TrackingStage | null;
-}
 
 const EMPTY_SET = new Set<string>();
 
 /**
- * 내 신청 찾기 — 이름 + 연락처 끝 4자리 + 신청(배송)일자(달력 선택)
- * 일치하면 manage 페이지로 재접근 (취소/변경/배송 현황)
+ * 내 신청 찾기 — 이름 + 연락처 끝 4자리 + 신청(배송)일자(달력 선택).
+ *
+ * 예전에는 이 셋이 맞으면 관리 링크를 **그 자리에서** 받았다. 하지만 그 셋은
+ * 청첩장을 받은 사람이면 대개 아는 정보라 본인 인증이 못 된다 — 남의 주문을
+ * 취소·변경할 수 있었다. 지금은 신청할 때 남긴 번호로 복구 링크를 문자로 보낸다.
+ * 입력하는 것은 그대로다.
+ *
+ * 응답은 일치 여부와 무관하게 같다 (누가 신청했는지 떠보는 것을 막기 위해).
  */
 export default function FindOrder({ defaultOpen = false }: { defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -37,7 +26,7 @@ export default function FindOrder({ defaultOpen = false }: { defaultOpen?: boole
   const [date, setDate] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [results, setResults] = useState<Found[] | null>(null);
+  const [sentMsg, setSentMsg] = useState<string | null>(null);
   const last4Ref = useRef<HTMLInputElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
 
@@ -56,7 +45,7 @@ export default function FindOrder({ defaultOpen = false }: { defaultOpen?: boole
 
     if (!isSupabaseConfigured) {
       setBusy(false);
-      setResults([]);
+      setSentMsg("데모 모드예요 — 실제 문자는 보내지 않아요.");
       return;
     }
     try {
@@ -69,8 +58,12 @@ export default function FindOrder({ defaultOpen = false }: { defaultOpen?: boole
       if (res.status === 429)
         return setError("조회 시도가 너무 많아요. 잠시 후 다시 시도해주세요 🙏");
       if (!res.ok) return setError("조회 중 문제가 생겼어요. 다시 시도해주세요 🛠️");
-      const j = (await res.json()) as { results?: Found[] };
-      setResults(j.results ?? []);
+      const j = (await res.json()) as { message?: string };
+      // 서버는 일치 여부와 무관하게 같은 응답을 준다 — 화면도 그대로 보여준다
+      setSentMsg(
+        j.message ??
+          "일치하는 신청이 있으면 신청할 때 남기신 번호로 관리 링크를 보내드렸어요 📩"
+      );
     } catch {
       setBusy(false);
       setError("조회 중 문제가 생겼어요. 다시 시도해주세요 🛠️");
@@ -98,7 +91,7 @@ export default function FindOrder({ defaultOpen = false }: { defaultOpen?: boole
           내 신청 찾기 🔍
         </p>
         <p className="text-center text-[11px] text-neutral-500">
-          신청할 때 입력한 정보로 찾아드려요
+          신청할 때 남기신 번호로 관리 링크를 문자로 보내드려요
         </p>
         <input
           value={name}
@@ -147,44 +140,30 @@ export default function FindOrder({ defaultOpen = false }: { defaultOpen?: boole
 
         {error && <p className="text-xs text-delivery-dark text-center">{error}</p>}
 
-        {results !== null &&
-          (results.length === 0 ? (
-            <p className="text-center text-xs text-neutral-500 py-2">
-              신청 내역을 찾지 못했어요 😢
-              <br />
-              성함·끝 4자리·날짜를 다시 확인해주세요
+        {sentMsg && (
+          <div className="bg-delivery/5 rounded-xl px-4 py-3 space-y-1.5">
+            <p className="text-xs text-neutral-700 leading-relaxed">{sentMsg}</p>
+            <p className="text-[11px] text-neutral-500 leading-relaxed">
+              링크는 30분간, 한 번만 쓸 수 있어요.
             </p>
-          ) : (
-            <ul className="space-y-2">
-              {results.map((r) => (
-                <li key={r.manage_url}>
-                  <Link
-                    href={r.manage_url}
-                    className="block bg-delivery/5 rounded-xl px-4 py-3 text-left active:scale-[0.98] transition-transform"
-                  >
-                    <p className="text-sm font-bold text-neutral-700">
-                      🛵 {r.date ? formatYmdKo(r.date) : ""} {r.time_slot ?? ""}
-                      <span className="float-right text-[11px] font-medium text-delivery">
-                        관리하기 →
-                      </span>
-                    </p>
-                    <p className="text-[11px] text-neutral-500 mt-0.5">
-                      {r.status} · {r.tracking_stage}
-                    </p>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ))}
-
-        {results !== null && results.length > 0 && (
-          <Link
-            href={invitationHref}
-            className="block text-center text-xs text-delivery font-bold underline underline-offset-2"
-          >
-            💌 모바일 청첩장 바로 보기
-          </Link>
+            {/*
+              연락처 없는 신청(관리자가 전화·카톡으로 대신 접수한 건, 마음배송)은
+              문자로 받을 수 없다. 일치 여부와 무관하게 **항상** 보여줘야 이 문구
+              자체가 존재 여부를 알려주는 신호가 되지 않는다.
+            */}
+            <p className="text-[11px] text-neutral-400 leading-relaxed">
+              연락처를 남기지 않은 신청은 문자로 받을 수 없어요. 그럴 땐 신랑·신부에게
+              직접 말씀해주세요 🙏
+            </p>
+          </div>
         )}
+
+        <Link
+          href={invitationHref}
+          className="block text-center text-xs text-delivery font-bold underline underline-offset-2"
+        >
+          💌 모바일 청첩장 바로 보기
+        </Link>
 
         <div className="flex gap-2">
           <button
@@ -192,7 +171,7 @@ export default function FindOrder({ defaultOpen = false }: { defaultOpen?: boole
             onClick={() => {
               setOpen(false);
               setError(null);
-              setResults(null);
+              setSentMsg(null);
             }}
             className="px-4 py-2.5 rounded-full bg-white border-2 border-delivery/20 text-neutral-500 text-xs font-bold"
           >

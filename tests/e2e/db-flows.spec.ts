@@ -207,3 +207,110 @@ test.describe("P1-4 알림 채널 가드", () => {
     expect(j.claimed).toBe(0);
   });
 });
+
+test.describe("문제 4 관리 링크 복구", () => {
+  test.skip(!DB, "E2E_DB 필요");
+
+  test("이름·끝4자리·날짜만으로는 관리 토큰을 받지 못한다", async ({ request }) => {
+    // 예전에는 이 셋이 맞으면 그 자리에서 manage_url 을 돌려줬다. 그 셋은
+    // 청첩장을 받은 사람이면 대개 아는 정보라 본인 인증이 못 된다.
+    const res = await request.post("/api/delivery/find", {
+      data: { name: "E2E테스터", last4: "1234", date: "2026-10-10" },
+    });
+    expect(res.status()).toBe(200);
+    const body = await res.text();
+    expect(body).not.toMatch(/manage_url|manage_token/);
+    expect(body).not.toMatch(/[0-9a-f]{32}/); // 어떤 토큰도 실리지 않는다
+    expect(body).not.toMatch(/010-?\d{3,4}-?\d{4}/); // 전체 번호도 없다
+  });
+
+  test("일치하든 안 하든 같은 응답 — 존재 여부를 알 수 없다", async ({ request }) => {
+    const hit = await request.post("/api/delivery/find", {
+      data: { name: "E2E테스터", last4: "1234", date: "2026-10-10" },
+    });
+    const miss = await request.post("/api/delivery/find", {
+      data: { name: "없는사람", last4: "0000", date: "2026-10-10" },
+    });
+    expect(hit.status()).toBe(miss.status());
+    expect(await hit.text()).toBe(await miss.text());
+  });
+
+  test("위조·만료 복구 토큰은 401 이고 관리 링크를 주지 않는다", async ({ request }) => {
+    const res = await request.post("/api/delivery/recover", {
+      data: { token: "00000000000000000000000000000000" },
+    });
+    expect(res.status()).toBe(401);
+    expect(await res.text()).not.toMatch(/manage_url/);
+  });
+
+  test("형식이 아닌 토큰도 조용히 401 (오류 종류를 알려주지 않는다)", async ({ request }) => {
+    for (const token of ["", "abc", "<script>", "0".repeat(64)]) {
+      const res = await request.post("/api/delivery/recover", { data: { token } });
+      expect(res.status()).toBe(401);
+    }
+  });
+});
+
+test.describe("문제 7 마감 상태에서도 기존 신청 복구", () => {
+  test.skip(!DB, "E2E_DB 필요 (Supabase 가 설정돼야 정원 조회가 일어난다)");
+
+  /** 정원 조회 응답을 가로채 마감 상태를 만든다 (DB 를 건드리지 않는다) */
+  const forceClosed = async (page: import("@playwright/test").Page) => {
+    await page.route("**/rest/v1/rpc/get_delivery_guest_count", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: "9999", // DELIVERY_CAPACITY(100) 초과
+      })
+    );
+  };
+
+  test("마감이면 신규 신청 메뉴는 막히지만 '내 신청 찾기'는 남는다", async ({ page }) => {
+    // 정원이 차는 순간 기존 하객의 취소·변경까지 막히면 안 된다 —
+    // 그건 신규 신청 정원과 아무 상관이 없는 일이다.
+    await forceClosed(page);
+    await page.goto("/delivery");
+
+    await expect(page.getByText("아쉽게도 마감됐어요")).toBeVisible();
+    // 신규 직접배달 진입은 계속 막힌다
+    await expect(page.getByRole("button", { name: /종이 청첩장 직접 받기/ })).toHaveCount(0);
+    // 복구 동선은 살아 있다
+    await expect(page.getByRole("button", { name: /내 신청 찾기/ })).toBeVisible();
+  });
+
+  test("마감 상태로 ?find=1 로 들어오면 복구 폼이 열린 채 보인다", async ({ page }) => {
+    await forceClosed(page);
+    await page.goto("/delivery?find=1");
+
+    await expect(page.getByText("아쉽게도 마감됐어요")).toBeVisible();
+    await expect(page.getByPlaceholder("연락처 끝 4자리")).toBeVisible();
+    await expect(page.getByRole("button", { name: /찾기/ })).toBeVisible();
+  });
+
+  test("마감이어도 유효한 관리 링크는 그대로 동작한다", async ({ request, page }) => {
+    const dates = ["2026-10-05", "2026-10-12", "2026-10-06", "2026-10-13"];
+    let token: string | null = null;
+    for (const date of dates) {
+      const res = await request.post("/api/delivery/create", {
+        data: {
+          name: "마감테스터",
+          phone: "010-9999-4321",
+          location: "서울 강남구 테스트로 2",
+          date,
+          time: "오후",
+          message: null,
+        },
+      });
+      if (res.status() === 200) {
+        token = (await res.json()).manage_token;
+        break;
+      }
+      expect(res.status()).toBe(409);
+    }
+    expect(token).toMatch(/^[0-9a-f]{32}$/);
+
+    await forceClosed(page);
+    await page.goto(`/delivery/manage/${token}`);
+    await expect(page.getByText("마감테스터").first()).toBeVisible();
+  });
+});

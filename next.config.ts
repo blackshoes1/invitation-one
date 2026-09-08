@@ -79,7 +79,20 @@ const nextConfig: NextConfig = {
       : {}),
   },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // 토큰이 **URL 자체**인 페이지들. 기본 정책도 cross-origin 에는 origin 만
+      // 보내지만, 여기서는 아예 보내지 않는다 — 링크 하나가 곧 관리 권한이라
+      // 새어 나갈 경로를 하나도 남기지 않는 편이 낫다.
+      // (캐시 금지도 함께 — 공용 기기의 뒤로 가기로 되살아나지 않게)
+      ...["/delivery/manage/:path*", "/delivery/recover/:path*"].map((source) => ({
+        source,
+        headers: [
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Cache-Control", value: "no-store, max-age=0" },
+        ],
+      })),
+    ];
   },
 };
 
