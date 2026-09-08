@@ -14,13 +14,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # 나스(시놀로지 DS920+)의 self-hosted 러너에서 돈다 — 설치는 docs/NAS_RUNNER.md.
-  # self-hosted 러너는 Actions 분을 전혀 소모하지 않는다. 2026-09-08 에 무료 한도가
-  # 소진돼 잡이 시작조차 못 하게 되면서 옮겼다.
-  # 러너가 꺼져 있으면 이 잡은 실패가 아니라 **대기**한다 (queued 로 남는다).
+  # 나스(시놀로지 DS920+)로 옮길 준비는 돼 있다 — docs/NAS_RUNNER.md · ops/nas/.
+  # 옮기려면 아래 한 줄을 `runs-on: [self-hosted, linux, x64]` 로 바꾸면 된다.
+  #
+  # ⚠️ 러너를 실제로 등록하기 **전에** 바꾸지 말 것. self-hosted 잡은 받아 줄 러너가
+  #    없으면 실패가 아니라 queued 로 매달려 있다가 24시간 뒤 취소된다. 그러면
+  #    Actions 한도가 리셋돼도 이 잡은 영영 돌지 않는다.
   verify:
-    runs-on: [self-hosted, linux, x64]
-    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       # 빌드/테스트용 더미 값 — 실제 Supabase·SMS·카카오 운영 자원에는 접근하지 않는다.
       # (NEXT_PUBLIC_* 가 비어 있으면 앱은 '미설정' 분기로 동작하고, 서버 키는 전혀 주지 않는다)
@@ -39,10 +41,10 @@ jobs:
       - run: npm test
       - run: npm run build
       # P1-5 E2E — 방금 빌드한 앱을 next start 로 띄워 검증 (DB 필요 시나리오는 skip)
-      # `--with-deps` 를 쓰지 않는다: apt-get 을 부르는데 나스 러너에는 sudo 가 없다.
-      # 러너 이미지가 Playwright 공식 이미지 기반이라 시스템 의존성은 이미 들어 있다
-      # (docs/NAS_RUNNER.md). 브라우저 바이너리만 버전에 맞춰 받는다.
-      - run: npx playwright install chromium
+      # 나스 러너로 옮길 때는 `--with-deps` 를 빼야 한다 — apt-get 을 부르는데 러너에
+      # sudo 가 없고, 러너 이미지가 Playwright 공식 이미지 기반이라 시스템 의존성이
+      # 이미 들어 있다 (docs/NAS_RUNNER.md).
+      - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
 
   # ⚠️ 아래 두 잡은 아직 GitHub 러너에 남아 있다 (나스 이전 2단계 — docs/NAS_RUNNER.md).

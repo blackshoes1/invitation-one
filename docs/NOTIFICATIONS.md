@@ -76,14 +76,16 @@ participants INSERT
 2. **클라이언트 fire-and-forget** — 기존 `notifyAdmin()` → `POST /api/notify`
    (rate limit 30/10분). 서버 경로의 보조.
 3. **안전망 cron (2중)**
-   - **나스(시놀로지 DS920+) DSM 작업 스케줄러: 1시간 간격** — `scripts/notify-drain.sh`
-     를 직접 돌린다 (docs/NAS_RUNNER.md). 실패 시 DSM 이 메일을 보낸다.
-     ※ 2026-09-08: GitHub Actions 무료 한도가 이 크론 때문에 소진돼 **CI 잡이
-     시작조차 못 하는** 상태가 됐다(러너 미배정·3초 실패·로그 없음). 그래서 정기
-     실행을 나스로 옮겼다 — self-hosted 는 Actions 분을 쓰지 않는다.
-     판정 로직은 스크립트 한 곳에만 두어 나스와 GitHub 이 갈라지지 않게 했다.
-   - GitHub Actions `notify-drain.yml`: 이제 **수동 실행(workflow_dispatch) 전용**.
-     나스가 꺼져 있을 때의 대체 경로다. 아래는 스케줄이 있던 시절의 기록:
+   - GitHub Actions `notify-drain.yml`: **하루 2회** `scripts/notify-drain.sh` 실행.
+     ※ 2026-09-08: 이 크론이 Actions 무료 한도를 소진시켜 **CI 잡이 시작조차 못
+     하는** 상태를 만들었다(러너 미배정·3초 실패·로그 없음). 3시간(월 ~240분)에서
+     하루 2회(월 ~60분)로 낮췄다. 이렇게 낮춰도 되는 이유는 이게 실제 드레인을
+     담당하지 않기 때문이다 — 주 경로는 위 1·2 와 아래 pg_cron 이고, 이건
+     "그 셋이 다 죽었을 때 시끄럽게 알리는" 감시자라 12시간이면 충분하다.
+     판정 로직은 스크립트 한 곳에만 둔다 (나스로 옮길 때 갈라지지 않게).
+     더 촘촘히 하려면 나스로 옮기면 된다 — self-hosted 는 Actions 분을 쓰지 않아
+     1시간 간격도 공짜다 (docs/NAS_RUNNER.md · 예식 후로 미뤄 둔 상태).
+     아래는 스케줄을 낮추기 전의 기록:
      **공유 비밀이 필요 없다** — POST 는 파라미터를 받지 않는 "보낼 게 있으면
      보내라" 신호이고(참여자 지정 불가·PII 없음·rate limit 있음), 하객 브라우저가
      신청 직후 부르는 것과 같은 공개 경로다. 한 번에 5건까지만 꺼내므로 응답의
