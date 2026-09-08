@@ -16,7 +16,9 @@ export async function POST(req: Request) {
   if (!(await rateLimitAllow(`notify:${clientIp(req)}`, 30, 600)))
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   const r = await drainNotifications(5);
-  return NextResponse.json(r);
+  // 드레인 자체가 실패했으면(클레임 오류 등) 200 으로 돌려주지 않는다 — 예전에는
+  // 조용히 "0건 정상"이라 알림이 통째로 멈춰도 안전망 크론이 초록이었다.
+  return NextResponse.json(r, { status: r.error ? 500 : 200 });
 }
 
 export async function GET(req: Request) {
@@ -25,5 +27,5 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!isAdminConfigured) return NextResponse.json({ skipped: true });
   const r = await drainNotifications(20);
-  return NextResponse.json(r);
+  return NextResponse.json(r, { status: r.error ? 500 : 200 });
 }

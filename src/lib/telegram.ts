@@ -24,6 +24,12 @@ export const isTelegramConfigured = Boolean(BOT_TOKEN && CHAT_ID);
 const api = (method: string) =>
   `https://api.telegram.org/bot${BOT_TOKEN}/${method}`;
 
+/**
+ * 발송 timeout. 클레임 lease(3분)보다 충분히 짧아야 한다 — 안 그러면 느린 발송
+ * 하나가 lease 를 넘겨 다른 worker 에게 회수되고 같은 알림이 두 번 간다.
+ */
+const SEND_TIMEOUT_MS = 15_000;
+
 interface SendResult {
   ok: boolean;
   skipped?: boolean;
@@ -46,6 +52,9 @@ export async function sendToAdmin(text: string): Promise<SendResult> {
     const res = await fetch(api("sendMessage"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      // timeout 이 없으면 이 fetch 가 클레임 lease(3분)보다 오래 매달릴 수 있고,
+      // 그 사이 다른 worker 가 같은 행을 회수해 **중복 발송**이 된다.
+      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
       body: JSON.stringify({
         chat_id: CHAT_ID,
         // parse_mode 를 쓰지 않는다 — 하객 이름·배송지가 그대로 들어가므로
@@ -79,7 +88,9 @@ export type TelegramStatus = "ok" | "error" | "unconfigured";
 export async function telegramStatus(): Promise<TelegramStatus> {
   if (!isTelegramConfigured) return "unconfigured";
   try {
-    const res = await fetch(api("getMe"));
+    const res = await fetch(api("getMe"), {
+      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+    });
     if (!res.ok) return "error";
     const j = (await res.json().catch(() => null)) as { ok?: boolean } | null;
     return j?.ok ? "ok" : "error";
