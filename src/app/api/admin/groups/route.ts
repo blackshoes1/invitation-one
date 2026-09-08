@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { adminGuard } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { parseOffer } from "@/lib/groupOffer";
+import { tallyParticipants, type ParticipantTally } from "@/lib/groupCounts";
 
 function makeSlug() {
   return Math.random().toString(36).slice(2, 8);
@@ -11,14 +12,25 @@ export async function GET(req: Request) {
   const bad = await adminGuard(req);
   if (bad) return bad;
 
-  // 그룹 목록 + 인원 집계
-  //  - roster_count: 관리자가 등록한 명단(group_members) 인원 — 카드에 표시
-  //  - member_count: 실제 참여(주문)한 participants 인원 (취소 직접배달 제외) — 요약·식수용
+  // 그룹 목록 + 집계.
+  //
+  // ⚠️ 세 가지를 절대 섞지 않는다 (docs/COUNTING.md):
+  //   roster_count  명단 인원      — group_members 행 수. 사람 수다.
+  //   order_count   직접배달 신청  — 취소되지 않은 직접배달 participants **기록 수**
+  //   heart_count   마음배송       — 마음배송 participants **기록 수**
+  // order_count + heart_count 는 기록 수의 합이지 고유 인원도, 식수도 아니다 —
+  // 같은 사람이 마음배송을 보낸 뒤 직접배달을 신청하면 둘 다 잡힌다.
+  // 이름만으로 중복 제거하지 않는다 (동명이인을 한 사람으로 합치게 된다).
+  //
+  // 숨김(hidden)은 표시용 속성이므로 취소와 같이 취급하지 않는다 — 숨겨도 그 사람은
+  // 여전히 온다. 완료 주문은 기존 기준대로 포함한다.
   const [gRes, pRes, mRes] = await Promise.all([
     supabaseAdmin!
       .from("groups")
       .select("*")
       .order("created_at", { ascending: false }),
+    // participants → deliveries 는 FK 가 둘(delivery_id · pending_delivery_id)이라
+    // 관계를 명시해야 한다. 생략하면 PostgREST 가 모호하다고 거절한다.
     supabaseAdmin!
       .from("participants")
       .select("group_id, type, delivery:deliveries!delivery_id(status)"),
@@ -26,6 +38,8 @@ export async function GET(req: Request) {
   ]);
   if (gRes.error)
     return NextResponse.json({ error: gRes.error.message }, { status: 500 });
+  // 집계 조회가 실패하면 0명으로 보여주지 않는다 — "아무도 신청 안 함"과
+  // "못 세었음"은 관리자에게 완전히 다른 뜻이다.
   if (pRes.error)
     return NextResponse.json({ error: pRes.error.message }, { status: 500 });
   if (mRes.error)
@@ -38,26 +52,28 @@ export async function GET(req: Request) {
       roster.set(m.group_id, (roster.get(m.group_id) ?? 0) + 1);
   }
 
-  const counts = new Map<string, number>();
-  let total = 0;
   // delivery 임베드는 다대일(FK delivery_id)이라 런타임엔 객체 — TS 추론만 배열이라 unknown 경유 캐스팅
-  for (const p of (pRes.data ?? []) as unknown as {
-    group_id: string | null;
-    type: string;
-    delivery: { status: string } | null;
-  }[]) {
-    if (p.type === "직접배달" && p.delivery?.status === "취소") continue;
-    total++;
-    if (p.group_id)
-      counts.set(p.group_id, (counts.get(p.group_id) ?? 0) + 1);
-  }
+  const { byGroup, totals } = tallyParticipants(
+    (pRes.data ?? []) as unknown as ParticipantTally[]
+  );
 
-  const groups = (gRes.data ?? []).map((g: { id: string }) => ({
-    ...g,
-    member_count: counts.get(g.id) ?? 0,
-    roster_count: roster.get(g.id) ?? 0,
-  }));
-  return NextResponse.json({ groups, total_members: total });
+  const groups = (gRes.data ?? []).map((g: { id: string }) => {
+    const t = byGroup.get(g.id) ?? { orders: 0, hearts: 0 };
+    return {
+      ...g,
+      order_count: t.orders,
+      heart_count: t.hearts,
+      // 구 필드 — 기존 소비처 호환. 두 종류의 기록 수 합이다 (고유 인원 아님).
+      member_count: t.orders + t.hearts,
+      roster_count: roster.get(g.id) ?? 0,
+    };
+  });
+  return NextResponse.json({
+    groups,
+    // 구 필드 — 기존 소비처 호환 (그룹 미지정 신청도 포함한 전체 기록 수)
+    total_members: totals.records,
+    totals,
+  });
 }
 
 export async function POST(req: Request) {

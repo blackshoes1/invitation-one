@@ -9,7 +9,7 @@ import {
   DELIVERY_START,
   DELIVERY_END,
 } from "@/lib/wedding";
-import type { TabCtx } from "@/app/admin/shared";
+import type { TabCtx, Totals } from "@/app/admin/shared";
 import SoloInvites from "@/components/admin/SoloInvites";
 import { orderNotice } from "@/lib/adminOrderNotice";
 
@@ -23,12 +23,15 @@ export default function GroupsTab({
   setNotice,
   groups,
   totalMembers,
+  totals,
   reload,
   bumpRoster,
 }: TabCtx & {
   groups: Group[];
-  /** 전체 신청 인원 (취소 주문 참여자 제외, 그룹 미지정 포함) */
+  /** 전체 신청 기록 수 (그룹 미지정 포함) — 고유 인원이 아니다 */
   totalMembers: number | null;
+  /** 직접배달·마음배송으로 나눈 전체 집계. 못 불러왔으면 null (0 으로 보여주지 않는다) */
+  totals: Totals | null;
   /** 그룹 목록 재조회 (부모 loadGroups) */
   reload: () => Promise<void> | void;
   /** 그룹 카드의 명단 인원(roster_count)을 로컬로 ±n 반영 */
@@ -432,18 +435,33 @@ export default function GroupsTab({
         </p>
       )}
 
-      {totalMembers != null && (
-        <p className="text-xs text-neutral-500 text-right">
-          👥 총 신청 인원{" "}
-          <span className="font-bold text-sage-700">{totalMembers}명</span>
+      {/*
+        집계 조회가 실패하면 숫자를 아예 보여주지 않는다 — 0 으로 그리면
+        "아무도 신청 안 함"과 구분되지 않는다.
+        '건'이라고 쓰는 이유: 같은 사람이 마음배송 뒤 직접배달을 신청하면 2건이다.
+        고유 인원도 식수도 아니다 (docs/COUNTING.md).
+      */}
+      {totals == null ? (
+        totalMembers == null && (
+          <p className="text-xs text-delivery-dark text-right">
+            ⚠️ 신청 집계를 불러오지 못했어요 — 새로고침해주세요.
+          </p>
+        )
+      ) : (
+        <p
+          className="text-xs text-neutral-500 text-right"
+          title="신청 '기록' 수입니다. 한 사람이 마음배송과 직접배달을 모두 하면 2건으로 잡혀요 — 고유 인원이나 식수와는 다릅니다."
+        >
+          👥 총 신청{" "}
+          <span className="font-bold text-sage-700">{totals.records}건</span>{" "}
+          <span className="text-neutral-400">
+            (직접배달 {totals.orders} · 마음배송 {totals.hearts})
+          </span>
           {(() => {
-            const grouped = groups.reduce(
-              (sum, g) => sum + (g.member_count ?? 0),
-              0
-            );
-            const rest = totalMembers - grouped;
+            const grouped = groups.reduce((sum, g) => sum + (g.member_count ?? 0), 0);
+            const rest = totals.records - grouped;
             return rest > 0 ? (
-              <span className="text-neutral-400"> (그룹 외 {rest}명 포함)</span>
+              <span className="text-neutral-400"> · 그룹 외 {rest}건 포함</span>
             ) : null;
           })()}
         </p>
@@ -465,11 +483,16 @@ export default function GroupsTab({
               <div className="min-w-0 flex-1 break-words">
                 <p className="font-medium text-sage-700 text-sm">
                   {g.name}{" "}
-                  <span className="text-xs text-neutral-400 font-normal">
+                  {/* 명단은 '명'(사람 수), 신청은 '건'(기록 수) — 단위가 다르다 */}
+                  <span
+                    className="text-xs text-neutral-400 font-normal"
+                    title="명단은 사람 수, 신청은 기록 수입니다. 취소된 직접배달은 빠지고, 마음배송은 따로 셉니다."
+                  >
                     👥 명단 {g.roster_count ?? 0}명
                     {(g.member_count ?? 0) > 0 && (
                       <span className="text-sage-500">
-                        {" "}· 신청 {g.member_count}명
+                        {" "}· 신청 {g.member_count}건 (직접배달 {g.order_count ?? 0} ·
+                        마음배송 {g.heart_count ?? 0})
                       </span>
                     )}
                   </span>
@@ -813,6 +836,12 @@ export default function GroupsTab({
                         onBlur={(e) => savePhone(g.id, mem, e.target.value)}
                         className="w-full min-w-0 border border-neutral-200 px-2 py-2 text-sm sm:w-auto sm:min-w-[140px] sm:flex-1"
                       />
+                      {/*
+                        모바일에서 배지·버튼이 겹치지 않게 감싸는 줄 (main 의 레이아웃 수정).
+                        직접배달 신청과 마음배송을 한 배지로 합치지 않는다 — 마음배송만
+                        한 사람을 "신청"으로 보여주면 그 사람 몫의 청첩장을 준비하지
+                        않게 된다. 취소만 남은 사람도 신청자가 아니다.
+                      */}
                       <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 sm:w-auto">
                       {mem.applied && (
                         <span
@@ -820,6 +849,14 @@ export default function GroupsTab({
                           title={mem.personal ? "개인 주문으로 신청함" : "그룹 주문으로 신청함"}
                         >
                           {mem.personal ? "신청(개인)" : "신청"}
+                        </span>
+                      )}
+                      {mem.heart && (
+                        <span
+                          className="text-[10px] whitespace-nowrap text-wedding-gold"
+                          title="마음배송 기록이 있어요 — 직접배달 신청과는 별개입니다"
+                        >
+                          마음
                         </span>
                       )}
                       <button
