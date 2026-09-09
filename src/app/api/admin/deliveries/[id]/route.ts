@@ -193,7 +193,10 @@ export async function PATCH(
   const origin = siteOrigin(req);
   // 문자에 넣는 청첩장 링크 — 카톡이 밀려도 문자함에 남아 재방문 경로가 된다
   const invitationUrl = INVITATION_KEY ? `${origin}/?key=${INVITATION_KEY}` : origin;
-  if (statusChanged && (patch.status === "확정" || patch.status === "취소")) {
+  // **확정에서만 문자를 보낸다.** 취소는 보내지 않는다 (2026-09-09).
+  // 취소 안내는 사정을 설명해야 하는 연락인데, 자동 문자는 "취소되었습니다"만
+  // 남기고 끝나 하객을 더 당황하게 한다. 취소는 신랑신부가 직접 연락한다.
+  if (statusChanged && patch.status === "확정") {
     const { data: parts } = await supabaseAdmin!
       .from("participants")
       .select("name, phone")
@@ -202,7 +205,7 @@ export async function PATCH(
 
     // 확정 감사 문자 커스텀 템플릿 (LC-2) — 관리자가 콘텐츠 탭에서 설정, 없으면 기본
     let confirmTpl = "";
-    if (patch.status === "확정") {
+    {
       const { data: st } = await supabaseAdmin!
         .from("site_settings")
         .select("value")
@@ -222,12 +225,9 @@ export async function PATCH(
     const targets = (parts ?? []) as { name: string; phone: string }[];
     const results = await Promise.all(
       targets.map((p) => {
-        const text =
-          patch.status === "확정"
-            ? confirmTpl
-              ? fill(confirmTpl, p.name)
-              : `[청첩장 배달] ${p.name}님, 소중한 마음으로 신청해주셔서 감사합니다 🙏 ${dateK} ${data.time_slot} ${data.location}(으)로 찾아뵙겠습니다. 곧 만나요!\n💌 청첩장 다시 보기: ${invitationUrl}`
-            : `[청첩장 배달] ${p.name}님, 부득이하게 ${dateK} ${data.time_slot} 일정이 취소되었습니다. 자세한 안내는 곧 연락드리겠습니다. 양해 부탁드립니다.`;
+        const text = confirmTpl
+          ? fill(confirmTpl, p.name)
+          : `[청첩장 배달] ${p.name}님, 소중한 마음으로 신청해주셔서 감사합니다 🙏 ${dateK} ${data.time_slot} ${data.location}(으)로 찾아뵙겠습니다. 곧 만나요!\n💌 청첩장 다시 보기: ${invitationUrl}`;
         return sendSms(p.phone, text).then((r) => ({ name: p.name, ...r }));
       })
     );
