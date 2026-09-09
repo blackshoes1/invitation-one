@@ -10,10 +10,7 @@ export default function MenuSelect({
   onPick: (mode: DeliveryMode) => void;
 }) {
   return (
-    <div className="max-w-sm mx-auto px-6 space-y-4">
-      <p className="text-center text-sm font-bold text-neutral-700">
-        메뉴를 골라주세요
-      </p>
+    <div className="max-w-md mx-auto px-5 space-y-3">
 
       <button
         type="button"
@@ -22,7 +19,7 @@ export default function MenuSelect({
       >
         <BikeIcon className="w-9 h-9 text-white shrink-0" />
         <span>
-          <span className="block font-extrabold">종이 청첩장 직접 받기</span>
+          <span className="block font-extrabold">청첩장 받을 일정 정하기</span>
           <span className="block text-xs text-white/80">만나서 받을게요 🛵</span>
         </span>
       </button>
@@ -44,7 +41,7 @@ export default function MenuSelect({
       <p className="text-center text-[11px] text-neutral-500 leading-relaxed">
         결혼식 참석 여부와는 상관없어요 🙂
         <br />
-        어느 쪽을 고르셔도 식장에서 뵈면 더 좋아요
+          참석 응답을 하지 않아도 신청할 수 있어요
       </p>
     </div>
   );

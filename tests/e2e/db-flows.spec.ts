@@ -34,7 +34,8 @@ test.describe("E2E-2 개인 초대", () => {
     // 다시 입력하는 번거로움을 없애는 것이므로 첫 화면부터 그게 드러나야 한다.
     await page.goto(`/delivery?i=${INVITE_TOKEN}`);
 
-    await expect(page.getByRole("heading", { name: "초대손님님, 반가워요 👋" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "초대받은 분 확인" })).toContainText("초대손님님 전용 링크");
+    await page.getByRole("button", { name: /청첩장 받을 일정 정하기/ }).click();
     await expect(page.getByText("받는 분 정보를 알려주세요")).toHaveCount(0);
     // 번호는 마스킹만 — 실제 번호는 제출 시 서버가 토큰으로 채운다.
     // 마스킹 번호는 이제 두 곳에 뜬다: 수신자 확인 카드와 1단계 확인 박스.
@@ -42,7 +43,7 @@ test.describe("E2E-2 개인 초대", () => {
     await expect(
       page.getByRole("region", { name: "초대받은 분 확인" }).getByText("010-****-5432")
     ).toBeVisible();
-    await expect(page.getByText("초대 링크로 확인됨")).toBeVisible();
+    await expect(page.getByText("초대받은 연락처로 신청해요.", { exact: false })).toBeVisible();
 
     await page.waitForLoadState("networkidle");
     expect(await page.content()).not.toMatch(/010-\d{3,4}-\d{4}/);
@@ -52,6 +53,7 @@ test.describe("E2E-2 개인 초대", () => {
     page,
   }) => {
     await page.goto(`/delivery?i=${INVITE_TOKEN}`);
+    await page.getByRole("button", { name: /청첩장 받을 일정 정하기/ }).click();
     await page.getByRole("button", { name: "정보 수정" }).click();
 
     // 이름 칸은 초대값이 채워진 채로 열린다 — 지우고 고칠 수 있다
@@ -64,7 +66,6 @@ test.describe("E2E-2 개인 초대", () => {
 
   test("마음배송 전환에도 개인 식별을 전달하고 연락처를 다시 묻지 않는다", async ({ page }) => {
     await page.goto(`/delivery?i=${INVITE_TOKEN}`);
-    await page.getByRole("button", { name: "← 메뉴로 돌아가기" }).click();
     await page.getByRole("button", { name: /축하 한마디만 남기기/ }).click();
     await expect(page.getByRole("textbox", { name: "이름", exact: true })).toHaveValue("초대손님");
     await expect(page.getByText(/초대받은 연락처 010-\*\*\*\*-5432를 사용해요/)).toBeVisible();
@@ -79,7 +80,7 @@ test.describe("E2E-2 개인 초대", () => {
 
   test("초대 없이 들어오면 화면이 그대로다", async ({ page }) => {
     await page.goto("/delivery");
-    await page.getByRole("button", { name: /종이 청첩장 직접 받기/ }).click();
+    await page.getByRole("button", { name: /청첩장 받을 일정 정하기/ }).click();
     await expect(page.getByText("받는 분 정보를 알려주세요")).toBeVisible();
   });
 
@@ -295,7 +296,7 @@ test.describe("문제 7 마감 상태에서도 기존 신청 복구", () => {
 
     await expect(page.getByText("아쉽게도 마감됐어요")).toBeVisible();
     // 신규 직접배달 진입은 계속 막힌다
-    await expect(page.getByRole("button", { name: /종이 청첩장 직접 받기/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /청첩장 받을 일정 정하기/ })).toHaveCount(0);
     // 복구 동선은 살아 있다
     await expect(page.getByRole("button", { name: /내 신청 찾기/ })).toBeVisible();
   });

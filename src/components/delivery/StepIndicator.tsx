@@ -2,7 +2,7 @@
 
 import { Check } from "lucide-react";
 
-const LABELS = ["받는분", "장소", "날짜", "시간", "요청"];
+import { DELIVERY_STEPS } from "./form/types";
 
 export default function StepIndicator({
   current,
@@ -17,7 +17,7 @@ export default function StepIndicator({
     <div className="w-full">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-bold text-delivery">
-          주문서 작성 중… 🧾
+          청첩장 배송 신청
         </span>
         <span className="text-xs text-neutral-500">
           {current + 1} / {total}
@@ -34,11 +34,11 @@ export default function StepIndicator({
 
       {/* 도트 + 라벨 */}
       <div className="flex justify-between mt-2">
-        {LABELS.slice(0, total).map((label, i) => {
+        {DELIVERY_STEPS.slice(0, total).map((label, i) => {
           const doneStep = i < current;
           const active = i === current;
           return (
-            <div key={label} className="flex flex-col items-center gap-1 w-8">
+            <div key={label} aria-current={active ? "step" : undefined} className="flex flex-col items-center gap-1 min-w-12">
               <div
                 className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-colors ${
                   doneStep
@@ -51,7 +51,7 @@ export default function StepIndicator({
                 {doneStep ? <Check size={11} strokeWidth={3} /> : i + 1}
               </div>
               <span
-                className={`text-[9px] ${
+                className={`text-xs ${
                   active ? "text-delivery font-bold" : "text-neutral-500"
                 }`}
               >

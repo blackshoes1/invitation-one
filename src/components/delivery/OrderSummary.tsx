@@ -10,7 +10,9 @@ export default function OrderSummary({
   date,
   slot,
   rider,
+  message,
   onEdit,
+  onEditContact,
   onConfirm,
   sending,
   error,
@@ -21,7 +23,9 @@ export default function OrderSummary({
   date: string;
   slot: TimeSlot;
   rider?: string | null;
+  message?: string;
   onEdit: () => void;
+  onEditContact?: () => void;
   onConfirm: () => void;
   sending: boolean;
   error?: string | null;
@@ -35,6 +39,7 @@ export default function OrderSummary({
 
       <div className="bg-white rounded-2xl border border-delivery/10 p-5 space-y-2.5 text-sm">
         <Row label="받는 분" value={`${name} · ${phone}`} />
+        {onEditContact && <button type="button" disabled={sending} onClick={onEditContact} className="min-h-11 text-sm underline text-delivery">이름·연락처 수정</button>}
         <Row label="배송지" value={location} />
         <Row label="배송 예정" value={`${formatYmdKo(date)} ${slot}`} />
         {rider && (
@@ -49,17 +54,18 @@ export default function OrderSummary({
             }
           />
         )}
-        <Row label="함께 받는 인원" value="참여자 수로 자동 집계돼요 👥" />
+        {message?.trim() && <Row label="요청사항" value={message.trim()} />}
       </div>
 
       {error && (
-        <p className="text-sm text-delivery-dark font-medium text-center">{error}</p>
+        <p role="alert" className="text-sm text-delivery-dark font-medium text-center">{error}</p>
       )}
 
       <div className="flex gap-3">
         <button
           type="button"
           onClick={onEdit}
+          disabled={sending}
           className="px-5 py-4 rounded-full bg-white border-2 border-delivery/20 text-neutral-500 text-sm font-bold"
         >
           수정하기
