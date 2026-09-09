@@ -20,6 +20,7 @@ export default function JoinForm({
   convertId = null,
   invite = null,
   inviteToken = null,
+  nameDefault = null,
   onBack,
   onJoined,
 }: {
@@ -31,10 +32,12 @@ export default function JoinForm({
   invite?: InvitePrefill | null;
   /** 개인 초대 토큰 — 제출 시 서버가 실제 연락처를 채움 */
   inviteToken?: string | null;
+  /** 그룹 페이지에서 명단으로 고른 이름 — 신원 확인이 아니라 이름 기본값일 뿐 */
+  nameDefault?: string | null;
   onBack: () => void;
   onJoined?: () => void;
 }) {
-  const [name, setName] = useState(invite?.name ?? "");
+  const [name, setName] = useState(invite?.name ?? nameDefault ?? "");
   const [phone, setPhone] = useState("");
   const [useInvitePhone, setUseInvitePhone] = useState(Boolean(invite?.phoneMasked && inviteToken));
   const [sending, setSending] = useState(false);

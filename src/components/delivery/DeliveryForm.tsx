@@ -28,6 +28,7 @@ export default function DeliveryForm({
   convertId = null,
   invite = null,
   inviteToken = null,
+  nameDefault = null,
   onSubmitted,
 }: {
   group?: { id: string; name: string } | null;
@@ -39,13 +40,18 @@ export default function DeliveryForm({
   invite?: InvitePrefill | null;
   /** 개인 초대 토큰 — 제출 시 서버가 실제 연락처를 채움 */
   inviteToken?: string | null;
+  /**
+   * 그룹 페이지에서 명단으로 고른 이름 — 초대와 달리 **신원 확인이 아니다.**
+   * 이름 기본값으로만 쓰고 연락처는 건드리지 않는다.
+   */
+  nameDefault?: string | null;
   onSubmitted?: () => void;
 }) {
   const [step, setStep] = useState(0);
   const [dir, setDir] = useState(1);
   const [summary, setSummary] = useState(false);
 
-  const [name, setName] = useState(invite?.name ?? "");
+  const [name, setName] = useState(invite?.name ?? nameDefault ?? "");
   const [phone, setPhone] = useState("");
   /** 초대 링크의 (마스킹된) 연락처를 그대로 쓰는 중 — 서버가 토큰으로 실제 번호를 채움 */
   const [useInvitePhone, setUseInvitePhone] = useState(Boolean(invite?.phoneMasked && inviteToken));

@@ -26,6 +26,7 @@ export default function HeartForm({
   group = null,
   inviteName = null,
   groupSlug = null,
+  nameDefault = null,
   onSwitchToDelivery,
 }: {
   group?: { id: string; name: string } | null;
@@ -33,11 +34,13 @@ export default function HeartForm({
   inviteName?: string | null;
   /** 그룹 페이지에서 왔으면 명단에서 이름을 고를 수 있게 한다 (타이핑 절약) */
   groupSlug?: string | null;
+  /** 그룹 페이지에서 명단으로 고른 이름 — 신원 확인이 아니라 이름 기본값일 뿐 */
+  nameDefault?: string | null;
   /** "역시 직접 만나고 싶어요" — 같은 페이지에서 직접 배달 폼으로 전환 */
   onSwitchToDelivery?: () => void;
 }) {
   const [stamp, setStamp] = useState<string>(STAMPS[0]);
-  const [name, setName] = useState(inviteName ?? "");
+  const [name, setName] = useState(inviteName ?? nameDefault ?? "");
   const [sido, setSido] = useState("");
   const [sub, setSub] = useState("");
   const [message, setMessage] = useState("");
