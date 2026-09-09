@@ -70,6 +70,47 @@ test("어드민에서 장소를 시/도·시/군/구로 고친다 — 옛 자유
   expect(errors).toEqual([]);
 });
 
+test("합석 제안 장소도 같은 선택이다 — 반쪽짜리 지역은 막는다", async ({ page }) => {
+  let patched: Record<string, unknown> | null = null;
+  await page.route("**/api/admin/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (route.request().method() === "PATCH") {
+      patched = route.request().postDataJSON();
+      return route.fulfill({ json: { ok: true } });
+    }
+    let json: object = {};
+    if (url.pathname === "/api/admin/login") json = { ok: true };
+    if (url.pathname === "/api/admin/groups")
+      json = {
+        groups: [
+          // 예전 자유 입력으로 남은 제안 장소
+          { id: "g1", name: "테스트 모임", slug: "t", roster_count: 0, member_count: 0,
+            offer_date: "2026-09-19", offer_time: "오전", offer_location: "강남역 근처 암데나" },
+        ],
+        total_members: 0,
+      };
+    if (url.pathname === "/api/admin/deliveries") json = { deliveries: [] };
+    if (url.pathname === "/api/admin/invitees") json = { invitees: [] };
+    await route.fulfill({ json });
+  });
+
+  await page.goto("/admin");
+  await page.getByRole("button", { name: "그룹", exact: true }).click();
+  await page.getByRole("button", { name: "📅", exact: true }).click();
+
+  // 옛 자유 입력은 버려지지 않고 상세로 실려 온다
+  await expect(page.getByRole("textbox", { name: "제안 상세 위치", exact: true })).toHaveValue("강남역 근처 암데나");
+  await page.getByRole("button", { name: "제안 저장" }).click();
+  await expect(page.getByText(/시\/도·시\/군\/구를 고른 뒤/)).toBeVisible();
+  expect(patched).toBeNull();
+
+  await page.getByRole("combobox", { name: "제안 시/도", exact: true }).selectOption("서울");
+  await page.getByRole("combobox", { name: "제안 시/군/구", exact: true }).selectOption("강남구");
+  await page.getByRole("button", { name: "제안 저장" }).click();
+  await expect.poll(() => patched).not.toBeNull();
+  expect(patched!.offer_location).toBe("서울 강남구 강남역 근처 암데나");
+});
+
 test("시/도를 바꾸면 이전 시/군/구는 비워진다 — 서울 강남구가 부산에 남으면 안 된다", async ({ page }) => {
   await page.route("**/api/admin/**", async (route) => {
     const url = new URL(route.request().url());

@@ -23,12 +23,18 @@ export default function LocationPicker({
   onChange,
   /** 상세 입력 자리표시 — 신규 주문과 일정 수정에서 문구가 조금 다르다 */
   detailPlaceholder = "상세 위치 (선택) — 예: 강남역 2번 출구",
+  /**
+   * 라벨 접두사. 한 화면에 이 고르개가 여럿 뜨는 곳이 있어(그룹 탭: 새 주문 ·
+   * 새 그룹 제안 · 제안 수정) 접두사가 없으면 서로 구분이 안 된다.
+   */
+  label = "",
 }: {
   sido: string;
   sub: string;
   detail: string;
   onChange: (next: { sido: string; sub: string; detail: string }) => void;
   detailPlaceholder?: string;
+  label?: string;
 }) {
   const subs = sido ? REGIONS[sido] ?? [] : [];
   return (
@@ -38,7 +44,7 @@ export default function LocationPicker({
         // 시/도가 바뀌면 이전 시/군/구는 그 시/도에 없는 값이라 비운다
         onChange={(e) => onChange({ sido: e.target.value, sub: "", detail })}
         className={CLS}
-        aria-label="시/도"
+        aria-label={`${label}시/도`}
       >
         <option value="">시/도</option>
         {SIDO_LIST.filter((s) => s !== OVERSEAS).map((s) => (
@@ -52,7 +58,7 @@ export default function LocationPicker({
         onChange={(e) => onChange({ sido, sub: e.target.value, detail })}
         disabled={!sido}
         className={`${CLS} disabled:opacity-50`}
-        aria-label="시/군/구"
+        aria-label={`${label}시/군/구`}
       >
         <option value="">시/군/구</option>
         {subs.map((s) => (
@@ -66,7 +72,7 @@ export default function LocationPicker({
         value={detail}
         onChange={(e) => onChange({ sido, sub, detail: e.target.value })}
         placeholder={detailPlaceholder}
-        aria-label="상세 위치"
+        aria-label={`${label}상세 위치`}
         className={`flex-1 min-w-[140px] ${CLS}`}
       />
     </>

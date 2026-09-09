@@ -45,7 +45,7 @@ test("saves edited phone before copying, reuses server link after reload, and se
   const state = await admin(page);
   const row = page.getByRole("listitem").filter({ hasText: "테스트하객" });
   await row.getByRole("textbox", { name: "테스트하객 연락처" }).fill("010-9999-8888");
-  await expect(row.getByRole("status")).toHaveText("연락처 저장 필요");
+  await expect(row.getByRole("status")).toContainText("아직 저장 안 됨");
   await row.getByRole("button", { name: "그룹 합류 링크", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "복사할 초대 링크" })).toHaveValue(/\/delivery\/group\/friends\?i=/);
   expect(state.calls).toEqual(["save", "invite"]);
