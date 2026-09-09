@@ -36,8 +36,12 @@ test.describe("E2E-2 개인 초대", () => {
 
     await expect(page.getByRole("heading", { name: "초대손님님, 반가워요 👋" })).toBeVisible();
     await expect(page.getByText("받는 분 정보를 알려주세요")).toHaveCount(0);
-    // 번호는 마스킹만 — 실제 번호는 제출 시 서버가 토큰으로 채운다
-    await expect(page.getByText("010-****-5432")).toBeVisible();
+    // 번호는 마스킹만 — 실제 번호는 제출 시 서버가 토큰으로 채운다.
+    // 마스킹 번호는 이제 두 곳에 뜬다: 수신자 확인 카드와 1단계 확인 박스.
+    // 둘 다 마스킹이라 어느 쪽이든 되지만, 범위를 좁혀야 strict mode 위반이 안 난다.
+    await expect(
+      page.getByRole("region", { name: "초대받은 분 확인" }).getByText("010-****-5432")
+    ).toBeVisible();
     await expect(page.getByText("초대 링크로 확인됨")).toBeVisible();
 
     await page.waitForLoadState("networkidle");
