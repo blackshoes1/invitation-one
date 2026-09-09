@@ -27,19 +27,22 @@ test("personal invitation opens optional private group space and persists consen
   });
   await page.goto(`/delivery?i=${"a".repeat(32)}`);
   const card = page.getByRole("region", { name: "우리 모임" });
-  await expect(card.getByRole("link", { name: "모바일 청첩장 보기" })).toBeVisible();
-  await expect(card.getByRole("radio", { name: "참석할게요", exact: true })).toHaveCount(0);
-  await card.getByRole("button", { name: "우리 모임 보기" }).click();
-  await expect(card.getByText("테스트 모임 · 초대받은 분 2명")).toBeVisible();
+  // 참석 질문은 **처음부터** 보인다. 예전에는 "우리 모임 보기"를 눌러야 나왔고,
+  // 그 자리에서 제일 눈에 띄는 건 청첩장 링크였다 (무엇에 대한 페이지인지 안 보였다).
+  await expect(card.getByRole("radio", { name: "참석할게요", exact: true })).toBeVisible();
   await expect(card.getByRole("checkbox")).not.toBeChecked();
   await card.getByRole("radio", { name: "참석할게요", exact: true }).check();
   await card.getByRole("checkbox").check();
   await card.getByRole("button", { name: "응답 저장" }).click();
   await expect(card.getByRole("status")).toContainText("저장했어요");
+  await card.getByRole("button", { name: /모임 사람들·전달 일정 보기/ }).click();
+  await expect(card.getByText("테스트 모임 · 초대받은 분 2명")).toBeVisible();
   await expect(card.getByText(/공유한 참석 예정자 1명/)).toBeVisible();
   await card.getByRole("checkbox").uncheck();
   await card.getByRole("button", { name: "응답 저장" }).click();
   await expect(card.getByText(/공유한 참석 예정자 0명/)).toBeVisible();
+  // 청첩장 링크는 남되 카드 맨 아래 보조 버튼이다 — 색 채운 버튼은 "응답 저장" 하나뿐.
+  await expect(card.getByRole("link", { name: "모바일 청첩장 보기" })).toBeVisible();
   await expect(page).toHaveURL(/\/delivery\?i=/);
   expect(errors).toEqual([]);
   await page.screenshot({ path: test.info().outputPath("group-space.png"), fullPage: true });
