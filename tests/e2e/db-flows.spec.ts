@@ -62,6 +62,21 @@ test.describe("E2E-2 개인 초대", () => {
     expect(await page.content()).not.toMatch(/010-\d{3,4}-\d{4}/);
   });
 
+  test("마음배송 전환에도 개인 식별을 전달하고 연락처를 다시 묻지 않는다", async ({ page }) => {
+    await page.goto(`/delivery?i=${INVITE_TOKEN}`);
+    await page.getByRole("button", { name: "← 메뉴로 돌아가기" }).click();
+    await page.getByRole("button", { name: /축하 한마디만 남기기/ }).click();
+    await expect(page.getByRole("textbox", { name: "이름", exact: true })).toHaveValue("초대손님");
+    await expect(page.getByText(/초대받은 연락처 010-\*\*\*\*-5432를 사용해요/)).toBeVisible();
+    await page.getByRole("combobox", { name: "시/도" }).selectOption("서울");
+    await page.getByRole("combobox", { name: "시/군/구" }).selectOption("강남구");
+    const sent = page.waitForRequest((request) => request.url().endsWith("/api/delivery/heart") && request.method() === "POST");
+    await page.getByRole("button", { name: "마음 전하기 💌", exact: true }).click();
+    expect((await sent).postDataJSON()).toMatchObject({ inviteToken: INVITE_TOKEN, phone: null, groupId: null });
+    await expect(page.getByText("따뜻한 마음 잘 받았어요 🥰")).toBeVisible();
+    expect(await page.content()).not.toMatch(/010-\d{3,4}-\d{4}/);
+  });
+
   test("초대 없이 들어오면 화면이 그대로다", async ({ page }) => {
     await page.goto("/delivery");
     await page.getByRole("button", { name: /종이 청첩장 직접 받기/ }).click();

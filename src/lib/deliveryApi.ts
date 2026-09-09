@@ -88,23 +88,6 @@ export async function loadGroupById(id: unknown): Promise<GroupRef | null> {
   return data ? { id: data.id as string, slug: data.slug as string } : null;
 }
 
-/**
- * 생성된 참여자를 초대 명단의 사람과 연결 (participants.group_member_id).
- * 실패해도 신청 자체는 유효하므로 로그만 남긴다 (베스트 에포트).
- */
-export async function linkGroupMember(
-  participantId: string,
-  memberId: string
-): Promise<void> {
-  if (!supabaseAdmin) return;
-  const { error } = await supabaseAdmin
-    .from("participants")
-    .update({ group_member_id: memberId })
-    .eq("id", participantId);
-  if (error)
-    console.warn("[deliveryApi] group_member 연결 실패:", error.message);
-}
-
 /* ------------------------------------------------------------------ *
  * 입력 파서 (서버가 최종 검증 — 클라이언트 검증은 UX 용일 뿐)
  * ------------------------------------------------------------------ */
@@ -172,6 +155,12 @@ export function rpcErrorCode(message: string): {
   code: string;
   status: number;
 } {
+  if (message.includes("invite_group_mismatch"))
+    return { code: "invite_group_mismatch", status: 403 };
+  if (message.includes("invite_invalid"))
+    return { code: "invite_invalid", status: 401 };
+  if (message.includes("invite_identity_mismatch"))
+    return { code: "invite_identity_mismatch", status: 409 };
   if (message.includes("date_taken") || message.includes("23505"))
     return { code: "date_taken", status: 409 };
   if (message.includes("phone_required"))

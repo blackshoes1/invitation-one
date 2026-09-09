@@ -17,6 +17,7 @@ declare
   deny_names text[] := array[
     -- 서버 전용 내부 헬퍼
     '_issue_manage_token', '_participant_by_token', '_invite_phone', '_after_leave',
+    '_lock_submission_invite', '_link_submission_member', 'send_heart_v3',
     'rl_hit', 'claim_notifications', 'outbox_stuck_count',
     'consume_recovery_token', 'purge_recovery_tokens',
     -- 참여자 관리 (Next API 경유 전용 — 20260731000200)
@@ -42,11 +43,13 @@ declare
   ];
   -- Next API(service_role)가 호출해야 하는 write RPC
   service_names text[] := array[
+    'send_heart_v3',
     'send_heart_v2', 'create_delivery_v3', 'join_delivery_v2', 'accept_group_offer_v2',
     'admin_create_order_v1'
   ];
   -- PostgREST 오버로드 모호성이 생기면 안 되는 함수 (정확히 1개 시그니처)
   unique_names text[] := array[
+    'send_heart_v3',
     'send_heart_v2', 'create_delivery_v3', 'join_delivery_v2', 'accept_group_offer_v2',
     'admin_create_order_v1'
   ];

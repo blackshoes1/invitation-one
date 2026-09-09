@@ -228,6 +228,7 @@ function GroupPageInner() {
           )}
           {view.kind === "new" && (
             <DeliveryForm
+              key={`${slug}:${usableToken ?? "none"}:${convertId ?? "none"}`}
               group={{ id: group.id, name: group.name }}
               groupSlug={slug}
               convertId={convertId}
@@ -238,8 +239,11 @@ function GroupPageInner() {
           )}
           {view.kind === "heart" && (
             <HeartForm
+              key={`${slug}:${usableToken ?? "none"}`}
               group={{ id: group.id, name: group.name }}
               inviteName={invite?.name ?? null}
+              inviteToken={usableToken}
+              invitePhoneMasked={invite?.phoneMasked ?? null}
               onSwitchToDelivery={() => setView({ kind: "new" })}
             />
           )}

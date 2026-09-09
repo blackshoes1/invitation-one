@@ -135,6 +135,7 @@ function DeliveryPageInner() {
           )}
           {mode === "delivery" && (
             <DeliveryForm
+              key={`${usableToken ?? "none"}:${convertId ?? "none"}`}
               convertId={convertId}
               invite={invite}
               inviteToken={usableToken}
@@ -142,7 +143,10 @@ function DeliveryPageInner() {
           )}
           {mode === "heart" && (
             <HeartForm
+              key={usableToken ?? "none"}
               inviteName={invite?.name ?? null}
+              inviteToken={usableToken}
+              invitePhoneMasked={invite?.phoneMasked ?? null}
               onSwitchToDelivery={() => setMode("delivery")}
             />
           )}

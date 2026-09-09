@@ -2,7 +2,8 @@ import { after } from "next/server";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
 import { drainNotifications } from "@/lib/notifyOutbox";
 import { rateLimitAllow, clientIp } from "@/lib/rateLimit";
-import { json, parseName, parsePhone, parseText, parseUuid, firstRow, rpcErrorCode } from "@/lib/deliveryApi";
+import { json, parseName, parsePhone, parseText, loadGroupById, resolveInvite, firstRow, rpcErrorCode } from "@/lib/deliveryApi";
+import { resolveOrderKind } from "@/lib/orderKind";
 import { isValidAnonAlias } from "@/lib/anonAlias";
 import { REGIONS, OVERSEAS, joinRegion } from "@/lib/regions";
 import { STAMPS } from "@/lib/wedding";
@@ -26,7 +27,16 @@ export async function POST(req: Request) {
   const b = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!b) return json({ error: "bad_request" }, 400);
 
-  const name = parseName(b.name);
+  const inviteToken = b.inviteToken == null || b.inviteToken === "" ? null : b.inviteToken;
+  const invite = inviteToken ? await resolveInvite(inviteToken) : null;
+  if (inviteToken !== null && !invite) return json({ error: "invite_invalid" }, 401);
+  const group = await loadGroupById(b.groupId);
+  if (b.groupId != null && b.groupId !== "" && !group)
+    return json({ error: "group_invalid" }, 400);
+  const kind = resolveOrderKind({ group, invite });
+  if (!kind.ok) return json({ error: kind.error }, 403);
+
+  const name = parseName(invite ? invite.name : b.name);
   if (!name) return json({ error: "name_invalid" }, 400);
 
   // 지역 — 시/도는 allowlist, 국내 구·군도 allowlist, 해외는 나라명 자유 입력(≤30자)
@@ -57,8 +67,9 @@ export async function POST(req: Request) {
   // 별명은 허용 목록 조합일 때만 그대로 저장 — 아니면 null → DB 가 결정적 생성 (P1-3)
   const anonAlias = isValidAnonAlias(b.anonAlias) ? b.anonAlias : null;
 
-  const { data, error } = await supabaseAdmin.rpc("send_heart_v2", {
-    p_group_id: parseUuid(b.groupId),
+  const { data, error } = await supabaseAdmin.rpc("send_heart_v3", {
+    p_group_id: kind.groupId,
+    p_invite_token: inviteToken,
     p_name: name,
     p_region: joinRegion(sido, sub),
     p_stamp: stamp,
@@ -73,7 +84,7 @@ export async function POST(req: Request) {
   if (error) {
     const e = rpcErrorCode(error.message);
     if (e.code === "server_error")
-      console.error("[api/delivery/heart] send_heart_v2:", error.message);
+      console.error("[api/delivery/heart] send_heart_v3:", error.message);
     return json({ error: e.code }, e.status);
   }
 
