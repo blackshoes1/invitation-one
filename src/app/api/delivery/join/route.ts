@@ -8,6 +8,7 @@ import {
   parseUuid,
   parseManageTokenParam,
   resolvePhone,
+  rosterPhone,
   resolveInvite,
   firstRow,
   rpcErrorCode,
@@ -55,13 +56,26 @@ export async function POST(req: Request) {
   const name = parseName(b.name) ?? (invite ? parseName(invite.name) : null);
   if (!name) return json({ error: "name_invalid" }, 400);
   // 연락처 — 직접 입력했으면 그 번호, 아니면 RPC 가 초대 토큰으로 채움
-  const ph = resolvePhone(b.phone, Boolean(invite));
+  // 명단에서 고른 이름이면 그 이름의 번호를 여기서 붙인다.
+  // 합류는 대상 주문의 group_id 가 곧 그 주문의 그룹이다.
+  let picked: string | null = null;
+  if (b.rosterName === true && !invite) {
+    const { data: d } = await supabaseAdmin
+      .from("deliveries")
+      .select("group_id")
+      .eq("id", deliveryId)
+      .maybeSingle();
+    if (!d) return json({ error: "not_found" }, 404);
+    picked = await rosterPhone(d.group_id as string | null, name);
+  }
+  const ph = resolvePhone(b.phone, Boolean(invite) || Boolean(picked));
   if (!ph.ok) return json({ error: "phone_invalid" }, 400);
+  const phone = ph.phone ?? picked;
 
   const { data, error } = await supabaseAdmin.rpc("join_delivery_v2", {
     p_delivery: deliveryId,
     p_name: name,
-    p_phone: ph.phone ?? "",
+    p_phone: phone ?? "",
     p_convert_token: parseManageTokenParam(b.convertToken),
     p_invite_token: invite ? inviteToken : null,
   });
