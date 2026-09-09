@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminGuard } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { sendSms, isSmsConfigured } from "@/lib/sms";
-import { rotateManageToken, manageUrl } from "@/lib/manageToken";
+import { sendSms } from "@/lib/sms";
 import {
   formatYmdKo,
   slotsForDate,
@@ -239,51 +238,6 @@ export async function PATCH(
     };
   }
 
-  // 배송 완료 전이 → 리뷰요청 문자 (DL-3) — 개인 리뷰 링크(manage) 포함
-  if (statusChanged && patch.status === "완료") {
-    const { data: parts } = await supabaseAdmin!
-      .from("participants")
-      .select("id, name, phone")
-      .eq("delivery_id", id)
-      .not("phone", "is", null);
-
-    let reviewTpl = "";
-    const { data: st } = await supabaseAdmin!
-      .from("site_settings")
-      .select("value")
-      .eq("key", "review_sms")
-      .maybeSingle();
-    if (typeof st?.value === "string") reviewTpl = st.value.trim();
-
-    const dateK = formatYmdKo(data.date);
-    const targets = (parts ?? []) as { id: string; name: string; phone: string }[];
-    const results = await Promise.all(
-      targets.map(async (p) => {
-        // 관리 링크는 토큰 기반 (P0-2). SMS 가 실제 나갈 때만 토큰을 회전 발급해
-        // 미설정 환경에서 기존 링크가 무효화되지 않도록 함.
-        const tok = isSmsConfigured ? await rotateManageToken(p.id) : null;
-        const link = tok ? manageUrl(origin, tok) : `${origin}/delivery`;
-        const fill = (tpl: string) =>
-          tpl
-            .replace(/\{이름\}/g, p.name)
-            .replace(/\{날짜\}/g, dateK)
-            .replace(/\{시간\}/g, data.time_slot)
-            .replace(/\{장소\}/g, data.location ?? "")
-            .replace(/\{링크\}/g, link)
-            .replace(/\{청첩장\}/g, invitationUrl);
-        const text = reviewTpl
-          ? fill(reviewTpl)
-          : `[청첩장 배달] ${p.name}님, 청첩장 잘 받으셨나요? 😊 짧은 한줄 후기를 남겨주시면 큰 힘이 됩니다 🙏 ${link}`;
-        return sendSms(p.phone, text).then((r) => ({ name: p.name, ...r }));
-      })
-    );
-    sms = {
-      count: targets.length,
-      sent: results.filter((r) => r.ok && !r.skipped).length,
-      skipped: results.some((r) => r.skipped),
-      results,
-    };
-  }
 
   // 일정 변경 → 참여자 전원에게 변경 안내 SMS (notify=false 로 생략 가능)
   if (data && scheduleChange && body.notify !== false) {
