@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { type TimeSlot, isValidPhone, slotsForDate } from "@/lib/wedding";
+import { joinRegion } from "@/lib/regions";
 import type { InvitePrefill } from "@/lib/invite";
 import type { PickedName } from "@/lib/roster";
 import { notifyAdmin } from "@/lib/notify";
@@ -67,7 +68,13 @@ export default function DeliveryForm({
     if (v !== rosterPhoneFor) setRosterPhoneFor(null);
   };
   const useRosterPhone = rosterPhoneFor !== null && !useInvitePhone;
-  const [location, setLocation] = useState("");
+  /**
+   * 배송지 — 시/도·시/군/구를 따로 들고 있다가 "서울 강동구" 로 합쳐 보낸다.
+   * 자유 입력이던 시절에는 "갱냄"·"ㅎㅇ" 같은 값이 들어와 동선을 못 짰다.
+   */
+  const [sido, setSido] = useState("");
+  const [subRegion, setSubRegion] = useState("");
+  const location = joinRegion(sido, subRegion);
 
   const [booked, setBooked] = useState<Set<string>>(new Set());
   const phoneRef = useRef<HTMLInputElement>(null);
@@ -127,8 +134,8 @@ export default function DeliveryForm({
       if (!useInvitePhone && !useRosterPhone && !isValidPhone(phone))
         return setError("연락처 형식을 확인해주세요 (010-0000-0000) 📞");
     }
-    if (step === 1 && location.trim().length < 2)
-      return setError("배송지를 입력해주세요 📍");
+    if (step === 1 && (!sido || !subRegion))
+      return setError("배송지를 골라주세요 📍");
     if (step === 2) {
       if (!date) return setError("배송 희망일을 골라주세요 📅");
       // 같은 날 먼저 신청한 주문이 있으면 합석 제안 (본인 주문·정원 초과 주문 제외)
@@ -371,9 +378,12 @@ export default function DeliveryForm({
       case 1:
         return (
           <StepLocation
-            location={location}
-            onLocationChange={setLocation}
-            onNext={next}
+            sido={sido}
+            sub={subRegion}
+            onRegionChange={(s, g) => {
+              setSido(s);
+              setSubRegion(g);
+            }}
           />
         );
       case 2:
