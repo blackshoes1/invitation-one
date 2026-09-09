@@ -4,6 +4,7 @@ import { useState, type RefObject } from "react";
 import { formatPhone } from "@/lib/wedding";
 import Q from "./Q";
 import InvitePhoneBox from "@/components/delivery/InvitePhoneBox";
+import RosterPicker from "@/components/delivery/RosterPicker";
 
 /**
  * 첫 단계 — 받는 분 확인.
@@ -23,6 +24,7 @@ export default function StepContact({
   onPhoneChange,
   phoneMasked = null,
   inviteName = null,
+  groupSlug = null,
   onUseOtherPhone,
   onNext,
 }: {
@@ -31,6 +33,8 @@ export default function StepContact({
   phoneRef: RefObject<HTMLInputElement | null>;
   onNameChange: (v: string) => void;
   onPhoneChange: (v: string) => void;
+  /** 그룹 페이지에서 왔으면 명단에서 이름을 고를 수 있게 한다 (타이핑 절약) */
+  groupSlug?: string | null;
   /** 개인 초대 링크로 확인된 번호(마스킹) — 있으면 입력 대신 확인 박스 표시 */
   phoneMasked?: string | null;
   /** 초대 링크로 확인된 이름 — 있으면 확인 화면(인사)으로 시작한다 */
@@ -96,6 +100,7 @@ export default function StepContact({
           aria-label="성함"
           className="dform-input"
         />
+        <RosterPicker slug={groupSlug} onPick={onNameChange} />
         {phoneMasked ? (
           <InvitePhoneBox phoneMasked={phoneMasked} onUseOther={onUseOtherPhone} />
         ) : (

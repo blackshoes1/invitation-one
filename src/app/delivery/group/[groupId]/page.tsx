@@ -240,6 +240,7 @@ function GroupPageInner() {
             <HeartForm
               group={{ id: group.id, name: group.name }}
               inviteName={invite?.name ?? null}
+              groupSlug={slug}
               onSwitchToDelivery={() => setView({ kind: "new" })}
             />
           )}

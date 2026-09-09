@@ -16,6 +16,7 @@ import StampPicker from "@/components/delivery/StampPicker";
 import RegionPicker from "@/components/delivery/RegionPicker";
 import { notifyAdmin } from "@/lib/notify";
 import SaveInvitationLink from "@/components/delivery/SaveInvitationLink";
+import RosterPicker from "@/components/delivery/RosterPicker";
 import { randomAnonAlias } from "@/lib/anonAlias";
 import { getSiteSettings } from "@/lib/settings";
 
@@ -24,11 +25,14 @@ const invitationHref = INVITATION_KEY ? `/?key=${INVITATION_KEY}` : "/";
 export default function HeartForm({
   group = null,
   inviteName = null,
+  groupSlug = null,
   onSwitchToDelivery,
 }: {
   group?: { id: string; name: string } | null;
   /** 개인 초대 링크로 들어온 경우 이름 프리필 */
   inviteName?: string | null;
+  /** 그룹 페이지에서 왔으면 명단에서 이름을 고를 수 있게 한다 (타이핑 절약) */
+  groupSlug?: string | null;
   /** "역시 직접 만나고 싶어요" — 같은 페이지에서 직접 배달 폼으로 전환 */
   onSwitchToDelivery?: () => void;
 }) {
@@ -183,13 +187,16 @@ export default function HeartForm({
         <StampPicker value={stamp} onChange={setStamp} />
       </div>
 
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="이름"
-        aria-label="이름"
-        className="dform-input"
-      />
+      <div className="space-y-1.5">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="이름"
+          aria-label="이름"
+          className="dform-input"
+        />
+        <RosterPicker slug={groupSlug} onPick={setName} />
+      </div>
 
       <div className="space-y-1.5">
         <p className="text-xs font-bold text-neutral-500">

@@ -333,6 +333,7 @@ export default function DeliveryForm({
             //  - 초대 연락처를 쓰는 중이고 (명단에 번호가 없으면 물어보는 게 맞다)
             //  - 이름을 아직 안 고쳤을 때 (고치기 시작하면 확인 카드가 어색하다)
             inviteName={useInvitePhone && invite?.name === name ? invite.name : null}
+            groupSlug={groupSlug}
             onUseOtherPhone={() => setUseInvitePhone(false)}
             onNext={next}
           />

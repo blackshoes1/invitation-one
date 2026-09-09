@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import type { InvitePrefill } from "@/lib/invite";
 import InvitePhoneBox from "@/components/delivery/InvitePhoneBox";
+import RosterPicker from "@/components/delivery/RosterPicker";
 import { motion } from "framer-motion";
 import { isSupabaseConfigured, type GroupOrder } from "@/lib/supabase";
 import { formatYmdKo, formatPhone, isValidPhone } from "@/lib/wedding";
@@ -140,6 +141,7 @@ export default function JoinForm({
           aria-label="성함"
           className="dform-input"
         />
+        <RosterPicker slug={groupSlug} onPick={setName} />
         {useInvitePhone && invite?.phoneMasked ? (
           <InvitePhoneBox
             phoneMasked={invite.phoneMasked}
