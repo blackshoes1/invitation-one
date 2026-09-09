@@ -147,7 +147,7 @@ function GroupPageInner() {
         </p>
       </section>
 
-      <InviteNotice state={inviteState} token={inviteToken} />
+      <InviteNotice key={inviteToken ?? "none"} state={inviteState} token={inviteToken} />
       {invite?.groupSlug && usableToken && (
         <GroupSpaceCard key={usableToken} token={usableToken} invite={invite} />
       )}

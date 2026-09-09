@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Group, GroupMemberRow } from "@/lib/supabase";
 import {
   formatYmdKo,
   formatPhone,
+  isValidPhone,
   slotsForDate,
   DELIVERY_START,
   DELIVERY_END,
@@ -246,100 +247,112 @@ export default function GroupsTab({
     }
   };
 
-  /** 명단 연락처 저장 (blur 시) — 개인 초대 링크용 */
-  const savePhone = async (gid: string, mem: GroupMemberRow, phone: string) => {
-    if ((mem.phone ?? "") === phone.trim()) return;
+  const [phoneDrafts, setPhoneDrafts] = useState<Record<string, string>>({});
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const inviteLock = useRef(false);
+  const [linkResult, setLinkResult] = useState<{
+    text: string; skipped: { id: string; name: string; reason: string }[];
+  } | null>(null);
+
+  /** Explicit save, also awaited before copying. Failed saves keep the draft for retry. */
+  const savePhone = async (gid: string, mem: GroupMemberRow): Promise<boolean> => {
+    const draft = phoneDrafts[mem.id];
+    if (draft === undefined || draft.trim() === (mem.phone ?? "")) return true;
     try {
       const res = await api(`/api/admin/groups/${gid}/members`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ member_id: mem.id, phone }),
+        body: JSON.stringify({ member_id: mem.id, phone: draft }),
       });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) {
+      if (!res.ok || !j.member) {
         if (res.status !== 401) setError(j.error ?? "연락처 저장에 실패했습니다.");
-        return;
+        return false;
       }
       setMembers((m) => ({
         ...m,
         [gid]: (m[gid] ?? []).map((x) => (x.id === mem.id ? { ...x, ...j.member } : x)),
       }));
+      setPhoneDrafts((prev) => { const next = { ...prev }; delete next[mem.id]; return next; });
+      return true;
     } catch {
       setError("연락처 저장 요청이 실패했습니다. 네트워크를 확인해주세요.");
+      return false;
     }
   };
 
-  /** 이번 세션에 발급한 링크 (같은 토큰의 개인/그룹 두 주소) — 재발급 없이 다시 복사용 */
-  const [issued, setIssued] = useState<
-    Record<string, { url: string; personalUrl: string }>
-  >({});
+  const saveMemberPhone = async (gid: string, mem: GroupMemberRow) => {
+    if (inviteLock.current) return;
+    inviteLock.current = true;
+    setInviteBusy(true);
+    setError(null);
+    try {
+      if (await savePhone(gid, mem)) setNotice(`${mem.name} 님 연락처를 저장했어요.`);
+    } finally { inviteLock.current = false; setInviteBusy(false); }
+  };
 
-  /** 개인 초대 링크 발급 + 클립보드 복사 (member 없으면 그룹 전체) */
   const issueInvite = async (
     gid: string,
     mem?: GroupMemberRow,
-    kind: "personal" | "group" = "personal"
+    kind: "personal" | "group" = "personal",
+    rotate = false,
   ) => {
-    // 이미 이번 세션에 발급했다면 재발급 없이 그대로 복사 (다른 종류 링크도 그대로 유효)
-    const cached = mem ? issued[mem.id] : null;
-    if (cached) {
-      const url = kind === "group" ? cached.url : cached.personalUrl;
-      try {
-        await navigator.clipboard.writeText(url);
-        setNotice(
-          `${mem!.name} 님 ${kind === "group" ? "그룹" : "개인 주문"} 링크를 복사했어요`
-        );
-      } catch {
-        setNotice("복사가 막혀 있어요. 링크: " + url);
-      }
-      return;
-    }
-    if (mem?.invited_at && !confirm(`${mem.name} 님 링크를 다시 만들까요? 이전에 보낸 링크는 무효가 됩니다.`)) return;
-    if (!mem && !confirm("명단 전체의 개인 링크를 (다시) 만들까요? 이전에 보낸 링크는 모두 무효가 됩니다.")) return;
+    if (inviteLock.current) return;
+    if (rotate && (!mem || !confirm(`${mem.name} 님 링크를 재발급할까요? 이전에 보낸 개인 신청·그룹 합류 링크가 모두 무효가 됩니다.`))) return;
+    inviteLock.current = true;
+    setInviteBusy(true);
+    setError(null);
+    setNotice(null);
+    setLinkResult(null);
     try {
+      // Save every edited phone first; never copy while a save is still in flight.
+      const targets = mem ? [mem] : (members[gid] ?? []);
+      for (const target of targets) {
+        if (!(await savePhone(gid, target))) return;
+      }
       const res = await api(`/api/admin/groups/${gid}/members/invite`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(mem ? { member_id: mem.id } : { all: true }),
+        body: JSON.stringify(mem ? { member_id: mem.id, rotate } : { all: true }),
       });
       const j = (await res.json().catch(() => ({}))) as {
-        links?: { id: string; name: string; url: string; personalUrl: string }[];
+        links?: { id: string; name: string; url: string; personalUrl: string; invited_at: string }[];
+        skipped?: { id: string; name: string; reason: string }[];
         error?: string;
       };
-      if (!res.ok || !j.links) {
-        if (res.status !== 401) setError(j.error ?? "개인 링크 발급에 실패했습니다.");
+      const links = j.links ?? [];
+      const skipped = j.skipped ?? [];
+      if (!res.ok && !skipped.length) {
+        if (res.status !== 401) setError(j.error ?? "링크를 준비하지 못했어요. 다시 시도해주세요.");
         return;
       }
-      const pick = (l: { url: string; personalUrl: string }) =>
-        kind === "group" ? l.url : l.personalUrl;
-      const text = mem
-        ? pick(j.links[0])
-        : j.links.map((l) => `${l.name}: ${pick(l)}`).join("\n");
-      const kindLabel = kind === "group" ? "그룹" : "개인 주문";
-      setIssued((prev) => {
-        const next = { ...prev };
-        for (const l of j.links!) next[l.id] = { url: l.url, personalUrl: l.personalUrl };
-        return next;
-      });
-      try {
-        await navigator.clipboard.writeText(text);
-        setNotice(
-          mem
-            ? `${mem.name} 님 ${kindLabel} 링크를 복사했어요 (1:1 로 보내주세요)`
-            : `${j.links.length}명 ${kindLabel} 링크를 복사했어요 (이름: 링크)`
-        );
-      } catch {
-        setNotice("링크를 만들었어요. 복사가 막혀 있어 아래 목록에서 다시 발급해 복사해주세요.");
-      }
-      const now = new Date().toISOString();
+      const pick = (l: typeof links[number]) => kind === "group" ? l.url : l.personalUrl;
+      const text = mem ? (links[0] ? pick(links[0]) : "")
+        : links.map((l) => `${l.name}: ${pick(l)}`).join("\n");
+      setLinkResult({ text, skipped });
       setMembers((m) => ({
         ...m,
-        [gid]: (m[gid] ?? []).map((x) =>
-          j.links!.some((l) => l.id === x.id) ? { ...x, invited_at: now } : x
-        ),
+        [gid]: (m[gid] ?? []).map((x) => {
+          const link = links.find((l) => l.id === x.id);
+          return link ? { ...x, invited_at: link.invited_at } : x;
+        }),
       }));
+      if (!text) {
+        setError("복사할 링크가 없어요. 아래 대상별 안내를 확인해주세요.");
+        return;
+      }
+      const label = kind === "group" ? "그룹 합류" : "개인 신청";
+      try {
+        await navigator.clipboard.writeText(text);
+        setNotice(`${links.length}명 ${label} 링크를 복사했어요. 각 사람에게 1:1로 보내주세요.${skipped.length ? ` 제외 ${skipped.length}명은 아래에서 확인해주세요.` : ""}`);
+      } catch {
+        setNotice("링크는 준비됐어요. 아래 주소를 선택해 직접 복사해주세요.");
+      }
     } catch {
-      setError("개인 링크 발급 요청이 실패했습니다. 네트워크를 확인해주세요.");
+      setError("링크 요청이 실패했습니다. 다시 복사하면 기존 링크가 유지됩니다.");
+    } finally {
+      inviteLock.current = false;
+      setInviteBusy(false);
     }
   };
 
@@ -368,6 +381,21 @@ export default function GroupsTab({
     <>
       {/* 그룹 없이 개인에게만 링크를 주는 경우 — 그룹을 만들 필요가 없다 */}
       <SoloInvites api={api} setError={setError} setNotice={setNotice} />
+      {linkResult && (
+        <section aria-label="초대 링크 복사 결과" className="bg-white border border-wedding-gold/20 p-4 space-y-3">
+          <p className="text-sm font-bold">초대 링크 복사 결과</p>
+          {linkResult.text && <>
+            <p className="text-xs text-neutral-600">각 주소를 해당 사람에게만 보내주세요. 전체 목록을 단체방에 공유하지 마세요.</p>
+            <textarea aria-label="복사할 초대 링크" readOnly value={linkResult.text}
+              onFocus={(e) => e.currentTarget.select()} rows={4}
+              className="w-full min-w-0 border p-2 text-xs break-all" />
+          </>}
+          {linkResult.skipped.length > 0 && <ul className="text-xs text-red-600 space-y-2">
+            {linkResult.skipped.map((m) => <li key={m.id}>{m.name}: {m.reason}</li>)}
+          </ul>}
+          <button onClick={() => setLinkResult(null)} className="text-xs underline">결과 닫기</button>
+        </section>
+      )}
 
       <div className="bg-white border border-wedding-gold/15 p-3 space-y-2">
         <div className="flex gap-2">
@@ -799,17 +827,22 @@ export default function GroupsTab({
                   </button>
                 </div>
                 {(members[g.id] ?? []).length > 0 && (
-                  <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between text-[11px] text-neutral-400 px-1">
+                  <div className="flex flex-col items-start gap-2 text-[11px] text-neutral-500 px-1">
                     <span>
-                      연락처를 넣고 1:1 로 보내면 이름·번호가 자동 입력돼요 ·{" "}
-                      <b className="text-neutral-500">개인</b>=본인 주문,{" "}
-                      <b className="text-neutral-500">그룹</b>=그룹 주문 현황
+                      두 링크 모두 본인을 자동 인식하고 소속 모임을 보여줘요.
+                      개인 신청은 본인 주문, 그룹 합류는 함께 받을 일정 선택이에요.
+                      연락처는 저장 후 복사하며, 다시 복사해도 기존 링크가 유지돼요.
                     </span>
                     <button
+                      disabled={inviteBusy}
                       onClick={() => issueInvite(g.id)}
                       className="text-sage-700 underline underline-offset-2 whitespace-nowrap"
                     >
-                      전체 개인 링크 복사
+                      개인 신청 링크 전체 복사
+                    </button>
+                    <button disabled={inviteBusy} onClick={() => issueInvite(g.id, undefined, "group")}
+                      className="text-sage-700 underline underline-offset-2 whitespace-nowrap">
+                      그룹 합류 링크 전체 복사
                     </button>
                   </div>
                 )}
@@ -827,15 +860,22 @@ export default function GroupsTab({
                         </span>
                       </span>
                       <input
-                        key={`${mem.id}-${mem.phone ?? ""}`}
                         type="tel"
                         aria-label={`${mem.name} 연락처`}
                         inputMode="tel"
-                        defaultValue={mem.phone ?? ""}
+                        disabled={inviteBusy}
+                        value={phoneDrafts[mem.id] ?? mem.phone ?? ""}
+                        onChange={(e) => setPhoneDrafts((prev) => ({ ...prev, [mem.id]: e.target.value }))}
                         placeholder="010-0000-0000"
-                        onBlur={(e) => savePhone(g.id, mem, e.target.value)}
                         className="w-full min-w-0 border border-neutral-200 px-2 py-2 text-sm sm:w-auto sm:min-w-[140px] sm:flex-1"
                       />
+                      <button disabled={inviteBusy} onClick={() => saveMemberPhone(g.id, mem)}
+                        className="text-xs underline disabled:opacity-50">연락처 저장</button>
+                      <span className="w-full text-[11px] text-neutral-500" role="status">
+                        {phoneDrafts[mem.id] !== undefined && phoneDrafts[mem.id].trim() !== (mem.phone ?? "")
+                          ? "연락처 저장 필요"
+                          : mem.phone && isValidPhone(mem.phone) ? "자동 입력 준비 완료" : "연락처 미등록 · 이름만 확인 가능"}
+                      </span>
                       {/*
                         모바일에서 배지·버튼이 겹치지 않게 감싸는 줄 (main 의 레이아웃 수정).
                         직접배달 신청과 마음배송을 한 배지로 합치지 않는다 — 마음배송만
@@ -860,20 +900,26 @@ export default function GroupsTab({
                         </span>
                       )}
                       <button
+                        disabled={inviteBusy}
                         onClick={() => issueInvite(g.id, mem, "personal")}
                         className={`text-xs whitespace-nowrap ${mem.invited_at ? "text-neutral-400" : "text-sage-700"}`}
                         title="개인 주문 링크 — 그룹에 묶이지 않고 본인 주문만 진행"
                       >
-                        {mem.invited_at ? "개인 ✓" : "개인"}
+                        개인 신청 링크
                       </button>
                       <button
+                        disabled={inviteBusy}
                         onClick={() => issueInvite(g.id, mem, "group")}
                         className="text-xs whitespace-nowrap text-neutral-400"
                         title="그룹 링크 — 그룹 주문 현황·합류 흐름으로 진입"
                       >
-                        그룹
+                        그룹 합류 링크
                       </button>
+                      {mem.invited_at && <button disabled={inviteBusy}
+                        onClick={() => issueInvite(g.id, mem, "group", true)}
+                        className="text-xs text-red-500">링크 재발급</button>}
                       <button
+                        disabled={inviteBusy}
                         onClick={() => removeMember(g.id, mem.id)}
                         className="text-xs text-red-400"
                       >

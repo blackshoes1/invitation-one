@@ -93,6 +93,7 @@ function DeliveryPageInner() {
         </div>
       </section>
 
+      <InviteNotice key={inviteToken ?? "none"} state={inviteState} token={inviteToken} />
       {invite?.groupSlug && usableToken && (
         <GroupSpaceCard key={usableToken} token={usableToken} invite={invite} />
       )}
@@ -113,7 +114,6 @@ function DeliveryPageInner() {
         </section>
       ) : (
         <section className="pb-6">
-          <InviteNotice state={inviteState} token={inviteToken} />
           {mode === null && (
             <>
               <RiderProfile deliveredCount={taken ?? undefined} />
