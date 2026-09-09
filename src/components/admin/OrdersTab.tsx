@@ -6,6 +6,7 @@ import { type AdminDelivery, type TabCtx } from "@/app/admin/shared";
 import OrderFilters from "./orders/OrderFilters";
 import OrderCard from "./orders/OrderCard";
 import type { EditSched } from "./orders/types";
+import { describeSms, type SmsOutcome } from "@/lib/smsResult";
 
 /**
  * 주문 탭 — 상태별 목록·검색·상태 변경(SMS)·추적 단계·일정 수정·주문 합치기.
@@ -98,17 +99,9 @@ export default function OrdersTab({
       const j = await res.json();
       if (!res.ok) return setError(j.error ?? "변경 실패");
       if (status === "확정" || status === "취소") {
-        const sms = j.sms as
-          | { count: number; sent: number; skipped: boolean }
-          | null;
-        const label = status === "확정" ? "확정" : "취소";
-        setNotice(
-          !sms || sms.count === 0
-            ? `${label} 처리됨 — 연락처 보유 참여자가 없어 SMS 미발송.`
-            : sms.skipped
-            ? `${label} 처리됨 — SMS는 솔라피 키 미설정으로 미발송 (${sms.count}명 대상).`
-            : `${label} 처리 및 참여자 ${sms.sent}/${sms.count}명에게 SMS 발송 완료.`
-        );
+        // 한 건이라도 못 보냈으면 초록 알림이 아니라 빨간 오류다 (smsResult 참고)
+        const r = describeSms(j.sms as SmsOutcome | null, `${status === "확정" ? "확정" : "취소"} 처리`);
+        (r.ok ? setNotice : setError)(r.text);
       }
       loadOrders();
     } catch {
@@ -156,16 +149,12 @@ export default function OrdersTab({
     const j = await res.json();
     if (!res.ok) return setError(j.error ?? "일정 변경 실패");
 
-    const sms = j.sms as { count: number; sent: number; skipped: boolean } | null;
-    setNotice(
-      !notify
-        ? "일정이 변경되었습니다 (문자 안내 생략)."
-        : !sms || sms.count === 0
-        ? "일정이 변경되었습니다 — 연락처 보유 참여자가 없어 SMS 미발송."
-        : sms.skipped
-        ? `일정이 변경되었습니다 — SMS는 솔라피 키 미설정으로 미발송 (${sms.count}명 대상).`
-        : `일정 변경 및 참여자 ${sms.sent}/${sms.count}명에게 안내 SMS 발송 완료.`
-    );
+    if (!notify) {
+      setNotice("일정이 변경되었습니다 (문자 안내 생략).");
+    } else {
+      const r = describeSms(j.sms as SmsOutcome | null, "일정 변경");
+      (r.ok ? setNotice : setError)(r.text);
+    }
     setEditSched(null);
     loadOrders();
   };
