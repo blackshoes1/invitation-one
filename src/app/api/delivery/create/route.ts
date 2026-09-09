@@ -11,7 +11,6 @@ import {
   resolveInvite,
   loadGroupBySlug,
   loadGroupById,
-  linkGroupMember,
   firstRow,
   rpcErrorCode,
 } from "@/lib/deliveryApi";
@@ -106,7 +105,6 @@ export async function POST(req: Request) {
     manage_token: string | null;
   }>(data);
   if (!row?.participant_id) return json({ error: "server_error" }, 500);
-  if (invite) await linkGroupMember(row.participant_id, invite.memberId);
 
   // P1-4: 응답 후 아웃박스 드레인 (신규 + 재시도 도래분)
   // 에러를 삼키지 않는다 — 여기서 조용히 죽으면 알림이 왜 안 갔는지 알 길이 없다

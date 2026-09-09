@@ -78,7 +78,7 @@ export default function DeliveryForm({
     message,
     setMessage,
     clearDraft,
-  } = useDeliveryDraft(done);
+  } = useDeliveryDraft(done, JSON.stringify([groupSlug ?? group?.id ?? null, inviteToken, convertId]));
 
   // 합석 제안 — 같은 날 기존 주문이 있을 때
   const [joinOffer, setJoinOffer] = useState<DateOrder[] | null>(null);

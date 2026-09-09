@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { DRAFT_KEY } from "./form/types";
 import Link from "next/link";
 import { inviteUrl, personalInviteUrl } from "@/lib/invite";
 import type { InviteState } from "@/components/delivery/useInvite";
@@ -38,6 +39,7 @@ export default function InviteNotice({
             onClick={() => {
               // Full navigation discards every form and group-response state, not just the token.
               // Do not carry a conversion credential to a different guest either.
+              try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* storage unavailable */ }
               const url = new URL(window.location.href);
               url.searchParams.delete("i");
               url.searchParams.delete("convert");

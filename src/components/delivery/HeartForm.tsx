@@ -24,11 +24,15 @@ const invitationHref = INVITATION_KEY ? `/?key=${INVITATION_KEY}` : "/";
 export default function HeartForm({
   group = null,
   inviteName = null,
+  inviteToken = null,
+  invitePhoneMasked = null,
   onSwitchToDelivery,
 }: {
   group?: { id: string; name: string } | null;
   /** 개인 초대 링크로 들어온 경우 이름 프리필 */
   inviteName?: string | null;
+  inviteToken?: string | null;
+  invitePhoneMasked?: string | null;
   /** "역시 직접 만나고 싶어요" — 같은 페이지에서 직접 배달 폼으로 전환 */
   onSwitchToDelivery?: () => void;
 }) {
@@ -76,6 +80,7 @@ export default function HeartForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           groupId: group?.id ?? null,
+          inviteToken,
           name: name.trim(),
           sido,
           sub: sub.trim(),
@@ -90,9 +95,14 @@ export default function HeartForm({
         }),
       }).catch(() => null);
       if (!res?.ok) {
+        const failure = await res?.json().catch(() => null);
         setSending(false);
         return setError(
-          res?.status === 429
+          failure?.error === "invite_invalid"
+            ? "초대 링크가 변경되었어요. 보내주신 분께 본인 링크를 다시 요청해주세요."
+            : failure?.error === "invite_group_mismatch"
+            ? "다른 모임의 초대 링크예요. 본인 링크로 다시 열어주세요."
+            : res?.status === 429
             ? "요청이 많아요. 잠시 후 다시 시도해주세요 🙏"
             : "전송에 실패했어요. 잠시 후 다시 시도해주세요 🛠️"
         );
@@ -185,6 +195,7 @@ export default function HeartForm({
 
       <input
         value={name}
+        readOnly={Boolean(inviteToken)}
         onChange={(e) => setName(e.target.value)}
         placeholder="이름"
         aria-label="이름"
@@ -314,6 +325,11 @@ export default function HeartForm({
       </div>
 
       <div className="space-y-1.5">
+        {inviteToken && invitePhoneMasked && (
+          <p className="text-xs text-neutral-600">
+            초대받은 연락처 {invitePhoneMasked}를 사용해요. 변경할 때만 아래에 입력해주세요.
+          </p>
+        )}
         <input
           type="tel"
           autoComplete="tel"
@@ -326,7 +342,7 @@ export default function HeartForm({
           className="dform-input"
         />
         <p className="text-[11px] text-neutral-500">
-          남겨주시면 다음에 청첩장에서 다시 오셨을 때 알아볼 수 있어요 💌
+          {inviteToken ? "입력하지 않으면 초대받은 연락처로 연결돼요." : "연락처는 신랑신부만 확인할 수 있어요 💌"}
         </p>
       </div>
 

@@ -106,11 +106,16 @@ for (const path of ["/delivery", "/delivery/group/friends"]) {
     } }));
     await page.goto(`${path}?i=${"a".repeat(32)}&convert=old-person`);
     await expect(page.getByRole("region", { name: "초대받은 분 확인" })).toContainText("원래수신자");
+    // Seed an old recipient's persisted draft after the form has mounted.
+    await page.evaluate(() => sessionStorage.setItem("delivery-form-draft", JSON.stringify({
+      date: "2026-09-25", slot: "오후", rider: "신랑", message: "이전 사람의 요청",
+    })));
     await page.getByRole("button", { name: "본인이 아닌가요?", exact: false }).click();
     await expect(page).toHaveURL(new RegExp(path + "$"));
     await expect(page.getByRole("region", { name: "초대받은 분 확인" })).toHaveCount(0);
     await expect(page.getByRole("region", { name: "우리 모임" })).toHaveCount(0);
     await expect(page.getByText("원래수신자", { exact: false })).toHaveCount(0);
+    expect(await page.evaluate(() => sessionStorage.getItem("delivery-form-draft"))).toBeNull();
   });
 }
 
@@ -119,4 +124,23 @@ test("invalid invitation prioritizes retry and a new personal link request", asy
   await page.goto("/delivery?i=" + "b".repeat(32));
   await expect(page.getByText(/본인 전용 링크를 다시 요청해주세요/)).toBeVisible();
   await expect(page.getByRole("button", { name: "링크 다시 확인", exact: true })).toBeVisible();
+});
+
+test("draft survives same-person reload and is cleared when the invitation changes", async ({ page }) => {
+  await page.route("**/api/delivery/invite?*", (route) => route.fulfill({ json: {
+    invite: { name: "초대하객", phoneMasked: "010-****-5678", groupSlug: null, groupName: null },
+  } }));
+  await page.goto(`/delivery?i=${"a".repeat(32)}`);
+  await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem("delivery-form-draft") ?? "null")?.scope)).toBeTruthy();
+  await page.evaluate(() => {
+    const saved = JSON.parse(sessionStorage.getItem("delivery-form-draft")!);
+    saved.draft = { date: "2026-09-25", slot: "오후", rider: "신랑", message: "첫 사람 요청" };
+    sessionStorage.setItem("delivery-form-draft", JSON.stringify(saved));
+  });
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "초대하객님, 반가워요 👋" })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem("delivery-form-draft") ?? "null")?.draft.message)).toBe("첫 사람 요청");
+  await page.goto(`/delivery?i=${"b".repeat(32)}`);
+  await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem("delivery-form-draft") ?? "null")?.draft.message)).toBe("");
+  expect(await page.evaluate(() => sessionStorage.getItem("delivery-form-draft"))).not.toContain("b".repeat(32));
 });
