@@ -4,9 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * 그룹 명단 이름 목록 API.
  *
  * 이 라우트의 존재 이유는 "그룹 링크로 들어온 하객의 타이핑을 줄이는 것" 하나뿐이다.
- * 그래서 **이름 말고는 아무것도 내보내지 않는다** — 연락처(마스킹본 포함)든
- * member_id 든 하나라도 새면 단톡방 링크가 곧 남의 정보 조회 수단이 된다.
- * 아래 테스트가 지키는 것이 그 선이다.
+ * 그래서 내보내는 것은 **이름과 hasPhone(있음/없음) 뿐이다** — 연락처는 마스킹본
+ * 조차 내려가지 않는다. 번호는 제출 시점에 서버가 붙인다(`rosterPhone`). 한 자리도
+ * 새면 단톡방 링크가 곧 남의 번호 조회 수단이 된다. 아래 테스트가 지키는 선이다.
  */
 const mocks = vi.hoisted(() => ({ from: vi.fn(), allow: vi.fn() }));
 vi.mock("@/lib/supabaseAdmin", () => ({
@@ -41,29 +41,44 @@ beforeEach(() => {
 });
 
 describe("group roster API", () => {
-  it("이름만 내려준다 — 연락처 컬럼은 조회조차 하지 않는다", async () => {
+  it("번호는 한 자리도 안 나간다 — 있음/없음만", async () => {
     const group = query({ id: "g1" });
     const members = query([
-      { name: "홍길동" },
-      { name: "김철수" },
-      { name: " 이영희 " },
+      { name: "홍길동", phone: "010-1234-5678" },
+      { name: "김철수", phone: null },
+      { name: " 이영희 ", phone: "not-a-phone" },
     ]);
     mocks.from.mockReturnValueOnce(group).mockReturnValueOnce(members);
 
     const res = await request("?slug=our-group");
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ names: ["김철수", "이영희", "홍길동"] });
-    // 이름 외 컬럼을 실수로 얹으면 여기서 잡힌다 (phone, invite_token_hash, id …)
-    expect(members.select).toHaveBeenCalledWith("name");
+    const body = await res.json();
+    expect(body).toEqual({
+      names: [
+        { name: "김철수", hasPhone: false },
+        { name: "이영희", hasPhone: false }, // 형식이 깨진 번호는 못 쓴다
+        { name: "홍길동", hasPhone: true },
+      ],
+    });
+    // 번호가 어떤 형태로든(마스킹 포함) 실려 나가면 여기서 잡힌다
+    expect(JSON.stringify(body)).not.toMatch(/\d{3,}/);
+    // 이름·번호 외 컬럼을 실수로 얹으면 여기서 잡힌다 (id, invite_token_hash …)
+    expect(members.select).toHaveBeenCalledWith("name, phone");
     expect(group.select).toHaveBeenCalledWith("id");
   });
 
-  it("동명이인은 한 줄로 합친다", async () => {
+  it("동명이인은 한 줄로 합치고 번호를 못 쓰게 한다", async () => {
+    // 누구 번호인지 정할 수 없다 — 아무거나 붙이면 엉뚱한 사람에게 배송 연락이 간다
     mocks.from
       .mockReturnValueOnce(query({ id: "g1" }))
-      .mockReturnValueOnce(query([{ name: "김민수" }, { name: "김민수" }]));
+      .mockReturnValueOnce(
+        query([
+          { name: "김민수", phone: "010-1111-2222" },
+          { name: "김민수", phone: "010-3333-4444" },
+        ])
+      );
     expect(await (await request("?slug=our-group")).json()).toEqual({
-      names: ["김민수"],
+      names: [{ name: "김민수", hasPhone: false }],
     });
   });
 

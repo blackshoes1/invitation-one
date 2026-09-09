@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { useRoster } from "@/components/delivery/useRoster";
 import RosterNameList from "@/components/delivery/RosterNameList";
+import type { PickedName } from "@/lib/roster";
 
 /**
  * 입력칸 옆에 붙는 작은 "명단에서 고르기" — **보조 수단**이다.
@@ -11,7 +12,7 @@ import RosterNameList from "@/components/delivery/RosterNameList";
  * 이 폼들에는 이미 이름이 채워져 들어온다. 이건 그걸 지나쳤거나 다른 사람
  * 이름으로 바꾸려는 사람을 위한 것이라, 눈에 덜 띄어도 된다.
  *
- * ⚠️ 이름을 골랐다는 사실은 신원 확인이 아니다 — 이름만 채우고 끝낸다.
+ * 연락처는 화면에 나오지 않는다 — 명단에 번호가 있으면 제출 시점에 서버가 붙인다.
  */
 export default function RosterPicker({
   slug,
@@ -19,7 +20,7 @@ export default function RosterPicker({
 }: {
   /** 그룹 슬러그 — 없으면(개인 주문 페이지) 아무것도 그리지 않는다 */
   slug?: string | null;
-  onPick: (name: string) => void;
+  onPick: (picked: PickedName) => void;
 }) {
   const panelId = useId();
   const [open, setOpen] = useState(false);
@@ -52,8 +53,8 @@ export default function RosterPicker({
         >
           <RosterNameList
             roster={roster}
-            onPick={(n) => {
-              onPick(n);
+            onPick={(p) => {
+              onPick(p);
               setOpen(false);
             }}
           />

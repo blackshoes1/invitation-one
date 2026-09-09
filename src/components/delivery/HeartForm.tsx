@@ -17,6 +17,7 @@ import RegionPicker from "@/components/delivery/RegionPicker";
 import { notifyAdmin } from "@/lib/notify";
 import SaveInvitationLink from "@/components/delivery/SaveInvitationLink";
 import RosterPicker from "@/components/delivery/RosterPicker";
+import type { PickedName } from "@/lib/roster";
 import { randomAnonAlias } from "@/lib/anonAlias";
 import { getSiteSettings } from "@/lib/settings";
 
@@ -26,7 +27,7 @@ export default function HeartForm({
   group = null,
   inviteName = null,
   groupSlug = null,
-  nameDefault = null,
+  picked = null,
   onSwitchToDelivery,
 }: {
   group?: { id: string; name: string } | null;
@@ -34,13 +35,16 @@ export default function HeartForm({
   inviteName?: string | null;
   /** 그룹 페이지에서 왔으면 명단에서 이름을 고를 수 있게 한다 (타이핑 절약) */
   groupSlug?: string | null;
-  /** 그룹 페이지에서 명단으로 고른 이름 — 신원 확인이 아니라 이름 기본값일 뿐 */
-  nameDefault?: string | null;
+  /**
+   * 그룹 페이지에서 명단으로 고른 이름 — 여기서는 **이름만** 쓴다.
+   * 마음배송은 연락처가 선택 입력이라 굳이 명단 번호를 끌어올 이유가 없다.
+   */
+  picked?: PickedName | null;
   /** "역시 직접 만나고 싶어요" — 같은 페이지에서 직접 배달 폼으로 전환 */
   onSwitchToDelivery?: () => void;
 }) {
   const [stamp, setStamp] = useState<string>(STAMPS[0]);
-  const [name, setName] = useState(inviteName ?? nameDefault ?? "");
+  const [name, setName] = useState(inviteName ?? picked?.name ?? "");
   const [sido, setSido] = useState("");
   const [sub, setSub] = useState("");
   const [message, setMessage] = useState("");
@@ -198,7 +202,7 @@ export default function HeartForm({
           aria-label="이름"
           className="dform-input"
         />
-        <RosterPicker slug={groupSlug} onPick={setName} />
+        <RosterPicker slug={groupSlug} onPick={(p) => setName(p.name)} />
       </div>
 
       <div className="space-y-1.5">

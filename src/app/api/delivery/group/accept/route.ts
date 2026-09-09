@@ -7,6 +7,8 @@ import {
   parseName,
   parseManageTokenParam,
   resolvePhone,
+  rosterPhone,
+  loadGroupBySlug,
   resolveInvite,
   linkGroupMember,
   firstRow,
@@ -45,14 +47,19 @@ export async function POST(req: Request) {
 
   const name = parseName(b.name) ?? (invite ? parseName(invite.name) : null);
   if (!name) return json({ error: "name_invalid" }, 400);
-  // 연락처 — 직접 입력했으면 그 번호, 아니면 RPC 가 초대 토큰으로 채움
-  const ph = resolvePhone(b.phone, Boolean(invite));
+  // 연락처 — ① 직접 입력 ② 명단에서 고른 이름(여기서 붙인다) ③ 초대 토큰(RPC)
+  const picked =
+    b.rosterName === true && !invite
+      ? await rosterPhone((await loadGroupBySlug(slug))?.id ?? null, name)
+      : null;
+  const ph = resolvePhone(b.phone, Boolean(invite) || Boolean(picked));
   if (!ph.ok) return json({ error: "phone_invalid" }, 400);
+  const phone = ph.phone ?? picked;
 
   const { data, error } = await supabaseAdmin.rpc("accept_group_offer_v2", {
     p_slug: slug,
     p_name: name,
-    p_phone: ph.phone ?? "",
+    p_phone: phone ?? "",
     p_convert_token: parseManageTokenParam(b.convertToken),
     p_invite_token: invite ? inviteToken : null,
   });

@@ -5,6 +5,8 @@ import { formatPhone } from "@/lib/wedding";
 import Q from "./Q";
 import InvitePhoneBox from "@/components/delivery/InvitePhoneBox";
 import RosterPicker from "@/components/delivery/RosterPicker";
+import RosterPhoneBox from "@/components/delivery/RosterPhoneBox";
+import type { PickedName } from "@/lib/roster";
 
 /**
  * 첫 단계 — 받는 분 확인.
@@ -25,6 +27,8 @@ export default function StepContact({
   phoneMasked = null,
   inviteName = null,
   groupSlug = null,
+  rosterPhoneFor = null,
+  onPickFromRoster,
   onUseOtherPhone,
   onNext,
 }: {
@@ -35,6 +39,12 @@ export default function StepContact({
   onPhoneChange: (v: string) => void;
   /** 그룹 페이지에서 왔으면 명단에서 이름을 고를 수 있게 한다 (타이핑 절약) */
   groupSlug?: string | null;
+  /**
+   * 명단에서 고른 이름의 번호를 쓰는 중이면 그 이름 — 번호 입력칸 대신 안내를 띄운다.
+   * **번호 자체는 여기로 내려오지 않는다** (서버가 제출 시 붙인다).
+   */
+  rosterPhoneFor?: string | null;
+  onPickFromRoster?: (picked: PickedName) => void;
   /** 개인 초대 링크로 확인된 번호(마스킹) — 있으면 입력 대신 확인 박스 표시 */
   phoneMasked?: string | null;
   /** 초대 링크로 확인된 이름 — 있으면 확인 화면(인사)으로 시작한다 */
@@ -100,9 +110,14 @@ export default function StepContact({
           aria-label="성함"
           className="dform-input"
         />
-        <RosterPicker slug={groupSlug} onPick={onNameChange} />
+        <RosterPicker
+          slug={groupSlug}
+          onPick={(p) => (onPickFromRoster ? onPickFromRoster(p) : onNameChange(p.name))}
+        />
         {phoneMasked ? (
           <InvitePhoneBox phoneMasked={phoneMasked} onUseOther={onUseOtherPhone} />
+        ) : rosterPhoneFor ? (
+          <RosterPhoneBox name={rosterPhoneFor} onUseOther={onUseOtherPhone} />
         ) : (
           <input
             ref={phoneRef}

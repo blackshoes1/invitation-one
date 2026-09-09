@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import type { RosterName } from "@/lib/roster";
 
 /**
  * 그룹 명단의 **이름만** 가져온다 (`/api/delivery/group/roster`).
@@ -10,14 +11,14 @@ import { useCallback, useState } from "react";
  */
 export interface Roster {
   /** null = 아직 안 불러옴 */
-  names: string[] | null;
+  names: RosterName[] | null;
   busy: boolean;
   error: string | null;
   load: () => void;
 }
 
 export function useRoster(slug?: string | null): Roster {
-  const [names, setNames] = useState<string[] | null>(null);
+  const [names, setNames] = useState<RosterName[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,7 +30,7 @@ export function useRoster(slug?: string | null): Roster {
       cache: "no-store",
     })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((j: { names?: string[] }) =>
+      .then((j: { names?: RosterName[] }) =>
         setNames(Array.isArray(j.names) ? j.names : [])
       )
       .catch(() => setError("명단을 불러오지 못했어요. 성함을 직접 입력해주세요."))

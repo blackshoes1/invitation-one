@@ -2,19 +2,21 @@
 
 import { useState } from "react";
 import type { Roster } from "@/components/delivery/useRoster";
+import type { PickedName } from "@/lib/roster";
 
 /**
- * 명단 이름 목록 — 고르면 `onPick(name)`.
+ * 명단 이름 목록 — 고르면 `onPick({ name, usePhone })`.
  *
- * 이름을 골랐다는 사실은 **신원 확인이 아니다.** 링크를 가진 누구나 아무 이름이나
- * 고를 수 있으므로 이름 하나만 채우고 끝낸다 (연락처는 본인이 입력한다).
+ * `usePhone` 은 **번호를 화면에 보여준다는 뜻이 아니다.** 제출할 때 서버가
+ * 명단에서 붙여준다는 뜻이다 (번호는 마스킹본조차 브라우저로 내려오지 않는다).
+ * 명단에 번호가 없거나 동명이인이면 `hasPhone:false` 라 직접 입력해야 한다.
  */
 export default function RosterNameList({
   roster,
   onPick,
 }: {
   roster: Roster;
-  onPick: (name: string) => void;
+  onPick: (picked: PickedName) => void;
 }) {
   const [q, setQ] = useState("");
   const { names, busy, error } = roster;
@@ -29,7 +31,7 @@ export default function RosterNameList({
       </p>
     );
 
-  const filtered = q.trim() ? names.filter((n) => n.includes(q.trim())) : names;
+  const filtered = q.trim() ? names.filter((n) => n.name.includes(q.trim())) : names;
 
   return (
     <div className="space-y-2">
@@ -45,12 +47,12 @@ export default function RosterNameList({
       <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto">
         {filtered.map((n) => (
           <button
-            key={n}
+            key={n.name}
             type="button"
-            onClick={() => onPick(n)}
+            onClick={() => onPick({ name: n.name, usePhone: n.hasPhone })}
             className="px-3 py-1.5 rounded-full border border-delivery/30 text-sm text-neutral-700 active:scale-95 transition-transform"
           >
-            {n}
+            {n.name}
           </button>
         ))}
         {filtered.length === 0 && (
@@ -59,9 +61,6 @@ export default function RosterNameList({
           </p>
         )}
       </div>
-      <p className="text-[11px] text-neutral-400">
-        이름만 채워집니다. 연락처는 직접 입력해주세요.
-      </p>
     </div>
   );
 }

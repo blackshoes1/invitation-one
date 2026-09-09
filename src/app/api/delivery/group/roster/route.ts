@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
 import { rateLimitAllow, clientIp } from "@/lib/rateLimit";
+import { parsePhone } from "@/lib/deliveryApi";
+import type { RosterName } from "@/lib/roster";
 
 /**
  * 그룹 명단의 **이름만** — `GET /api/delivery/group/roster?slug=<슬러그>`
@@ -10,11 +12,14 @@ import { rateLimitAllow, clientIp } from "@/lib/rateLimit";
  * 링크(`?i=<토큰>`)만이 사람을 특정한다. 그룹 링크로 들어온 하객이 이름을 매번
  * 손으로 치는 걸 줄이려고, **고를 수 있게** 이름 목록만 내려준다.
  *
- * ⚠️ 내려주는 것은 **이름뿐이다.** 연락처(마스킹본 포함)·member_id·초대 여부는
- *    절대 포함하지 않는다. 이름을 골랐다는 사실은 **신원 증명이 아니므로**
- *    (그룹 링크를 가진 누구나 아무 이름이나 고를 수 있다) 이 응답으로는 연락처
- *    자동 입력도, 초대 토큰 발급도 하지 않는다 — 그건 `?i=` 토큰만 할 수 있다.
- *    타이핑을 줄이는 편의일 뿐이라는 선을 넘지 말 것.
+ * ⚠️ 내려주는 것은 **이름과 `hasPhone` 뿐이다.** 연락처는 마스킹본조차 내려가지
+ *    않는다 — 번호는 제출 시점에 서버가 붙인다(`rosterPhone`). 그래서 그룹 링크를
+ *    가졌다는 것만으로는 남의 번호를 알아낼 수 없다. member_id·초대 여부도 안 준다.
+ *
+ * `hasPhone` 은 "이 이름을 고르면 번호를 서버가 채워줄 수 있는가" 하나만 뜻한다.
+ * 동명이인이면 누구 번호인지 고를 수 없으므로 **false** 다 (아무거나 붙이면 엉뚱한
+ * 사람에게 배송 연락이 간다). `rosterPhone` 과 같은 규칙이어야 화면과 제출이
+ * 어긋나지 않는다.
  *
  * 그래서 `group_members` 는 anon 이 못 읽는다(RLS·RPC 권한 회수, 20260731000200).
  * 여기서만 service_role 로 읽고 **이름만** 걸러 내보낸다.
@@ -38,24 +43,33 @@ export async function GET(req: Request) {
   // 그룹의 존재 여부를 캐는 데 쓰이지 않게.
   if (!group) return names([]);
 
+  // phone 은 **여기서만** 본다 — 응답에는 있음/없음(boolean)만 나간다.
   const { data, error } = await supabaseAdmin
     .from("group_members")
-    .select("name")
+    .select("name, phone")
     .eq("group_id", group.id)
     .limit(300);
   if (error) return NextResponse.json({ error: "unavailable" }, { status: 500 });
 
-  // 동명이인은 한 줄로 합친다 — 같은 글자를 두 번 보여줘 봐야 고를 수 없고,
-  // 골라도 결과(이름 문자열)가 같아 잃는 정보가 없다.
-  const list = [
-    ...new Set(
-      (data ?? []).map((m) => (m.name ?? "").trim()).filter((n) => n.length > 0)
-    ),
-  ].sort((a, b) => a.localeCompare(b, "ko"));
+  // 동명이인은 한 줄로 합치고 hasPhone 을 끈다 — 같은 글자를 두 번 보여줘 봐야
+  // 고를 수 없고, 번호는 누구 것인지 정할 수 없다 (rosterPhone 과 같은 규칙).
+  const byName = new Map<string, { count: number; phone: string | null }>();
+  for (const m of data ?? []) {
+    const n = (m.name ?? "").trim();
+    if (!n) continue;
+    const prev = byName.get(n);
+    byName.set(n, {
+      count: (prev?.count ?? 0) + 1,
+      phone: prev ? prev.phone : parsePhone(m.phone),
+    });
+  }
+  const list: RosterName[] = [...byName.entries()]
+    .map(([name, v]) => ({ name, hasPhone: v.count === 1 && Boolean(v.phone) }))
+    .sort((a, b) => a.name.localeCompare(b.name, "ko"));
   return names(list);
 }
 
-function names(list: string[]) {
+function names(list: RosterName[]) {
   return NextResponse.json(
     { names: list },
     { headers: { "Cache-Control": "no-store, private" } }

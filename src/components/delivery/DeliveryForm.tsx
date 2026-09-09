@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { type TimeSlot, isValidPhone, slotsForDate } from "@/lib/wedding";
 import type { InvitePrefill } from "@/lib/invite";
+import type { PickedName } from "@/lib/roster";
 import { notifyAdmin } from "@/lib/notify";
 import StepIndicator from "@/components/delivery/StepIndicator";
 import OrderSummary from "@/components/delivery/OrderSummary";
@@ -28,7 +29,7 @@ export default function DeliveryForm({
   convertId = null,
   invite = null,
   inviteToken = null,
-  nameDefault = null,
+  picked = null,
   onSubmitted,
 }: {
   group?: { id: string; name: string } | null;
@@ -41,20 +42,31 @@ export default function DeliveryForm({
   /** 개인 초대 토큰 — 제출 시 서버가 실제 연락처를 채움 */
   inviteToken?: string | null;
   /**
-   * 그룹 페이지에서 명단으로 고른 이름 — 초대와 달리 **신원 확인이 아니다.**
-   * 이름 기본값으로만 쓰고 연락처는 건드리지 않는다.
+   * 그룹 페이지 첫 화면에서 명단으로 고른 이름 — 초대와 달리 **신원 확인이 아니다.**
+   * 이름 기본값이 되고, `usePhone` 이면 제출 시 **서버가** 명단의 번호를 붙인다
+   * (번호는 브라우저로 내려오지 않는다).
    */
-  nameDefault?: string | null;
+  picked?: PickedName | null;
   onSubmitted?: () => void;
 }) {
   const [step, setStep] = useState(0);
   const [dir, setDir] = useState(1);
   const [summary, setSummary] = useState(false);
 
-  const [name, setName] = useState(invite?.name ?? nameDefault ?? "");
+  const [name, setName] = useState(invite?.name ?? picked?.name ?? "");
   const [phone, setPhone] = useState("");
   /** 초대 링크의 (마스킹된) 연락처를 그대로 쓰는 중 — 서버가 토큰으로 실제 번호를 채움 */
   const [useInvitePhone, setUseInvitePhone] = useState(Boolean(invite?.phoneMasked && inviteToken));
+  /** 명단에서 고른 이름의 번호를 쓰는 중 — 서버가 제출 시 붙인다 (화면엔 안 보인다) */
+  const [rosterPhoneFor, setRosterPhoneFor] = useState<string | null>(
+    !invite && picked?.usePhone ? picked.name : null
+  );
+  /** 이름을 손으로 고치면 명단 번호를 더는 못 쓴다 — 누구 번호인지 보장이 깨진다 */
+  const setNameManually = (v: string) => {
+    setName(v);
+    if (v !== rosterPhoneFor) setRosterPhoneFor(null);
+  };
+  const useRosterPhone = rosterPhoneFor !== null && !useInvitePhone;
   const [location, setLocation] = useState("");
 
   const [booked, setBooked] = useState<Set<string>>(new Set());
@@ -112,7 +124,7 @@ export default function DeliveryForm({
     if (checking) return;
     if (step === 0) {
       if (name.trim().length < 2) return setError("성함을 입력해주세요 🙏");
-      if (!useInvitePhone && !isValidPhone(phone))
+      if (!useInvitePhone && !useRosterPhone && !isValidPhone(phone))
         return setError("연락처 형식을 확인해주세요 (010-0000-0000) 📞");
     }
     if (step === 1 && location.trim().length < 2)
@@ -125,7 +137,7 @@ export default function DeliveryForm({
         try {
           const { data } = await supabase.rpc("get_orders_on_date", {
             p_date: date,
-            p_phone: useInvitePhone ? "" : phone.trim(),
+            p_phone: useInvitePhone || useRosterPhone ? "" : phone.trim(),
           });
           const orders = Array.isArray(data) ? (data as DateOrder[]) : [];
           if (orders.length > 0) {
@@ -161,7 +173,9 @@ export default function DeliveryForm({
           deliveryId: order.id,
           name: name.trim(),
           // 신원(토큰)과 연락처를 분리 — 번호를 바꿔도 명단 연결은 유지된다
-          phone: useInvitePhone ? null : phone.trim(),
+          phone: useInvitePhone || useRosterPhone ? null : phone.trim(),
+          // 명단에서 고른 이름 — 서버가 그 이름으로 명단의 번호를 붙인다
+          rosterName: useRosterPhone,
           convertToken: convertId,
           inviteToken,
         }),
@@ -211,7 +225,9 @@ export default function DeliveryForm({
           groupSlug,
           name: name.trim(),
           // 신원(토큰)과 연락처를 분리 — "다른 번호 쓰기"를 눌러도 명단 연결은 유지된다
-          phone: useInvitePhone ? null : phone.trim(),
+          phone: useInvitePhone || useRosterPhone ? null : phone.trim(),
+          // 명단에서 고른 이름 — 서버가 그 이름으로 명단의 번호를 붙인다
+          rosterName: useRosterPhone,
           location: location.trim(),
           date,
           time: slot,
@@ -332,7 +348,7 @@ export default function DeliveryForm({
             name={name}
             phone={phone}
             phoneRef={phoneRef}
-            onNameChange={setName}
+            onNameChange={setNameManually}
             onPhoneChange={setPhone}
             phoneMasked={useInvitePhone ? invite?.phoneMasked ?? null : null}
             // 인사(확인) 화면은 **확인할 게 다 있을 때만** 띄운다:
@@ -340,7 +356,15 @@ export default function DeliveryForm({
             //  - 이름을 아직 안 고쳤을 때 (고치기 시작하면 확인 카드가 어색하다)
             inviteName={useInvitePhone && invite?.name === name ? invite.name : null}
             groupSlug={groupSlug}
-            onUseOtherPhone={() => setUseInvitePhone(false)}
+            rosterPhoneFor={useRosterPhone ? rosterPhoneFor : null}
+            onPickFromRoster={(p) => {
+              setName(p.name);
+              setRosterPhoneFor(p.usePhone ? p.name : null);
+            }}
+            onUseOtherPhone={() => {
+              setUseInvitePhone(false);
+              setRosterPhoneFor(null);
+            }}
             onNext={next}
           />
         );

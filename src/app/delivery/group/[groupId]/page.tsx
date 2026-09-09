@@ -26,6 +26,7 @@ import FindOrder from "@/components/delivery/FindOrder";
 import DeliveryClosed from "@/components/delivery/DeliveryClosed";
 import Faq from "@/components/delivery/Faq";
 import { OfferCard, AcceptOfferForm } from "@/components/delivery/GroupOffer";
+import type { PickedName } from "@/lib/roster";
 
 type View =
   | { kind: "menu" }
@@ -56,7 +57,7 @@ function GroupPageInner() {
    * 명단에서 고른 이름 — 아래 신청서들의 이름 기본값.
    * 초대 토큰으로 확인된 신원이 **아니므로** 이름 하나로만 쓴다 (연락처는 직접 입력).
    */
-  const [pickedName, setPickedName] = useState<string | null>(null);
+  const [pickedName, setPickedName] = useState<PickedName | null>(null);
 
   const loadOrders = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) {
@@ -221,7 +222,7 @@ function GroupPageInner() {
               convertId={convertId}
               invite={invite}
               inviteToken={usableToken}
-              nameDefault={pickedName}
+              picked={pickedName}
               onBack={() => setView({ kind: "menu" })}
               onJoined={loadOrders}
             />
@@ -233,7 +234,7 @@ function GroupPageInner() {
               convertId={convertId}
               invite={invite}
               inviteToken={usableToken}
-              nameDefault={pickedName}
+              picked={pickedName}
               onBack={() => setView({ kind: "menu" })}
               onJoined={loadOrders}
             />
@@ -245,7 +246,7 @@ function GroupPageInner() {
               convertId={convertId}
               invite={invite}
               inviteToken={usableToken}
-              nameDefault={pickedName}
+              picked={pickedName}
               onSubmitted={loadOrders}
             />
           )}
@@ -254,7 +255,7 @@ function GroupPageInner() {
               group={{ id: group.id, name: group.name }}
               inviteName={invite?.name ?? null}
               groupSlug={slug}
-              nameDefault={pickedName}
+              picked={pickedName}
               onSwitchToDelivery={() => setView({ kind: "new" })}
             />
           )}

@@ -142,6 +142,36 @@ export function resolvePhone(
   return hasInvite ? { ok: true, phone: null } : { ok: false };
 }
 
+/**
+ * 명단에서 고른 이름 → 연락처 (그룹 링크로 들어온 하객용).
+ *
+ * **번호는 브라우저로 절대 나가지 않는다.** 하객은 이름만 고르고, 실제 번호는
+ * 제출 시점에 여기서 붙는다 — 초대 토큰이 `_invite_phone` 으로 채우는 것과 같은
+ * 원칙이다. 마스킹본조차 내려보내지 않으므로 그룹 링크를 가졌다는 것만으로는
+ * 남의 번호를 알아낼 수 없다.
+ *
+ * 못 찾으면 null 이고, 그때는 하객이 직접 입력해야 한다. 안 찾아주는 경우:
+ * - 그 이름이 명단에 없다
+ * - **동명이인** — 누구 번호인지 고를 수 없다. 아무거나 붙이면 엉뚱한 사람의
+ *   번호로 배송 연락이 간다. 이름 목록 API 도 같은 규칙으로 `hasPhone:false` 를
+ *   내려주므로 화면에서 미리 걸러진다.
+ * - 명단에 번호가 없다 / 형식이 깨져 있다
+ */
+export async function rosterPhone(
+  groupId: string | null,
+  name: string
+): Promise<string | null> {
+  if (!groupId || !supabaseAdmin) return null;
+  const { data } = await supabaseAdmin
+    .from("group_members")
+    .select("phone")
+    .eq("group_id", groupId)
+    .eq("name", name)
+    .limit(2); // 2건이면 동명이인 — 아래에서 거른다
+  if (!data || data.length !== 1) return null;
+  return parsePhone(data[0].phone);
+}
+
 export function parseText(v: unknown, max: number): string | null {
   const s = String(v ?? "").trim();
   return s ? s.slice(0, max) : null;
