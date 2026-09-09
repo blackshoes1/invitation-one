@@ -34,7 +34,7 @@ export default function InviteNotice({
           <p><strong>{state.prefill.name}님 전용 링크</strong>
             {state.prefill.phoneMasked && <span className="ml-2 text-neutral-600">{state.prefill.phoneMasked}</span>}
           </p>
-          <p className="text-xs text-neutral-500">이름과 등록된 연락처로 신청해요. 다른 사람에게 전달하지 말아주세요.</p>
+          {state.prefill.groupName && <p className="text-xs text-neutral-600">함께 초대받은 모임: {state.prefill.groupName}</p>}
           <button type="button" className="text-xs underline text-neutral-600"
             onClick={() => {
               // Full navigation discards every form and group-response state, not just the token.

@@ -2,10 +2,10 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { motion } from "framer-motion";
+import Link from "next/link";
+import { invitationHref } from "@/lib/inviteAccess";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { groom, bride, DELIVERY_CAPACITY } from "@/lib/wedding";
-import IntroAnimation from "@/components/delivery/IntroAnimation";
 import BikeIcon from "@/components/delivery/BikeIcon";
 import MenuSelect, { type DeliveryMode } from "@/components/delivery/MenuSelect";
 import DeliveryForm from "@/components/delivery/DeliveryForm";
@@ -13,8 +13,6 @@ import InviteNotice from "@/components/delivery/InviteNotice";
 import GroupSpaceCard from "@/components/delivery/GroupSpaceCard";
 import { useInvite } from "@/components/delivery/useInvite";
 import HeartForm from "@/components/delivery/HeartForm";
-import RiderProfile from "@/components/delivery/RiderProfile";
-import ReviewStrip from "@/components/delivery/ReviewStrip";
 import FindOrder from "@/components/delivery/FindOrder";
 import DeliveryClosed from "@/components/delivery/DeliveryClosed";
 import Faq from "@/components/delivery/Faq";
@@ -35,7 +33,7 @@ function DeliveryPageInner() {
   /** 신청 인원 — 아직 못 불러왔으면 null (숫자가 0→실제값으로 튀지 않게) */
   const [taken, setTaken] = useState<number | null>(null);
   const [mode, setMode] = useState<DeliveryMode | null>(
-    convertId || inviteToken ? "delivery" : null
+    convertId ? "delivery" : null
   );
 
   useEffect(() => {
@@ -55,48 +53,20 @@ function DeliveryPageInner() {
 
   return (
     <div>
-      <IntroAnimation />
       <header className="sticky top-0 z-20 bg-delivery text-white px-5 py-3 flex items-center shadow-sm">
         <span className="font-serif font-bold tracking-tight flex items-center gap-2">
           <BikeIcon className="w-6 h-6 text-white" />
-          {groom.name}·{bride.name} 스토어
+          {groom.name}·{bride.name} 청첩장 배달
         </span>
       </header>
 
-      <section className="px-6 pt-8 pb-6 text-center">
-        <motion.div
-          initial={{ scale: 0.6, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: "spring", stiffness: 160, damping: 12 }}
-          className="flex justify-center"
-        >
-          <BikeIcon className="w-20 h-20 text-delivery" />
-        </motion.div>
-        <p className="mt-3 text-sm text-neutral-500">
-          <span className="font-serif text-wedding-gold font-medium">
-            {groom.name} · {bride.name}
-          </span>{" "}
-          청첩장을 직접 전해드려요
-        </p>
-        <div className="mt-4 flex justify-center gap-2 flex-wrap">
-          <span className="text-xs bg-delivery-yellow/30 text-delivery-dark px-3 py-1.5 rounded-full font-bold">
-            ⭐ 신규 오픈 · 무료배송
-          </span>
-          <span className="text-xs bg-white border border-delivery/15 text-neutral-600 px-3 py-1.5 rounded-full font-medium">
-            📦 남은 자리{" "}
-            {loaded ? (
-              `${remaining}명`
-            ) : (
-              <span className="inline-block w-9 h-3 align-middle rounded-full bg-neutral-200 animate-pulse" />
-            )}
-          </span>
-        </div>
+      <section className="max-w-md mx-auto px-5 pt-6 pb-4">
+        <h1 className="text-2xl font-extrabold text-neutral-800">청첩장을 직접 전해드려요 🛵</h1>
+        <p className="mt-2 text-sm text-neutral-600">지역과 날짜·시간을 고르면 돼요.<br />결혼식 참석 응답과는 별개예요.</p>
+        <p className="mt-2 text-xs text-neutral-500">무료로 전해드려요{loaded ? ` · 남은 자리 ${remaining}명` : ""}</p>
       </section>
 
       <InviteNotice key={inviteToken ?? "none"} state={inviteState} token={inviteToken} />
-      {invite?.groupSlug && usableToken && (
-        <GroupSpaceCard key={usableToken} token={usableToken} invite={invite} />
-      )}
       {!inviteReady ? (
         <div className="h-[40vh] flex items-center justify-center text-neutral-500 text-sm">
           불러오는 중…
@@ -116,9 +86,10 @@ function DeliveryPageInner() {
         <section className="pb-6">
           {mode === null && (
             <>
-              <RiderProfile deliveredCount={taken ?? undefined} />
-              <ReviewStrip />
               <MenuSelect onPick={setMode} />
+              <div className="max-w-md mx-auto px-5 pt-4 text-center">
+                <Link href={invitationHref} className="inline-block py-3 text-sm text-neutral-600 underline underline-offset-4">모바일 청첩장 보기</Link>
+              </div>
               <FindOrder defaultOpen={search.get("find") === "1"} />
             </>
           )}
@@ -129,7 +100,7 @@ function DeliveryPageInner() {
                 onClick={() => setMode(null)}
                 className="text-xs text-neutral-500 mb-1"
               >
-                ← 메뉴로 돌아가기
+                ← 다른 방법으로 받기
               </button>
             </div>
           )}
@@ -151,6 +122,10 @@ function DeliveryPageInner() {
             />
           )}
         </section>
+      )}
+
+      {invite?.groupSlug && usableToken && (
+        <GroupSpaceCard key={usableToken} token={usableToken} invite={invite} />
       )}
 
       <Faq />

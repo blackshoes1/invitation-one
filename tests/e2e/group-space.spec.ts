@@ -27,8 +27,9 @@ test("personal invitation opens optional private group space and persists consen
   });
   await page.goto(`/delivery?i=${"a".repeat(32)}`);
   const card = page.getByRole("region", { name: "우리 모임" });
-  // 참석 질문은 **처음부터** 보인다. 예전에는 "우리 모임 보기"를 눌러야 나왔고,
-  // 그 자리에서 제일 눈에 띄는 건 청첩장 링크였다 (무엇에 대한 페이지인지 안 보였다).
+  // 배송 신청이 우선이다. 참석/공유는 명시적으로 보조 영역을 연 뒤 저장한다.
+  await expect(card.getByRole("radio", { name: "참석할게요", exact: true })).not.toBeVisible();
+  await card.locator("summary").click();
   await expect(card.getByRole("radio", { name: "참석할게요", exact: true })).toBeVisible();
   await expect(card.getByRole("checkbox")).not.toBeChecked();
   await card.getByRole("radio", { name: "참석할게요", exact: true }).check();
@@ -53,6 +54,7 @@ test("groupless invitation does not show a group space", async ({ page }) => {
     invite: { name: "개인하객", phoneMasked: null, groupSlug: null, groupName: null },
   } }));
   await page.goto(`/delivery?i=${"b".repeat(32)}`);
+  await page.getByRole("button", { name: /청첩장 받을 일정 정하기/ }).click();
   await expect(page.getByRole("textbox", { name: "성함", exact: true })).toHaveValue("개인하객");
   await expect(page.getByRole("region", { name: "우리 모임" })).toHaveCount(0);
 });

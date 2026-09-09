@@ -131,6 +131,7 @@ test("draft survives same-person reload and is cleared when the invitation chang
     invite: { name: "초대하객", phoneMasked: "010-****-5678", groupSlug: null, groupName: null },
   } }));
   await page.goto(`/delivery?i=${"a".repeat(32)}`);
+  await page.getByRole("button", { name: /청첩장 받을 일정 정하기/ }).click();
   await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem("delivery-form-draft") ?? "null")?.scope)).toBeTruthy();
   await page.evaluate(() => {
     const saved = JSON.parse(sessionStorage.getItem("delivery-form-draft")!);
@@ -138,9 +139,10 @@ test("draft survives same-person reload and is cleared when the invitation chang
     sessionStorage.setItem("delivery-form-draft", JSON.stringify(saved));
   });
   await page.reload();
-  await expect(page.getByRole("heading", { name: "초대하객님, 반가워요 👋" })).toBeVisible();
+  await page.getByRole("button", { name: /청첩장 받을 일정 정하기/ }).click();
   await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem("delivery-form-draft") ?? "null")?.draft.message)).toBe("첫 사람 요청");
   await page.goto(`/delivery?i=${"b".repeat(32)}`);
+  await page.getByRole("button", { name: /청첩장 받을 일정 정하기/ }).click();
   await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem("delivery-form-draft") ?? "null")?.draft.message)).toBe("");
   expect(await page.evaluate(() => sessionStorage.getItem("delivery-form-draft"))).not.toContain("b".repeat(32));
 });

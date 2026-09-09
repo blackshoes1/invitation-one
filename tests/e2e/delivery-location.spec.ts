@@ -14,10 +14,9 @@ test.use({ viewport: { width: 390, height: 844 } });
 
 async function toLocationStep(page: import("@playwright/test").Page) {
   await page.goto("/delivery");
-  await page.getByRole("button", { name: /종이 청첩장 직접 받기/ }).click();
+  await page.getByRole("button", { name: /청첩장 받을 일정 정하기/ }).click();
   await page.getByRole("textbox", { name: "성함", exact: true }).fill("홍길동");
   await page.getByRole("textbox", { name: "연락처" }).fill("010-1234-5678");
-  await page.getByRole("button", { name: "다음" }).click();
   await expect(page.getByText("어디로 배달할까요?")).toBeVisible();
 }
 
@@ -25,7 +24,7 @@ test("배송지는 시/도 → 시/군/구 선택이다 (자유 입력 없음)",
   await toLocationStep(page);
 
   // 텍스트로 아무거나 적어 넣을 자리가 없어야 한다
-  await expect(page.getByRole("textbox")).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: /배송지|주소/ })).toHaveCount(0);
 
   const sido = page.getByRole("combobox", { name: "시/도" });
   const gu = page.getByRole("combobox", { name: "시/군/구" });

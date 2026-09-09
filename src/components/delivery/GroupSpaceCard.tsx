@@ -9,12 +9,8 @@ import type { InvitePrefill } from "@/lib/invite";
 /**
  * 개인 초대 링크로 들어온 분의 모임 카드.
  *
- * 2026-09-09 수정 — **무엇에 대한 페이지인지 먼저 보이게.**
- * 예전에는 이 카드에서 유일하게 색을 채운 버튼이 `모바일 청첩장 보기` 였고,
- * 참석 질문은 `우리 모임 보기` 뒤에 접혀 있었다. 개인 링크를 받은 분 눈에는
- * 청첩장 링크만 들어와서, 모임 참석에 대한 페이지라는 걸 알아채지 못했다.
- * 이제 참석 질문을 처음부터 펼쳐 두고(마운트 시 바로 조회), 청첩장 보기는
- * 카드 맨 아래 보조 버튼으로 내린다. 색 채운 버튼은 `응답 저장` 하나뿐이다.
+ * 배송 신청과 독립적인 선택 영역으로 접어 둔다.
+ * 마운트 시 조회하되, 펼치거나 배송을 신청하는 것만으로 참석 응답을 저장하지 않는다.
  *
  * 카드 제목에는 모임 이름을 넣지 않는다 — 페이지 h1 이 이미 모임 이름이라,
  * 두 heading 이 같은 이름을 가지면 이름으로 heading 을 집는 쪽이 모호해진다.
@@ -56,7 +52,7 @@ export default function GroupSpaceCard({ token, invite }: { token: string; invit
     finally { setBusy(false); }
   }, [request, applySpace]);
 
-  // 참석 질문이 첫 화면에 보여야 하므로 버튼을 기다리지 않고 바로 불러온다.
+  // 펼쳤을 때 바로 확인할 수 있도록 조회만 미리 한다.
   // 이펙트 본문에서 동기적으로 setState 하지 않도록 `load()` 대신 직접 건다
   // (busy 는 이미 true 로 시작한다).
   useEffect(() => {
@@ -84,12 +80,12 @@ export default function GroupSpaceCard({ token, invite }: { token: string; invit
 
   return (
     <section className="max-w-md mx-auto px-5 pb-5" aria-label="우리 모임">
-      <div className="rounded-2xl border-2 border-delivery/25 bg-white p-5 space-y-4">
+      <details className="rounded-2xl border border-delivery/20 bg-white p-4 space-y-4">
+        <summary className="cursor-pointer py-2 text-sm font-bold text-neutral-700">결혼식 참석 여부·모임 정보 (선택)</summary>
         <div>
           <h2 className="font-bold text-neutral-800">{invite.name}님, 결혼식에 초대합니다 💌</h2>
           <p className="text-sm text-neutral-600 mt-1">
-            {invite.groupName || "우리 모임"} 분들과 함께 초대했어요. 참석하실 수 있는지
-            먼저 알려주시고, 아래에서 청첩장 받을 날짜도 골라주세요.
+            {invite.groupName || "우리 모임"} 분들과 함께 초대했어요. 참석 응답은 청첩장 배송 신청과 별개이며, 나중에 알려주셔도 괜찮아요.
           </p>
         </div>
 
@@ -173,7 +169,7 @@ export default function GroupSpaceCard({ token, invite }: { token: string; invit
           className="block rounded-full border border-delivery/30 text-neutral-700 text-center text-sm font-bold py-2.5">
           모바일 청첩장 보기
         </Link>
-      </div>
+      </details>
     </section>
   );
 }
