@@ -13,6 +13,8 @@ import {
 import type { TabCtx, Totals } from "@/app/admin/shared";
 import SoloInvites from "@/components/admin/SoloInvites";
 import { orderNotice } from "@/lib/adminOrderNotice";
+import LocationPicker from "@/components/admin/orders/LocationPicker";
+import { joinLocation, splitRegion } from "@/lib/regions";
 
 /**
  * 그룹 탭 — 그룹 생성·제안 일정·명단(roster) 관리.
@@ -58,7 +60,10 @@ export default function GroupsTab({
     gid: string;
     date: string;
     time: string;
-    location: string;
+    /** 배송지는 하객 화면과 같은 시/도·시/군/구·상세로 나눠 들고 있다가 저장할 때 합친다 */
+    sido: string;
+    sub: string;
+    detail: string;
     rider: string;
     ownerName: string;
     ownerPhone: string;
@@ -76,7 +81,8 @@ export default function GroupsTab({
     if (!newOrder || creatingOrder) return;
     if (!newOrder.date) return setError("날짜를 선택해주세요.");
     if (!newOrder.time) return setError("시간대를 선택해주세요.");
-    if (!newOrder.location.trim()) return setError("배송지를 입력해주세요.");
+    if (!newOrder.sido || !newOrder.sub)
+      return setError("배송지의 시/도·시/군/구를 골라주세요.");
     setError(null);
     setNotice(null);
     setCreatingOrder(true);
@@ -87,7 +93,7 @@ export default function GroupsTab({
           group_id: newOrder.gid,
           date: newOrder.date,
           time_slot: newOrder.time,
-          location: newOrder.location.trim(),
+          location: joinLocation(newOrder.sido, newOrder.sub, newOrder.detail),
           rider: newOrder.rider,
           owner_name: newOrder.ownerName.trim() || null,
           owner_phone: newOrder.ownerPhone.trim() || null,
@@ -563,7 +569,8 @@ export default function GroupsTab({
                             gid: g.id,
                             date: g.offer_date ?? "",
                             time: g.offer_time ?? "",
-                            location: g.offer_location ?? "",
+                            // 제안 장소가 있으면 그걸 출발점으로 (자유 입력이면 상세로 들어온다)
+                            ...splitRegion(g.offer_location),
                             rider: "신랑",
                             ownerName: "",
                             ownerPhone: "",
@@ -680,14 +687,14 @@ export default function GroupsTab({
                     <option value="신부">👰 신부</option>
                     <option value="신랑+신부">💑 신랑+신부</option>
                   </select>
-                  <input
-                    type="text"
-                    value={newOrder.location}
-                    onChange={(e) =>
-                      setNewOrder((prev) => prev && { ...prev, location: e.target.value })
+                  <LocationPicker
+                    sido={newOrder.sido}
+                    sub={newOrder.sub}
+                    detail={newOrder.detail}
+                    onChange={(next) =>
+                      setNewOrder((prev) => prev && { ...prev, ...next })
                     }
-                    placeholder="배송지"
-                    className="flex-1 min-w-[140px] p-2 text-xs border border-wedding-gold/20 bg-white"
+                    detailPlaceholder="상세 배송지 (선택)"
                   />
                 </div>
                 <div className="flex gap-2 flex-wrap">
