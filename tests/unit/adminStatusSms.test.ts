@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 /**
  * 상태 변경 시 문자 발송 범위.
  *
- * **확정에서만 보낸다.** 취소는 보내지 않는다 (2026-09-09 결정).
+ * **확정에서만 보낸다.** 취소도, 완료(리뷰요청)도 보내지 않는다 (2026-09-09 결정).
+ *
  * 취소 안내는 사정을 설명해야 하는 연락인데, 자동 문자는 "취소되었습니다"만
  * 남기고 끝나 하객을 더 당황하게 한다. 취소는 신랑신부가 직접 연락한다.
+ * 리뷰요청은 청첩장을 받은 하객에게 후기를 조르는 문자라 아예 빼기로 했다.
  *
  * 이 테스트가 없으면 나중에 조건 한 줄이 바뀌어도 아무도 모른다 —
  * 하객에게 나가는 문자라 조용히 되살아나면 안 된다.
@@ -77,6 +79,17 @@ describe("상태 변경 문자", () => {
     expect(res.status).toBe(200);
     expect(mocks.sendSms).toHaveBeenCalledTimes(1);
     expect(mocks.sendSms.mock.calls[0][1]).toContain("찾아뵙겠습니다");
+  });
+
+  it("완료(리뷰요청)도 보내지 않는다 — 발송은 확정 하나뿐이다", async () => {
+    mocks.from
+      .mockReturnValueOnce(query({ ...DELIVERY, status: "완료" }))
+      .mockReturnValue(query([{ id: "p1", name: "홍길동", phone: "010-1234-5678" }]));
+
+    const res = await patchStatus("완료");
+    expect(res.status).toBe(200);
+    expect(mocks.sendSms).not.toHaveBeenCalled();
+    expect((await res.json()).sms ?? null).toBeNull();
   });
 
   it("취소면 한 통도 보내지 않는다 — 참여자에게 연락처가 있어도", async () => {
