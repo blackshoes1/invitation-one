@@ -80,22 +80,63 @@ export async function sendToAdmin(text: string): Promise<SendResult> {
 
 export type TelegramStatus = "ok" | "error" | "unconfigured";
 
+/** 재시도 사이 간격 — 순간적인 네트워크 끊김을 넘기기에 충분하고 짧다 */
+const RETRY_DELAY_MS = 500;
+
 /**
- * 연결 점검 (getMe) — 메시지 발송 없음.
+ * getMe 한 번. **"거절당했다"와 "닿지 못했다"를 구분해서** 돌려준다.
  *
- * 카카오와 달리 **토큰을 살려두려는 목적이 아니다**(만료가 없다). 봇 토큰이
- * 잘못됐거나 봇이 삭제·차단된 경우를 미리 잡기 위한 것뿐이라, 자주 부를 이유가 없다.
+ * 이 구분이 핵심이다. 텔레그램이 자격 증명을 거절한 것만 토큰 문제이고,
+ * timeout·네트워크·5xx 는 토큰과 아무 상관이 없다.
  */
-export async function telegramStatus(): Promise<TelegramStatus> {
-  if (!isTelegramConfigured) return "unconfigured";
+async function probeTelegram(): Promise<TelegramStatus | "unreachable"> {
   try {
     const res = await fetch(api("getMe"), {
       signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
     });
-    if (!res.ok) return "error";
+    // 자격 증명 거절 = 토큰이 잘못됐거나 봇이 삭제됨 (사람이 고쳐야 한다)
+    if (res.status === 401 || res.status === 403 || res.status === 404) return "error";
+    // 5xx·429 등은 텔레그램 쪽 일시적 사정이다 — 토큰 문제로 단정하지 않는다
+    if (!res.ok) return "unreachable";
     const j = (await res.json().catch(() => null)) as { ok?: boolean } | null;
-    return j?.ok ? "ok" : "error";
+    if (j === null) return "unreachable"; // 본문을 못 읽었다 = 확인 실패
+    return j.ok ? "ok" : "error";
   } catch {
-    return "error";
+    return "unreachable"; // timeout · 네트워크 끊김
   }
+}
+
+/**
+ * 연결 점검 (getMe) — 메시지 발송 없음.
+ *
+ * 카카오와 달리 **토큰을 살려두려는 목적이 아니다**(만료가 없다). 봇 토큰이
+ * 잘못됐거나 봇이 삭제·차단된 경우를 미리 잡기 위한 것뿐이다.
+ *
+ * ⚠️ **한 번 실패했다고 "끊겼다"고 단정하지 않는다.**
+ * 예전에는 timeout·네트워크 한 번에도 곧장 "error" 를 돌려줬고, 어드민 배너가
+ * 그걸 받아 "알림 연결이 끊겼어요 — 봇 토큰을 확인해주세요" 를 띄웠다.
+ * 토큰은 멀쩡한데 진단이 틀린 안내였고, 배너는 로그인 시 한 번만 확인하므로
+ * 새로고침 전까지 빨간 채로 박혀 있었다 (2026-09-09 에 실제로 겪은 오탐).
+ *
+ * 반환:
+ *   "ok"           봇이 응답했다
+ *   "error"        텔레그램이 **명시적으로 거절**했다 → 사람이 토큰을 고쳐야 한다
+ *   "unconfigured" 환경변수 없음
+ *   null           재시도해도 닿지 못했다 = "이번엔 모름". 호출자는 상태를 단정하면
+ *                  안 된다 (어드민은 배너를 안 띄우고, 안전망은 실패로 보지 않는다).
+ *                  진짜 발송이 깨졌다면 보낼 게 생겼을 때 "클레임 n건 중 발송 0건"
+ *                  으로 잡히므로 이렇게 둬도 고장을 놓치지 않는다.
+ */
+export async function telegramStatus(): Promise<TelegramStatus | null> {
+  if (!isTelegramConfigured) return "unconfigured";
+
+  let r = await probeTelegram();
+  if (r === "unreachable") {
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    r = await probeTelegram();
+  }
+  if (r !== "unreachable") return r;
+
+  console.warn("[telegram] getMe 도달 실패 (재시도 포함) — 토큰 문제로 단정하지 않는다");
+  return null;
 }
