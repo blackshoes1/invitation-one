@@ -22,7 +22,11 @@ test("그룹 링크 — 명단에서 고르면 이름이 채워진다 (연락처
     return route.fulfill({ json: { names: ["김철수", "홍길동"] } });
   });
 
-  await page.goto("/delivery/group/test-group");
+  // 슬러그는 **실재하는 것**이어야 한다. Supabase 미설정 프로필에서는 어떤
+  // 슬러그든 데모 그룹으로 떨어지지만, E2E_DB 프로필에서는 get_group 이 진짜로
+  // 조회돼 없는 슬러그면 "그룹을 찾을 수 없어요" 만 뜨고 메뉴가 아예 없다.
+  // e2e-group 은 scripts/e2e-db-ci.sh 가 심는 그룹이라 두 프로필 모두에서 산다.
+  await page.goto("/delivery/group/e2e-group");
   await page.getByRole("button", { name: /종이 청첩장 직접 받기/ }).click();
 
   const nameBox = page.getByRole("textbox", { name: "성함", exact: true });
