@@ -228,7 +228,7 @@ export default function OrderCard({
               disabled={acting !== null}
               className="px-3 py-1.5 text-xs border border-red-200 text-red-400 disabled:opacity-40"
             >
-              취소 (SMS)
+              취소
             </button>
           )}
           {nextAction && (

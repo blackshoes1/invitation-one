@@ -98,10 +98,13 @@ export default function OrdersTab({
       });
       const j = await res.json();
       if (!res.ok) return setError(j.error ?? "변경 실패");
-      if (status === "확정" || status === "취소") {
+      if (status === "확정") {
         // 한 건이라도 못 보냈으면 초록 알림이 아니라 빨간 오류다 (smsResult 참고)
-        const r = describeSms(j.sms as SmsOutcome | null, `${status === "확정" ? "확정" : "취소"} 처리`);
+        const r = describeSms(j.sms as SmsOutcome | null, "확정 처리");
         (r.ok ? setNotice : setError)(r.text);
+      } else if (status === "취소") {
+        // 취소는 문자를 보내지 않는다 — "연락처가 없어 미발송" 처럼 들리면 안 된다.
+        setNotice("취소 처리됐습니다. 안내 문자는 보내지 않았어요 — 필요하면 직접 연락해주세요.");
       }
       loadOrders();
     } catch {
