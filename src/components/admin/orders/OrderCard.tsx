@@ -4,6 +4,7 @@ import type { Dispatch, SetStateAction } from "react";
 import type { DeliveryStatus, TrackingStage } from "@/lib/supabase";
 import { TRACKING_STAGES } from "@/lib/supabase";
 import { formatYmdKo } from "@/lib/wedding";
+import { splitRegion } from "@/lib/regions";
 import { type AdminDelivery, ownerName, NEXT_ACTION } from "@/app/admin/shared";
 import ScheduleEditor from "./ScheduleEditor";
 import type { EditSched } from "./types";
@@ -60,7 +61,9 @@ export default function OrderCard({
             )}
           </p>
           <p className="text-xs text-neutral-500">
-            {formatYmdKo(r.date)} · {r.time_slot} · {r.location}
+            {formatYmdKo(r.date)} · {r.time_slot} ·{" "}
+            {/* 장소가 비어 있으면 빈칸이 아니라 '미정'이라고 말한다 — 채워 넣어야 할 건임을 알아야 한다 */}
+            {r.location ? r.location : <span className="text-red-400">장소 미정</span>}
             {r.rider === "신랑+신부" && (
               <span className="text-delivery font-bold"> · 💑 신랑+신부</span>
             )}
@@ -134,7 +137,7 @@ export default function OrderCard({
         </div>
       )}
 
-      {/* 일정 수정(취소 외 모든 주문 — 완료 후 정정 포함) + 합치기(활성 주문만) */}
+      {/* 일정·장소 수정(취소 외 모든 주문 — 완료 후 정정 포함) + 합치기(활성 주문만) */}
       {r.status !== "취소" && (
         <div className="flex justify-end gap-2 flex-wrap">
           <button
@@ -146,7 +149,8 @@ export default function OrderCard({
                       id: r.id,
                       date: r.date,
                       time: r.time_slot,
-                      location: r.location ?? "",
+                      // 예전 자유 입력 값도 글자를 버리지 않고 상세로 넘어온다
+                      ...splitRegion(r.location),
                     }
               )
             }
@@ -156,7 +160,7 @@ export default function OrderCard({
                 : "border-neutral-300 text-neutral-500"
             }`}
           >
-            {editSched?.id === r.id ? "수정 닫기" : "📝 일정 수정"}
+            {editSched?.id === r.id ? "수정 닫기" : "📝 일정·장소 수정"}
           </button>
           {r.status !== "완료" &&
             (mergeSource === null ? (
@@ -209,7 +213,7 @@ export default function OrderCard({
         </button>
       </div>
 
-      {/* 일정 수정 폼 — 그룹 담당자가 신청한 일자·시간·장소를 관리자가 조정 */}
+      {/* 일정·장소 수정 폼 — 그룹 담당자가 신청한 일자·시간·장소를 관리자가 조정 */}
       {editSched?.id === r.id && (
         <ScheduleEditor
           editSched={editSched}

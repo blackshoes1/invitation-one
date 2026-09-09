@@ -7,6 +7,7 @@ import OrderFilters from "./orders/OrderFilters";
 import OrderCard from "./orders/OrderCard";
 import type { EditSched } from "./orders/types";
 import { describeSms, type SmsOutcome } from "@/lib/smsResult";
+import { joinLocation } from "@/lib/regions";
 
 /**
  * 주문 탭 — 상태별 목록·검색·상태 변경(SMS)·추적 단계·일정 수정·주문 합치기.
@@ -135,7 +136,12 @@ export default function OrdersTab({
     if (!editSched) return;
     if (!editSched.date) return setError("날짜를 선택해주세요.");
     if (!editSched.time) return setError("시간대를 선택해주세요.");
-    if (!editSched.location.trim()) return setError("장소를 입력해주세요.");
+    // 시/도·시/군/구는 필수 — 첫 낱말이 시/도여야 배송경로 지도에 핀이 붙는다.
+    // 예전 자유 입력 값은 '상세 위치'에 그대로 실려 있으니 여기서 잃지 않는다.
+    if (!editSched.sido || !editSched.sub)
+      return setError(
+        "장소의 시/도·시/군/구를 골라주세요. (원래 적혀 있던 내용은 '상세 위치'에 그대로 남아 있어요)"
+      );
     setError(null);
     setNotice(null);
 
@@ -145,7 +151,7 @@ export default function OrdersTab({
       body: JSON.stringify({
         date: editSched.date,
         time_slot: editSched.time,
-        location: editSched.location.trim(),
+        location: joinLocation(editSched.sido, editSched.sub, editSched.detail),
         notify,
       }),
     });
