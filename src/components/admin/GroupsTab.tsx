@@ -44,13 +44,17 @@ export default function GroupsTab({
   /** 그룹 생성 시 제안 일정 (선택) */
   const [offerDate, setOfferDate] = useState("");
   const [offerTime, setOfferTime] = useState("");
-  const [offerLocation, setOfferLocation] = useState("");
+  /** 제안 장소 — 주문의 장소와 같은 시/도·시/군/구·상세로 고른다 (선택) */
+  const [offer, setOffer] = useState({ sido: "", sub: "", detail: "" });
   /** 기존 그룹의 제안 일정 편집 상태 */
   const [editOffer, setEditOffer] = useState<{
     gid: string;
     date: string;
     time: string;
-    location: string;
+    /** 제안 장소도 주문과 같은 시/도·시/군/구·상세 */
+    sido: string;
+    sub: string;
+    detail: string;
   } | null>(null);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [members, setMembers] = useState<Record<string, GroupMemberRow[]>>({});
@@ -113,17 +117,30 @@ export default function GroupsTab({
     }
   };
 
+  /**
+   * 제안 장소를 저장 형식으로. 비워 두는 건 괜찮지만(선택 항목),
+   * 반쪽짜리 지역은 막는다 — 첫 낱말이 시/도여야 지도에 핀이 붙는다.
+   */
+  const offerLocationProblem = (v: { sido: string; sub: string; detail: string }) =>
+    v.sido && !v.sub
+      ? "제안 장소의 시/군/구도 골라주세요."
+      : !v.sido && v.detail.trim()
+        ? "제안 장소는 시/도·시/군/구를 고른 뒤 상세를 적어주세요."
+        : null;
+
   const createGroup = async () => {
     if (!newGroup.trim()) return;
     if (offerDate && !offerTime)
       return setError("제안 일정의 시간대를 선택해주세요.");
+    const offerProblem = offerLocationProblem(offer);
+    if (offerProblem) return setError(offerProblem);
     const res = await api("/api/admin/groups", {
       method: "POST",
       body: JSON.stringify({
         name: newGroup.trim(),
         offer_date: offerDate || null,
         offer_time: offerTime || null,
-        offer_location: offerLocation || null,
+        offer_location: joinLocation(offer.sido, offer.sub, offer.detail) || null,
       }),
     });
     const j = await res.json();
@@ -131,7 +148,7 @@ export default function GroupsTab({
     setNewGroup("");
     setOfferDate("");
     setOfferTime("");
-    setOfferLocation("");
+    setOffer({ sido: "", sub: "", detail: "" });
     setNotice(
       offerDate
         ? "그룹을 만들고 일정을 제안했어요 📅 링크를 공유하면 하객이 승낙만 하면 돼요."
@@ -147,13 +164,19 @@ export default function GroupsTab({
       return setError("제안 일정의 시간대를 선택해주세요.");
     if (!clear && !editOffer.date)
       return setError("제안 날짜를 선택해주세요.");
+    if (!clear) {
+      const problem = offerLocationProblem(editOffer);
+      if (problem) return setError(problem);
+    }
     const res = await api(`/api/admin/groups/${editOffer.gid}`, {
       method: "PATCH",
       body: JSON.stringify({
         set_offer: true,
         offer_date: clear ? null : editOffer.date,
         offer_time: clear ? null : editOffer.time,
-        offer_location: clear ? null : editOffer.location || null,
+        offer_location: clear
+          ? null
+          : joinLocation(editOffer.sido, editOffer.sub, editOffer.detail) || null,
       }),
     });
     const j = await res.json();
@@ -254,6 +277,23 @@ export default function GroupsTab({
   };
 
   const [phoneDrafts, setPhoneDrafts] = useState<Record<string, string>>({});
+  /**
+   * 같은 값을 들고 있는 ref. **저장 로직은 state 가 아니라 이걸 본다.**
+   * 이벤트 핸들러는 만들어진 렌더의 state 를 붙들고 있어서, blur 로 시작된 저장이
+   * 끝난 뒤에 실행되는 클릭 핸들러는 이미 지워진 draft 를 그대로 들고 있다.
+   * 그 옛 값으로 같은 번호를 한 번 더 보내게 된다.
+   */
+  const phoneDraftsRef = useRef<Record<string, string>>({});
+  const setDraft = (id: string, value: string) => {
+    phoneDraftsRef.current = { ...phoneDraftsRef.current, [id]: value };
+    setPhoneDrafts(phoneDraftsRef.current);
+  };
+  const clearDraft = (id: string) => {
+    const next = { ...phoneDraftsRef.current };
+    delete next[id];
+    phoneDraftsRef.current = next;
+    setPhoneDrafts(next);
+  };
   const [inviteBusy, setInviteBusy] = useState(false);
   const inviteLock = useRef(false);
   const [linkResult, setLinkResult] = useState<{
@@ -262,7 +302,7 @@ export default function GroupsTab({
 
   /** Explicit save, also awaited before copying. Failed saves keep the draft for retry. */
   const savePhone = async (gid: string, mem: GroupMemberRow): Promise<boolean> => {
-    const draft = phoneDrafts[mem.id];
+    const draft = phoneDraftsRef.current[mem.id];
     if (draft === undefined || draft.trim() === (mem.phone ?? "")) return true;
     try {
       const res = await api(`/api/admin/groups/${gid}/members`, {
@@ -279,12 +319,48 @@ export default function GroupsTab({
         ...m,
         [gid]: (m[gid] ?? []).map((x) => (x.id === mem.id ? { ...x, ...j.member } : x)),
       }));
-      setPhoneDrafts((prev) => { const next = { ...prev }; delete next[mem.id]; return next; });
+      clearDraft(mem.id);
       return true;
     } catch {
       setError("연락처 저장 요청이 실패했습니다. 네트워크를 확인해주세요.");
       return false;
     }
+  };
+
+  /**
+   * 칸을 벗어나면 시작되는 저장. 진행 중인 것을 뒤따르는 동작이 기다릴 수 있게
+   * 약속(promise)을 들고 있는다.
+   */
+  const phoneSaving = useRef<Promise<boolean> | null>(null);
+
+  /**
+   * 칸을 벗어나거나 Enter 를 누르면 저장한다.
+   *
+   * **이게 '연락처 저장 안 됨' 의 정체였다.** 저장 수단이 작은 밑줄 링크 하나뿐인데
+   * 그걸 안 눌러도 입력칸에는 방금 친 번호가 그대로 남아 있어서 저장된 것처럼
+   * 보였다. 새로고침하면 사라졌다. (서버는 멀쩡했다 — 실제로 저장된 명단이 있다.)
+   *
+   * 형식이 덜 갖춰진 값은 자동 저장하지 않는다 — 타이핑 도중 칸을 벗어났을 때
+   * 서버 400 을 띄우면 더 헷갈린다. 그때는 '저장 안 됨' 표시가 남고,
+   * 버튼을 직접 누르면 서버가 이유를 말해준다.
+   *
+   * ⚠️ 여기서는 화면을 잠그지 않는다(`inviteBusy`·`inviteLock` 을 안 건드린다).
+   * 잠그면 **blur 바로 다음에 오는 클릭이 통째로 무시된다** — 번호를 치고
+   * 곧바로 '그룹 합류 링크'를 누르는 게 실제 사용 흐름이라 그러면 아무 일도
+   * 안 일어난다. 대신 뒤따르는 동작이 `phoneSaving` 을 기다린다.
+   */
+  const savePhoneOnBlur = (gid: string, mem: GroupMemberRow) => {
+    const draft = phoneDraftsRef.current[mem.id];
+    if (draft === undefined || draft.trim() === (mem.phone ?? "")) return;
+    if (draft.trim() !== "" && !isValidPhone(draft)) return;
+    const run = savePhone(gid, mem).then((ok) => {
+      if (ok) setNotice(`${mem.name} 님 연락처를 저장했어요.`);
+      return ok;
+    });
+    phoneSaving.current = run;
+    void run.finally(() => {
+      if (phoneSaving.current === run) phoneSaving.current = null;
+    });
   };
 
   const saveMemberPhone = async (gid: string, mem: GroupMemberRow) => {
@@ -293,6 +369,8 @@ export default function GroupsTab({
     setInviteBusy(true);
     setError(null);
     try {
+      // blur 로 이미 시작된 저장이 있으면 먼저 끝낸다 (같은 번호를 두 번 보내지 않게)
+      await phoneSaving.current;
       if (await savePhone(gid, mem)) setNotice(`${mem.name} 님 연락처를 저장했어요.`);
     } finally { inviteLock.current = false; setInviteBusy(false); }
   };
@@ -306,12 +384,17 @@ export default function GroupsTab({
     if (inviteLock.current) return;
     if (rotate && (!mem || !confirm(`${mem.name} 님 링크를 재발급할까요? 이전에 보낸 개인 신청·그룹 합류 링크가 모두 무효가 됩니다.`))) return;
     inviteLock.current = true;
+    // blur 로 시작된 저장을 여기서 붙잡아 둔다 (아래 finally 가 비우기 전에)
+    const pendingPhoneSave = phoneSaving.current;
     setInviteBusy(true);
     setError(null);
     setNotice(null);
     setLinkResult(null);
     try {
       // Save every edited phone first; never copy while a save is still in flight.
+      // blur 로 시작된 저장이 있으면 그 결과를 그대로 따른다 — 실패했으면 링크를
+      // 내주지 않고(옛 번호로 나가면 안 된다), 성공했으면 아래 루프가 건너뛴다.
+      if (pendingPhoneSave && !(await pendingPhoneSave)) return;
       const targets = mem ? [mem] : (members[gid] ?? []);
       for (const target of targets) {
         if (!(await savePhone(gid, target))) return;
@@ -451,11 +534,13 @@ export default function GroupsTab({
               </option>
             ))}
           </select>
-          <input
-            value={offerLocation}
-            onChange={(e) => setOfferLocation(e.target.value)}
-            placeholder="장소 (선택)"
-            className="flex-1 min-w-[120px] p-2 text-base border border-wedding-gold/20 bg-white rounded-none focus:outline-none focus:border-sage-600"
+          <LocationPicker
+            sido={offer.sido}
+            sub={offer.sub}
+            detail={offer.detail}
+            onChange={setOffer}
+            detailPlaceholder="상세 장소 (선택)"
+            label="새 그룹 제안 "
           />
         </div>
       </div>
@@ -551,7 +636,8 @@ export default function GroupsTab({
                             gid: g.id,
                             date: g.offer_date ?? "",
                             time: g.offer_time ?? "",
-                            location: g.offer_location ?? "",
+                            // 예전 자유 입력 값은 상세로 실려 온다 (글자를 버리지 않는다)
+                            ...splitRegion(g.offer_location),
                           }
                     )
                   }
@@ -695,6 +781,7 @@ export default function GroupsTab({
                       setNewOrder((prev) => prev && { ...prev, ...next })
                     }
                     detailPlaceholder="상세 배송지 (선택)"
+                    label="배송지 "
                   />
                 </div>
                 <div className="flex gap-2 flex-wrap">
@@ -781,13 +868,13 @@ export default function GroupsTab({
                       </option>
                     ))}
                   </select>
-                  <input
-                    value={editOffer.location}
-                    onChange={(e) =>
-                      setEditOffer((prev) => prev && { ...prev, location: e.target.value })
-                    }
-                    placeholder="장소 (선택)"
-                    className="flex-1 min-w-[120px] p-2 text-base border border-wedding-gold/20 bg-white rounded-none focus:outline-none focus:border-sage-600"
+                  <LocationPicker
+                    sido={editOffer.sido}
+                    sub={editOffer.sub}
+                    detail={editOffer.detail}
+                    onChange={(next) => setEditOffer((prev) => prev && { ...prev, ...next })}
+                    detailPlaceholder="상세 장소 (선택)"
+                    label="제안 "
                   />
                 </div>
                 <div className="flex justify-end gap-2">
@@ -809,7 +896,7 @@ export default function GroupsTab({
                     onClick={() => saveOffer(false)}
                     className="px-3 py-1.5 text-xs bg-sage-600 text-white"
                   >
-                    저장
+                    제안 저장
                   </button>
                 </div>
               </div>
@@ -854,7 +941,11 @@ export default function GroupsTab({
                   </div>
                 )}
                 <ul className="space-y-3">
-                  {(members[g.id] ?? []).map((mem) => (
+                  {(members[g.id] ?? []).map((mem) => {
+                  const draft = phoneDrafts[mem.id];
+                  /** 화면에 적혀 있지만 아직 DB 에 없는 번호 */
+                  const unsaved = draft !== undefined && draft.trim() !== (mem.phone ?? "");
+                  return (
                     <li
                       key={mem.id}
                       className="flex flex-wrap items-center gap-2 text-sm text-neutral-600 border border-neutral-100 p-3"
@@ -870,17 +961,34 @@ export default function GroupsTab({
                         type="tel"
                         aria-label={`${mem.name} 연락처`}
                         inputMode="tel"
+                        enterKeyHint="done"
                         disabled={inviteBusy}
-                        value={phoneDrafts[mem.id] ?? mem.phone ?? ""}
-                        onChange={(e) => setPhoneDrafts((prev) => ({ ...prev, [mem.id]: e.target.value }))}
+                        value={draft ?? mem.phone ?? ""}
+                        // 하객 화면과 같은 규칙으로 즉시 정돈한다 — 저장 형식과 어긋나지 않게
+                        onChange={(e) => setDraft(mem.id, formatPhone(e.target.value))}
+                        onKeyDown={(e) => {
+                          if (e.key !== "Enter") return;
+                          e.preventDefault();
+                          void saveMemberPhone(g.id, mem);
+                        }}
+                        onBlur={() => savePhoneOnBlur(g.id, mem)}
                         placeholder="010-0000-0000"
-                        className="w-full min-w-0 border border-neutral-200 px-2 py-2 text-sm sm:w-auto sm:min-w-[140px] sm:flex-1"
+                        className={`w-full min-w-0 border px-2 py-2 text-sm sm:w-auto sm:min-w-[140px] sm:flex-1 ${
+                          unsaved ? "border-amber-400 bg-amber-50" : "border-neutral-200"
+                        }`}
                       />
                       <button disabled={inviteBusy} onClick={() => saveMemberPhone(g.id, mem)}
-                        className="text-xs underline disabled:opacity-50">연락처 저장</button>
-                      <span className="w-full text-[11px] text-neutral-500" role="status">
-                        {phoneDrafts[mem.id] !== undefined && phoneDrafts[mem.id].trim() !== (mem.phone ?? "")
-                          ? "연락처 저장 필요"
+                        className={`whitespace-nowrap border px-2 py-2 text-xs disabled:opacity-50 ${
+                          unsaved
+                            ? "border-amber-400 bg-amber-50 font-bold text-amber-700"
+                            : "border-neutral-200 text-neutral-500"
+                        }`}>연락처 저장</button>
+                      <span
+                        className={`w-full text-[11px] ${unsaved ? "font-bold text-amber-700" : "text-neutral-500"}`}
+                        role="status"
+                      >
+                        {unsaved
+                          ? "아직 저장 안 됨 — 칸 밖을 누르거나 Enter 를 누르면 저장돼요"
                           : mem.phone && isValidPhone(mem.phone) ? "자동 입력 준비 완료" : "연락처 미등록 · 이름만 확인 가능"}
                       </span>
                       {/*
@@ -934,7 +1042,8 @@ export default function GroupsTab({
                       </button>
                       </div>
                     </li>
-                  ))}
+                  );
+                  })}
                   {(members[g.id] ?? []).length === 0 && (
                     <li className="text-xs text-neutral-400 px-1">
                       명단 없음 (등록 시 그룹 페이지에 미신청 표시)
