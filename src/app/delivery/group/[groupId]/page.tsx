@@ -16,6 +16,7 @@ import IntroAnimation from "@/components/delivery/IntroAnimation";
 import DeliveryForm from "@/components/delivery/DeliveryForm";
 import InviteNotice from "@/components/delivery/InviteNotice";
 import GroupSpaceCard from "@/components/delivery/GroupSpaceCard";
+import RosterIntroCard from "@/components/delivery/RosterIntroCard";
 import { useInvite } from "@/components/delivery/useInvite";
 import JoinForm from "@/components/delivery/JoinForm";
 import OrderList from "@/components/delivery/OrderList";
@@ -25,6 +26,7 @@ import FindOrder from "@/components/delivery/FindOrder";
 import DeliveryClosed from "@/components/delivery/DeliveryClosed";
 import Faq from "@/components/delivery/Faq";
 import { OfferCard, AcceptOfferForm } from "@/components/delivery/GroupOffer";
+import type { PickedName } from "@/lib/roster";
 
 type View =
   | { kind: "menu" }
@@ -51,6 +53,12 @@ function GroupPageInner() {
   /** 신청 인원 — 아직 못 불러왔으면 null (숫자 튐 방지) */
   const [taken, setTaken] = useState<number | null>(null);
   const [view, setView] = useState<View>({ kind: "menu" });
+  /**
+   * 명단에서 고른 이름 — 아래 신청서들의 이름 기본값.
+   * 초대 토큰으로 확인된 신원이 **아니다.** 그래서 이름만 화면에 채우고,
+   * 연락처는 (명단에 있으면) 제출 시점에 서버가 붙인다 — 브라우저로 안 내려온다.
+   */
+  const [pickedName, setPickedName] = useState<PickedName | null>(null);
 
   const loadOrders = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) {
@@ -151,6 +159,10 @@ function GroupPageInner() {
       {invite?.groupSlug && usableToken && (
         <GroupSpaceCard key={usableToken} token={usableToken} invite={invite} />
       )}
+      {/* 초대 링크로 들어온 사람은 이미 서버가 누군지 안다 — 고를 필요가 없다 */}
+      {!invite && view.kind === "menu" && (
+        <RosterIntroCard slug={slug} picked={pickedName} onPick={setPickedName} />
+      )}
 
       {view.kind === "menu" && (
         <div className="px-6 pb-6 max-w-md mx-auto space-y-4">
@@ -211,6 +223,7 @@ function GroupPageInner() {
               convertId={convertId}
               invite={invite}
               inviteToken={usableToken}
+              picked={pickedName}
               onBack={() => setView({ kind: "menu" })}
               onJoined={loadOrders}
             />
@@ -222,6 +235,7 @@ function GroupPageInner() {
               convertId={convertId}
               invite={invite}
               inviteToken={usableToken}
+              picked={pickedName}
               onBack={() => setView({ kind: "menu" })}
               onJoined={loadOrders}
             />
@@ -234,6 +248,7 @@ function GroupPageInner() {
               convertId={convertId}
               invite={invite}
               inviteToken={usableToken}
+              picked={pickedName}
               onSubmitted={loadOrders}
             />
           )}
@@ -242,6 +257,8 @@ function GroupPageInner() {
               key={`${slug}:${usableToken ?? "none"}`}
               group={{ id: group.id, name: group.name }}
               inviteName={invite?.name ?? null}
+              groupSlug={slug}
+              picked={pickedName}
               inviteToken={usableToken}
               invitePhoneMasked={invite?.phoneMasked ?? null}
               onSwitchToDelivery={() => setView({ kind: "new" })}

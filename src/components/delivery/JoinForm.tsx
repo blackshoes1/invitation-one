@@ -2,7 +2,10 @@
 
 import { useRef, useState } from "react";
 import type { InvitePrefill } from "@/lib/invite";
+import type { PickedName } from "@/lib/roster";
 import InvitePhoneBox from "@/components/delivery/InvitePhoneBox";
+import RosterPicker from "@/components/delivery/RosterPicker";
+import RosterPhoneBox from "@/components/delivery/RosterPhoneBox";
 import { motion } from "framer-motion";
 import { isSupabaseConfigured, type GroupOrder } from "@/lib/supabase";
 import { formatYmdKo, formatPhone, isValidPhone } from "@/lib/wedding";
@@ -19,6 +22,7 @@ export default function JoinForm({
   convertId = null,
   invite = null,
   inviteToken = null,
+  picked = null,
   onBack,
   onJoined,
 }: {
@@ -30,12 +34,24 @@ export default function JoinForm({
   invite?: InvitePrefill | null;
   /** 개인 초대 토큰 — 제출 시 서버가 실제 연락처를 채움 */
   inviteToken?: string | null;
+  /** 그룹 페이지에서 명단으로 고른 이름 — usePhone 이면 서버가 명단 번호를 붙인다 */
+  picked?: PickedName | null;
   onBack: () => void;
   onJoined?: () => void;
 }) {
-  const [name, setName] = useState(invite?.name ?? "");
+  const [name, setName] = useState(invite?.name ?? picked?.name ?? "");
   const [phone, setPhone] = useState("");
   const [useInvitePhone, setUseInvitePhone] = useState(Boolean(invite?.phoneMasked && inviteToken));
+  /** 명단에서 고른 이름의 번호를 쓰는 중 — 서버가 제출 시 붙인다 (화면엔 안 보인다) */
+  const [rosterPhoneFor, setRosterPhoneFor] = useState<string | null>(
+    !invite && picked?.usePhone ? picked.name : null
+  );
+  /** 이름을 손으로 고치면 명단 번호를 더는 못 쓴다 — 누구 번호인지 보장이 깨진다 */
+  const setNameManually = (v: string) => {
+    setName(v);
+    if (v !== rosterPhoneFor) setRosterPhoneFor(null);
+  };
+  const useRosterPhone = rosterPhoneFor !== null && !useInvitePhone;
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -47,7 +63,7 @@ export default function JoinForm({
 
   const submit = async () => {
     if (name.trim().length < 2) return setError("성함을 입력해주세요 🙏");
-    if (!useInvitePhone && !isValidPhone(phone))
+    if (!useInvitePhone && !useRosterPhone && !isValidPhone(phone))
       return setError("연락처 형식을 확인해주세요 (010-0000-0000) 📞");
     setError(null);
     setSending(true);
@@ -61,7 +77,9 @@ export default function JoinForm({
           deliveryId: order.id,
           name: name.trim(),
           // 신원(토큰)과 연락처를 분리 — 번호를 바꿔도 명단 연결은 유지된다
-          phone: useInvitePhone ? null : phone.trim(),
+          phone: useInvitePhone || useRosterPhone ? null : phone.trim(),
+          // 명단에서 고른 이름 — 서버가 그 이름으로 명단의 번호를 붙인다
+          rosterName: useRosterPhone,
           convertToken: convertId,
           inviteToken,
         }),
@@ -127,7 +145,7 @@ export default function JoinForm({
         <input
           autoFocus
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => setNameManually(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
@@ -140,10 +158,22 @@ export default function JoinForm({
           aria-label="성함"
           className="dform-input"
         />
+        <RosterPicker
+          slug={groupSlug}
+          onPick={(p) => {
+            setName(p.name);
+            setRosterPhoneFor(p.usePhone ? p.name : null);
+          }}
+        />
         {useInvitePhone && invite?.phoneMasked ? (
           <InvitePhoneBox
             phoneMasked={invite.phoneMasked}
             onUseOther={() => setUseInvitePhone(false)}
+          />
+        ) : useRosterPhone && rosterPhoneFor ? (
+          <RosterPhoneBox
+            name={rosterPhoneFor}
+            onUseOther={() => setRosterPhoneFor(null)}
           />
         ) : (
           <input

@@ -16,6 +16,8 @@ import StampPicker from "@/components/delivery/StampPicker";
 import RegionPicker from "@/components/delivery/RegionPicker";
 import { notifyAdmin } from "@/lib/notify";
 import SaveInvitationLink from "@/components/delivery/SaveInvitationLink";
+import RosterPicker from "@/components/delivery/RosterPicker";
+import type { PickedName } from "@/lib/roster";
 import { randomAnonAlias } from "@/lib/anonAlias";
 import { getSiteSettings } from "@/lib/settings";
 
@@ -26,6 +28,8 @@ export default function HeartForm({
   inviteName = null,
   inviteToken = null,
   invitePhoneMasked = null,
+  groupSlug = null,
+  picked = null,
   onSwitchToDelivery,
 }: {
   group?: { id: string; name: string } | null;
@@ -33,11 +37,18 @@ export default function HeartForm({
   inviteName?: string | null;
   inviteToken?: string | null;
   invitePhoneMasked?: string | null;
+  /** 그룹 페이지에서 왔으면 명단에서 이름을 고를 수 있게 한다 (타이핑 절약) */
+  groupSlug?: string | null;
+  /**
+   * 그룹 페이지에서 명단으로 고른 이름 — 여기서는 **이름만** 쓴다.
+   * 마음배송은 연락처가 선택 입력이라 굳이 명단 번호를 끌어올 이유가 없다.
+   */
+  picked?: PickedName | null;
   /** "역시 직접 만나고 싶어요" — 같은 페이지에서 직접 배달 폼으로 전환 */
   onSwitchToDelivery?: () => void;
 }) {
   const [stamp, setStamp] = useState<string>(STAMPS[0]);
-  const [name, setName] = useState(inviteName ?? "");
+  const [name, setName] = useState(inviteName ?? picked?.name ?? "");
   const [sido, setSido] = useState("");
   const [sub, setSub] = useState("");
   const [message, setMessage] = useState("");
@@ -193,14 +204,18 @@ export default function HeartForm({
         <StampPicker value={stamp} onChange={setStamp} />
       </div>
 
-      <input
-        value={name}
-        readOnly={Boolean(inviteToken)}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="이름"
-        aria-label="이름"
-        className="dform-input"
-      />
+      <div className="space-y-1.5">
+        <input
+          value={name}
+          readOnly={Boolean(inviteToken)}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="이름"
+          aria-label="이름"
+          className="dform-input"
+        />
+        {/* 초대 링크로 들어온 사람은 서버가 이미 누군지 안다 — 고를 필요가 없다 */}
+        <RosterPicker slug={inviteToken ? null : groupSlug} onPick={(p) => setName(p.name)} />
+      </div>
 
       <div className="space-y-1.5">
         <p className="text-xs font-bold text-neutral-500">

@@ -125,6 +125,32 @@ export function resolvePhone(
   return hasInvite ? { ok: true, phone: null } : { ok: false };
 }
 
+/**
+ * 명단에서 고른 이름 → 연락처. **번호는 브라우저로 내려가지 않는다** —
+ * 제출 시점에 서버가 여기서 붙인다.
+ *
+ * 누구 번호인지 확실할 때만 돌려준다. 아래는 전부 null (하객이 직접 입력):
+ *  - 그 이름이 명단에 없다
+ *  - **동명이인** — 아무거나 붙이면 엉뚱한 사람에게 배송 연락이 간다
+ *  - 명단에 번호가 없거나 형식이 깨져 있다
+ *
+ * 이름 목록 API 의 `hasPhone` 도 같은 규칙이라 화면과 제출이 어긋나지 않는다.
+ */
+export async function rosterPhone(
+  groupId: string | null,
+  name: string
+): Promise<string | null> {
+  if (!groupId || !supabaseAdmin) return null;
+  const { data } = await supabaseAdmin
+    .from("group_members")
+    .select("phone")
+    .eq("group_id", groupId)
+    .eq("name", name)
+    .limit(2); // 2건이면 동명이인 — 아래에서 거른다
+  if (!data || data.length !== 1) return null;
+  return parsePhone(data[0].phone);
+}
+
 export function parseText(v: unknown, max: number): string | null {
   const s = String(v ?? "").trim();
   return s ? s.slice(0, max) : null;
