@@ -8,6 +8,7 @@ import FadeIn from "@/components/FadeIn";
 import MessageFeed, { buildFeed } from "@/components/sections/MessageFeed";
 import JourneyMap from "@/components/sections/JourneyMap";
 import VerifyBadge from "@/components/sections/VerifyBadge";
+import CelebrationForm from "@/components/sections/CelebrationForm";
 
 type ViewMode = "map" | "messages";
 
@@ -62,6 +63,7 @@ export default function Guestbook({
   const [mode, setMode] = useState<ViewMode>("messages");
   const [mineId, setMineId] = useState<string | null>(null);
   const [liveToast, setLiveToast] = useState<string | null>(null);
+  const [refresh, setRefresh] = useState(0);
   /**
    * 관리자(신랑·신부) 전용 실명 보기 — 관리자 세션이 있을 때만 서버가 내려준다.
    * 공개 피드는 그대로 마스킹된 채 두고 화면에서만 실명을 덧입힌다.
@@ -122,7 +124,7 @@ export default function Guestbook({
       alive = false;
       clearInterval(timer);
     };
-  }, []);
+  }, [refresh]);
 
   // 관리자 세션이면 실명 매핑을 받아둔다 (하객은 401 → null 유지)
   useEffect(() => {
@@ -139,7 +141,7 @@ export default function Guestbook({
     return () => {
       alive = false;
     };
-  }, [mapOnly]);
+  }, [mapOnly, refresh]);
 
   const count = celebrations.length;
   const empty = loaded && count === 0;
@@ -176,6 +178,8 @@ export default function Guestbook({
             </p>
           )}
         </FadeIn>
+
+        <CelebrationForm onSent={() => setRefresh((value) => value + 1)} />
 
         {loadFailed && count === 0 ? (
           <p role="status" className="text-sm text-neutral-500 py-8">
