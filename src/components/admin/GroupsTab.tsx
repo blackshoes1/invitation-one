@@ -350,6 +350,8 @@ export default function GroupsTab({
    * 안 일어난다. 대신 뒤따르는 동작이 `phoneSaving` 을 기다린다.
    */
   const savePhoneOnBlur = (gid: string, mem: GroupMemberRow) => {
+    // Explicit save disables the focused input, which can trigger another blur.
+    if (inviteLock.current) return;
     const draft = phoneDraftsRef.current[mem.id];
     if (draft === undefined || draft.trim() === (mem.phone ?? "")) return;
     if (draft.trim() !== "" && !isValidPhone(draft)) return;
@@ -469,7 +471,15 @@ export default function GroupsTab({
   return (
     <>
       {/* 그룹 없이 개인에게만 링크를 주는 경우 — 그룹을 만들 필요가 없다 */}
-      <SoloInvites api={api} setError={setError} setNotice={setNotice} />
+      <SoloInvites api={api} setError={setError} setNotice={setNotice} groups={groups}
+        onGrouped={async (groupId) => {
+          await reload();
+          const res = await api(`/api/admin/groups/${groupId}/members`);
+          if (!res.ok) throw new Error("Could not refresh group roster");
+          const j = await res.json();
+          setMembers((current) => ({ ...current, [groupId]: j.members ?? [] }));
+          setOpenGroup(groupId);
+        }} />
       {linkResult && (
         <section aria-label="초대 링크 복사 결과" className="bg-white border border-wedding-gold/20 p-4 space-y-3">
           <p className="text-sm font-bold">초대 링크 복사 결과</p>

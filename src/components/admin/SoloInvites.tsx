@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import type { GroupMemberRow } from "@/lib/supabase";
+import { useRef, useState } from "react";
+import type { Group, GroupMemberRow } from "@/lib/supabase";
 import { formatPhone } from "@/lib/wedding";
 import type { TabCtx } from "@/app/admin/shared";
 
@@ -12,12 +12,23 @@ import type { TabCtx } from "@/app/admin/shared";
  * (`group_members.group_id` 가 not null 이었다). 지금은 그룹 없이 등록한다.
  * 여기 등록된 사람의 주문은 항상 **개인 주문**이다 — 그룹 페이지를 거치지 않으므로.
  */
-export default function SoloInvites({ api, setError, setNotice }: TabCtx) {
+export default function SoloInvites({ api, setError, setNotice, groups, onGrouped }: TabCtx & {
+  groups: Group[];
+  onGrouped: (groupId: string) => Promise<void>;
+}) {
   const [rows, setRows] = useState<GroupMemberRow[] | null>(null);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [grouping, setGrouping] = useState(false);
+  const [target, setTarget] = useState("new");
+  const [groupName, setGroupName] = useState("");
+  const requestId = useRef<string | null>(null);
+  const groupingLock = useRef(false);
+  const phoneDrafts = useRef(new Map<string, string>());
+  const phoneSaves = useRef(new Map<string, Promise<boolean>>());
   /** 이번 세션에 발급한 링크 — 재발급 없이 다시 복사용 */
   const [issued, setIssued] = useState<Record<string, string>>({});
 
@@ -51,16 +62,90 @@ export default function SoloInvites({ api, setError, setNotice }: TabCtx) {
     setRows((r) => [...(r ?? []), j.member as GroupMemberRow]);
   };
 
-  const savePhone = async (m: GroupMemberRow, next: string) => {
+  const savePhone = (m: GroupMemberRow, next: string): Promise<boolean> => {
     const v = next.trim();
-    if ((m.phone ?? "") === v) return;
-    const res = await api("/api/admin/invitees", {
-      method: "PATCH",
-      body: JSON.stringify({ member_id: m.id, phone: v || null }),
+    const previous = phoneSaves.current.get(m.id);
+    if (!previous && !phoneDrafts.current.has(m.id) && (m.phone ?? "") === v)
+      return Promise.resolve(true);
+    const saving = (async () => {
+      if (previous) await previous;
+      try {
+        const res = await api("/api/admin/invitees", {
+          method: "PATCH",
+          body: JSON.stringify({ member_id: m.id, phone: v || null }),
+        });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setError(j.error ?? "연락처 저장에 실패했습니다.");
+          return false;
+        }
+        if (phoneDrafts.current.get(m.id) === v) phoneDrafts.current.delete(m.id);
+        setRows((r) => (r ?? []).map((x) => (x.id === m.id ? { ...x, ...j.member } : x)));
+        return true;
+      } catch {
+        setError("연락처 저장에 실패했습니다. 다시 시도해주세요.");
+        return false;
+      }
+    })();
+    phoneSaves.current.set(m.id, saving);
+    void saving.then(() => {
+      if (phoneSaves.current.get(m.id) === saving) phoneSaves.current.delete(m.id);
     });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) return setError(j.error ?? "연락처 저장에 실패했습니다.");
-    setRows((r) => (r ?? []).map((x) => (x.id === m.id ? (j.member as GroupMemberRow) : x)));
+    return saving;
+  };
+
+  const selectMember = (id: string) => {
+    requestId.current = null;
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const groupSelected = async () => {
+    if (groupingLock.current || busy || selected.size === 0) return;
+    if (selected.size > 500) return setError("한 번에 500명까지 그룹화할 수 있어요.");
+    if (target === "new" && !groupName.trim()) return setError("새 그룹 이름을 입력해주세요.");
+    groupingLock.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      // Phone blur can still be saving when the grouping button is clicked.
+      const saved = await Promise.all((rows ?? []).filter((m) => selected.has(m.id)).map((m) =>
+        savePhone(m, phoneDrafts.current.get(m.id) ?? m.phone ?? "")
+      ));
+      if (saved.some((ok) => !ok)) return;
+      if (!requestId.current) requestId.current = crypto.randomUUID();
+      const res = await api("/api/admin/invitees/group", {
+        method: "POST",
+        body: JSON.stringify({
+          member_ids: [...selected],
+          ...(target === "new"
+            ? { new_group_name: groupName.trim(), request_id: requestId.current }
+            : { group_id: target }),
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) return setError(j.error ?? "그룹화에 실패했습니다.");
+      setRows((current) => (current ?? []).filter((m) => !selected.has(m.id)));
+      setSelected(new Set());
+      setGrouping(false);
+      setGroupName("");
+      requestId.current = null;
+      setNotice(`${j.group.name} 그룹에 ${j.assigned_count}명을 추가했어요. 기존 개인 링크는 그대로 사용할 수 있어요.`);
+      try {
+        await onGrouped(j.group.id);
+      } catch {
+        setError("그룹화는 완료됐지만 목록을 불러오지 못했어요. 페이지를 새로고침해주세요.");
+      }
+    } catch {
+      setError("응답을 확인하지 못했어요. 다시 시도하면 중복 없이 처리됩니다.");
+    } finally {
+      groupingLock.current = false;
+      setBusy(false);
+    }
   };
 
   const remove = async (m: GroupMemberRow) => {
@@ -68,6 +153,8 @@ export default function SoloInvites({ api, setError, setNotice }: TabCtx) {
     const res = await api(`/api/admin/invitees?member_id=${m.id}`, { method: "DELETE" });
     if (!res.ok) return setError("삭제에 실패했습니다.");
     setRows((r) => (r ?? []).filter((x) => x.id !== m.id));
+    setSelected((current) => { const next = new Set(current); next.delete(m.id); return next; });
+    requestId.current = null;
   };
 
   /** 링크 발급 + 클립보드 복사 (m 없으면 전체) */
@@ -130,13 +217,14 @@ export default function SoloInvites({ api, setError, setNotice }: TabCtx) {
         <div className="space-y-3">
           <p className="text-[11px] text-neutral-500 leading-relaxed">
             모임에 속하지 않은 분께 <b className="text-neutral-600">이름·연락처가 자동
-            입력되는 링크</b>를 보낼 때 씁니다. 그룹을 만들 필요가 없어요. 여기 등록한
-            분의 신청은 항상 <b className="text-neutral-600">개인 주문</b>으로 잡힙니다.
+            입력되는 링크</b>를 보낼 때 씁니다. 나중에 인원을 선택해 그룹으로 묶을 수 있어요.
+            그룹화해도 기존 개인 링크와 신청 내역은 유지됩니다.
           </p>
 
           <div className="flex gap-2">
             <input
               value={name}
+              disabled={busy}
               onChange={(e) => setName(e.target.value)}
               placeholder="이름"
               className="w-28 p-2 text-sm border border-wedding-gold/20 bg-white rounded-none focus:outline-none focus:border-sage-600"
@@ -145,6 +233,7 @@ export default function SoloInvites({ api, setError, setNotice }: TabCtx) {
               type="tel"
               inputMode="tel"
               value={phone}
+              disabled={busy}
               onChange={(e) => setPhone(formatPhone(e.target.value))}
               onKeyDown={(e) => e.key === "Enter" && add()}
               enterKeyHint="done"
@@ -173,18 +262,72 @@ export default function SoloInvites({ api, setError, setNotice }: TabCtx) {
             </div>
           )}
 
-          <ul className="space-y-1">
+          {rows && rows.length > 0 && (
+            <div className="flex flex-wrap items-center gap-3 border-t border-neutral-100 pt-3 text-xs">
+              <label className="flex items-center gap-2 py-2">
+                <input type="checkbox" aria-label="개별 초대 전체 선택" disabled={busy}
+                  checked={selected.size === rows.length}
+                  ref={(node) => { if (node) node.indeterminate = selected.size > 0 && selected.size < rows.length; }}
+                  onChange={(e) => { requestId.current = null; setSelected(new Set(e.target.checked ? rows.map((m) => m.id) : [])); }} />
+                전체 선택
+              </label>
+              <button type="button" disabled={busy || selected.size === 0}
+                onClick={() => setGrouping(true)}
+                className="px-3 py-2 bg-sage-600 text-white disabled:opacity-40">
+                선택 {selected.size}명 그룹화
+              </button>
+              <button type="button" disabled={busy} className="ml-auto text-neutral-500 underline"
+                onClick={async () => { await load(); setSelected(new Set()); requestId.current = null; }}>
+                목록 새로고침
+              </button>
+            </div>
+          )}
+
+          {grouping && selected.size > 0 && (
+            <div className="space-y-3 border border-sage-600/20 bg-sage-50 p-3" aria-label="선택 인원 그룹화">
+              <p className="text-sm font-medium text-neutral-700">{selected.size}명을 어느 그룹에 추가할까요?</p>
+              <p className="text-xs text-neutral-500 break-words">
+                {(rows ?? []).filter((m) => selected.has(m.id)).map((m) => m.name).join(", ")}
+              </p>
+              <select aria-label="그룹 지정" value={target} disabled={busy}
+                onChange={(e) => { setTarget(e.target.value); requestId.current = null; }}
+                className="w-full min-w-0 border border-neutral-200 bg-white p-2 text-sm">
+                <option value="new">새 그룹 만들기</option>
+                {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </select>
+              {target === "new" && <input aria-label="새 그룹 이름" placeholder="예: 대학 친구들"
+                value={groupName} maxLength={100} disabled={busy}
+                onChange={(e) => { setGroupName(e.target.value); requestId.current = null; }}
+                className="w-full border border-neutral-200 bg-white p-2 text-sm" />}
+              <p className="text-xs text-neutral-500">기존 링크를 다시 보낼 필요 없어요. 접수된 개인 주문도 그대로 유지돼요.</p>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={groupSelected} disabled={busy || (target === "new" && !groupName.trim())}
+                  className="px-3 py-2 bg-sage-600 text-white text-xs disabled:opacity-50">
+                  {busy ? "저장 중…" : target === "new" ? `새 그룹 만들고 ${selected.size}명 추가` : `그룹에 ${selected.size}명 추가`}
+                </button>
+                <button type="button" onClick={() => setGrouping(false)} disabled={busy} className="px-3 py-2 text-xs text-neutral-500">취소</button>
+              </div>
+            </div>
+          )}
+
+          <ul className="space-y-2">
             {(rows ?? []).map((m) => (
-              <li key={m.id} className="flex items-center gap-2 text-sm text-neutral-600 px-1">
-                <span className="shrink-0 min-w-[3.5rem]">{m.name}</span>
+              <li key={m.id} className="flex flex-wrap items-center gap-2 text-sm text-neutral-600 px-1">
+                <label className="flex items-center gap-2 py-2 min-w-0 max-w-full">
+                  <input type="checkbox" aria-label={`${m.name} 선택`} checked={selected.has(m.id)}
+                    disabled={busy} onChange={() => selectMember(m.id)} />
+                  <span className="break-all">{m.name}</span>
+                </label>
                 <input
-                  key={`${m.id}-${m.phone ?? ""}`}
                   type="tel"
                   inputMode="tel"
+                  aria-label={`${m.name} 연락처`}
+                  disabled={busy}
                   defaultValue={m.phone ?? ""}
                   placeholder="010-0000-0000"
+                  onChange={(e) => phoneDrafts.current.set(m.id, formatPhone(e.target.value))}
                   onBlur={(e) => savePhone(m, formatPhone(e.target.value))}
-                  className="flex-1 min-w-0 border border-neutral-200 px-2 py-1 text-xs"
+                  className="flex-1 min-w-24 border border-neutral-200 px-2 py-1 text-xs"
                 />
                 {m.applied && (
                   <span className="text-[10px] whitespace-nowrap text-sage-700">신청</span>
@@ -199,7 +342,7 @@ export default function SoloInvites({ api, setError, setNotice }: TabCtx) {
                 >
                   {m.invited_at ? "링크 ✓" : "링크"}
                 </button>
-                <button onClick={() => remove(m)} className="text-xs text-red-600">
+                <button onClick={() => remove(m)} disabled={busy} className="text-xs text-red-600 disabled:opacity-50">
                   삭제
                 </button>
               </li>
