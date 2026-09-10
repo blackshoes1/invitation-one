@@ -39,6 +39,6 @@ export async function POST(req: Request) {
   });
   if (error || !firstRow<{ participant_id: string }>(data)?.participant_id)
     return json({ error: "server_error" }, 500);
-  after(() => void drainNotifications(3).catch((error) => console.error("[guestbook] notification drain failed", error)));
+  after(() => drainNotifications(3).catch((error) => console.error("[guestbook] notification drain failed", error)));
   return json({ ok: true });
 }

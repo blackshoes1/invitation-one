@@ -186,6 +186,40 @@ async function selectSchedule(page: Page) {
   await page.getByRole("button", { name: "다음", exact: true }).click();
 }
 
+test("admin cancellation refreshes the completed order and lets the same invite reorder", async ({ page }) => {
+  test.skip(process.env.E2E_DB !== "1", "Configured client; all requests are mocked.");
+  const writes = await invitePage(page);
+  await page.route("**/api/delivery/manage?*", (route) =>
+    route.fulfill({ json: { participant: { type: "직접배달", status: "취소" } } }));
+  const submit = async () => {
+    await selectSchedule(page);
+    await page.getByRole("button", { name: /신랑 신랑이 갈게요/ }).click();
+    await page.getByRole("button", { name: "주문 확인하기 🧾", exact: true }).click();
+    await page.getByRole("button", { name: "네, 주문할게요 🛵", exact: true }).click();
+    await expect(page.getByRole("link", { name: "신청 취소 / 변경 / 배송 현황 보기" })).toBeVisible();
+  };
+  await submit();
+  expect(writes).toEqual(["order"]);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByRole("heading", { name: "기존 주문이 취소되었어요" })).toBeVisible();
+  await page.getByRole("link", { name: "다시 신청하기", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(token));
+  await submit();
+  expect(writes).toEqual(["order", "order"]);
+});
+
+test("returning to a full page refreshes capacity after admin cancellation", async ({ page }) => {
+  test.skip(process.env.E2E_DB !== "1", "Configured client; all requests are mocked.");
+  await invitePage(page);
+  let count = 10000;
+  await page.route("**/rest/v1/rpc/get_delivery_guest_count", (route) => route.fulfill({ json: count }));
+  await page.reload();
+  await expect(page.getByRole("button", { name: /청첩장 받을 일정 정하기/ })).toHaveCount(0);
+  count = 0;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByRole("button", { name: /청첩장 받을 일정 정하기/ })).toBeVisible();
+});
+
 test("final confirmation sends one personal order with invite identity", async ({
   page,
 }) => {
