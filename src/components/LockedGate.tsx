@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Guestbook from "@/components/sections/Guestbook";
 import {
   groom,
   bride,
@@ -37,7 +38,7 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 /**
- * 접근 키가 없을 때 — 청첩장 본문 대신 "기본 정보"만 공개.
+ * 접근 키가 없을 때 — 기본 정보와 공개 축하 지도만 표시.
  * 예식 일시·장소·주차·계좌는 누구에게나 필요한 정보이므로 잠그지 않는다.
  */
 export default function LockedGate() {
@@ -82,6 +83,8 @@ export default function LockedGate() {
             </Link>
           </p>
         </div>
+
+        <Guestbook mapOnly />
 
         {/* 기본 정보 — 일시·장소 */}
         <div className="bg-white border border-wedding-gold/20 p-6 space-y-4 text-center">

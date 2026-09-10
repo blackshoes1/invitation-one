@@ -6,11 +6,13 @@ import { test, expect } from "@playwright/test";
  */
 const KEY = process.env.NEXT_PUBLIC_INVITATION_KEY ?? "ci-dummy-key";
 
-test("키 없이 접근하면 잠금 화면(기본 정보만)이 보인다", async ({ page }) => {
+test("키 없이 접근하면 기본 정보와 공개 축하 지도 영역이 보인다", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("아직 공개 전이에요")).toBeVisible();
   // 본문(웨딩 사진 히어로)은 렌더되지 않는다
   await expect(page.getByAltText(/웨딩 사진/)).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "우리를 축하해준 사람들" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "💬 메시지", exact: true })).toHaveCount(0);
 });
 
 test("잘못된 키로 접근하면 잠금 화면이 보인다", async ({ page }) => {
