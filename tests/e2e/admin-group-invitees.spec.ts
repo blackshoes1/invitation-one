@@ -50,7 +50,8 @@ async function setup(page: Page, options: { failOnce?: boolean; holdPhone?: Prom
   await page.getByRole("button", { name: "그룹", exact: true }).click();
   await page.getByRole("button", { name: /개별 초대/ }).click();
   await expect(page.getByRole("checkbox", { name: "홍길동 선택" })).toBeVisible();
-  return { requests, phoneRequests: () => phoneRequests };
+  return { requests, phoneRequests: () => phoneRequests,
+    updatePhone: (phone: string) => { members[0].phone = phone; } };
 }
 
 test("모바일에서 개별 인원을 선택해 새 그룹 생성 후 명단을 보여준다", async ({ page }) => {
@@ -125,4 +126,11 @@ test("연락처 저장 실패 시 그룹화를 중단하고 입력을 유지한�
   await expect(page.getByRole("checkbox", { name: "홍길동 선택" })).toBeChecked();
   await expect(page.getByRole("textbox", { name: "홍길동 연락처" })).toHaveValue("010-12");
   expect(state.requests).toHaveLength(0);
+});
+
+test("목록 새로고침 시 다른 관리자가 저장한 연락처도 반영한다", async ({ page }) => {
+  const state = await setup(page);
+  state.updatePhone("010-9999-8888");
+  await page.getByRole("button", { name: "목록 새로고침", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "홍길동 연락처" })).toHaveValue("010-9999-8888");
 });

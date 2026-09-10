@@ -27,6 +27,7 @@ export default function SoloInvites({ api, setError, setNotice, groups, onGroupe
   const [groupName, setGroupName] = useState("");
   const requestId = useRef<string | null>(null);
   const groupingLock = useRef(false);
+  const [phoneValues, setPhoneValues] = useState<Record<string, string>>({});
   const phoneDrafts = useRef(new Map<string, string>());
   const phoneSaves = useRef(new Map<string, Promise<boolean>>());
   /** 이번 세션에 발급한 링크 — 재발급 없이 다시 복사용 */
@@ -79,7 +80,10 @@ export default function SoloInvites({ api, setError, setNotice, groups, onGroupe
           setError(j.error ?? "연락처 저장에 실패했습니다.");
           return false;
         }
-        if (phoneDrafts.current.get(m.id) === v) phoneDrafts.current.delete(m.id);
+        if (phoneDrafts.current.get(m.id) === v) {
+          phoneDrafts.current.delete(m.id);
+          setPhoneValues((current) => { const next = { ...current }; delete next[m.id]; return next; });
+        }
         setRows((r) => (r ?? []).map((x) => (x.id === m.id ? { ...x, ...j.member } : x)));
         return true;
       } catch {
@@ -323,9 +327,13 @@ export default function SoloInvites({ api, setError, setNotice, groups, onGroupe
                   inputMode="tel"
                   aria-label={`${m.name} 연락처`}
                   disabled={busy}
-                  defaultValue={m.phone ?? ""}
+                  value={phoneValues[m.id] ?? m.phone ?? ""}
                   placeholder="010-0000-0000"
-                  onChange={(e) => phoneDrafts.current.set(m.id, formatPhone(e.target.value))}
+                  onChange={(e) => {
+                    const value = formatPhone(e.target.value);
+                    phoneDrafts.current.set(m.id, value);
+                    setPhoneValues((current) => ({ ...current, [m.id]: value }));
+                  }}
                   onBlur={(e) => savePhone(m, formatPhone(e.target.value))}
                   className="flex-1 min-w-24 border border-neutral-200 px-2 py-1 text-xs"
                 />
