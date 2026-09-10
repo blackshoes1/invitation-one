@@ -48,9 +48,17 @@ function regionStats(celebrations: Celebration[]) {
  * 💝 우리를 축하해준 사람들 — 지도(🛵/💌 핀) / 메시지(방명록+리뷰) 통합
  * 데이터: participants 기반 get_celebrations RPC 하나로 조회
  */
-export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
+export default function Guestbook({
+  qrEntry = false,
+  mapOnly = false,
+}: {
+  qrEntry?: boolean;
+  /** 공개 전 화면에서는 공개 지도만 표시하고 관리자 실명 조회는 하지 않는다. */
+  mapOnly?: boolean;
+}) {
   const [celebrations, setCelebrations] = useState<Celebration[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [mode, setMode] = useState<ViewMode>("messages");
   const [mineId, setMineId] = useState<string | null>(null);
   const [liveToast, setLiveToast] = useState<string | null>(null);
@@ -79,8 +87,9 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
       if (!alive) return;
       if (error || !Array.isArray(data)) {
         // RPC 실패 시에도 로딩 표시는 해제 — "불러오는 중…" 영구 표시 방지.
-        // (빈 상태로 폴백, 25초 폴링이 재시도)
+        // 오류 안내를 표시하고, 25초 폴링이 재시도한다.
         setLoaded(true);
+        setLoadFailed(true);
         return;
       }
       const list = data as Celebration[];
@@ -101,6 +110,7 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
       first = false;
       setCelebrations(list);
       setLoaded(true);
+      setLoadFailed(false);
     };
 
     fetchNow();
@@ -116,6 +126,7 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
 
   // 관리자 세션이면 실명 매핑을 받아둔다 (하객은 401 → null 유지)
   useEffect(() => {
+    if (mapOnly) return;
     let alive = true;
     fetch("/api/admin/celebrations", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
@@ -128,14 +139,17 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [mapOnly]);
 
   const count = celebrations.length;
   const empty = loaded && count === 0;
-  const feed = buildFeed(celebrations);
+  const feed = mapOnly ? [] : buildFeed(celebrations);
 
   return (
-    <section className="relative px-6 py-12 bg-wedding-cream border-t border-wedding-gold/10">
+    <section
+      aria-label="우리를 축하해준 사람들"
+      className={`relative ${mapOnly ? "py-8" : "px-6 py-12"} bg-wedding-cream border-t border-wedding-gold/10`}
+    >
       {liveToast && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-sage-700 text-white text-xs px-4 py-2 rounded-full shadow-md animate-pulse">
           {liveToast}
@@ -149,7 +163,7 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
           <h2 className="font-serif text-2xl font-light tracking-widest text-sage-700">
             우리를 축하해준 사람들
           </h2>
-          {!empty && (
+          {!empty && !loadFailed && (
             <p className="text-sm text-neutral-500">
               {loaded ? (
                 <>
@@ -163,7 +177,11 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
           )}
         </FadeIn>
 
-        {empty ? (
+        {loadFailed && count === 0 ? (
+          <p role="status" className="text-sm text-neutral-500 py-8">
+            축하 소식을 잠시 불러오지 못했어요. 잠시 후 자동으로 다시 확인할게요.
+          </p>
+        ) : empty ? (
           <FadeIn>
             <p className="text-sm text-neutral-500 py-8">
               첫 손님을 기다리고 있어요 🛵
@@ -174,22 +192,24 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
         ) : (
           <>
             {/* 뷰 전환 */}
-            <FadeIn>
-              <div className="inline-flex bg-white rounded-full p-1 border border-wedding-gold/20">
-                <ToggleBtn active={mode === "map"} onClick={() => setMode("map")}>
-                  🗺️ 지도
-                </ToggleBtn>
-                <ToggleBtn
-                  active={mode === "messages"}
-                  onClick={() => setMode("messages")}
-                >
-                  💬 메시지
-                </ToggleBtn>
-              </div>
-            </FadeIn>
+            {!mapOnly && (
+              <FadeIn>
+                <div className="inline-flex bg-white rounded-full p-1 border border-wedding-gold/20">
+                  <ToggleBtn active={mode === "map"} onClick={() => setMode("map")}>
+                    🗺️ 지도
+                  </ToggleBtn>
+                  <ToggleBtn
+                    active={mode === "messages"}
+                    onClick={() => setMode("messages")}
+                  >
+                    💬 메시지
+                  </ToggleBtn>
+                </div>
+              </FadeIn>
+            )}
 
             <FadeIn>
-              {mode === "map" ? (
+              {mapOnly || mode === "map" ? (
                 <>
                   {(() => {
                     const st = regionStats(celebrations);
@@ -234,7 +254,7 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
         )}
 
         {/* 본인 확인 + 뱃지 — 종이 QR 진입자에게만 노출 */}
-        {qrEntry && (
+        {qrEntry && !mapOnly && (
           <FadeIn className="pt-2">
             <VerifyBadge onVerified={(id) => setMineId(id)} />
           </FadeIn>
