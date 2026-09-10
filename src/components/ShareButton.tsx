@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Share2 } from "lucide-react";
+import ManualShareLink from "@/components/ManualShareLink";
+import { copyShareLink, isMobileShareDevice } from "@/lib/shareLink";
 import {
   groom,
   bride,
@@ -31,6 +33,7 @@ const KAKAO_JS_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_KEY;
 export default function ShareButton() {
   const [ready, setReady] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [manualLink, setManualLink] = useState<string | null>(null);
 
   useEffect(() => {
     if (!KAKAO_JS_KEY) return;
@@ -66,11 +69,13 @@ export default function ShareButton() {
     return url;
   };
 
-  const onShare = async () => {
+  const onShare = async (copyOnly = false) => {
     const url = shareLink();
+    setManualLink(null);
+    setToast(null);
     const desc = `${formatFullDate()} ${formatTime()} · 서울 ${venue.name}`;
     // 카카오 SDK 준비되면 피드 카드, 아니면 링크 복사 폴백
-    if (ready && window.Kakao?.Share) {
+    if (!copyOnly && isMobileShareDevice() && ready && window.Kakao?.Share) {
       try {
         window.Kakao.Share.sendDefault({
           objectType: "feed",
@@ -93,29 +98,28 @@ export default function ShareButton() {
       }
     }
     // 폴백: 링크 복사
-    try {
-      await navigator.clipboard.writeText(url);
+    if (await copyShareLink(url)) {
       flash("링크를 복사했어요! 붙여넣어 공유해주세요 💌");
-    } catch {
-      flash("링크: " + url);
-    }
+    } else setManualLink(url);
   };
 
   return (
-    <div className="relative flex justify-center">
+    <div className="flex flex-col items-center gap-2">
       <button
         type="button"
-        onClick={onShare}
+        onClick={() => onShare()}
         className="inline-flex items-center gap-1.5 px-4 py-2 border border-wedding-gold/30 text-xs text-sage-700 tracking-wide hover:bg-sage-50 transition-colors"
       >
         <Share2 size={13} className="text-wedding-gold" />
         청첩장 공유하기
       </button>
+      <button type="button" onClick={() => onShare(true)} className="text-xs text-sage-700 underline underline-offset-2 py-2">청첩장 링크 복사</button>
       {toast && (
-        <span className="absolute -bottom-7 whitespace-nowrap text-[11px] text-sage-600">
+        <span role="status" className="text-xs text-sage-600">
           {toast}
         </span>
       )}
+      {manualLink && <ManualShareLink url={manualLink} />}
     </div>
   );
 }

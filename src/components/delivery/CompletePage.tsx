@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useEffect } from "react";
@@ -9,6 +9,8 @@ import type { TimeSlot } from "@/lib/wedding";
 import { getSiteSettings } from "@/lib/settings";
 import TrackingView from "@/components/delivery/TrackingView";
 import SaveInvitationLink from "@/components/delivery/SaveInvitationLink";
+import ManualShareLink from "@/components/ManualShareLink";
+import { copyShareLink, isMobileShareDevice } from "@/lib/shareLink";
 
 export default function CompletePage({
   name,
@@ -38,6 +40,8 @@ export default function CompletePage({
   groupSlug?: string | null;
 }) {
   const [shareMsg, setShareMsg] = useState<string | null>(null);
+  const [manualLink, setManualLink] = useState<string | null>(null);
+  const shareBusy = useRef(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   // 배송기사 표기 — 화면 카드와 저장용 PNG 주문서에서 공용 (신부/커플 주문도 정확히)
   const riderLabel =
@@ -149,25 +153,32 @@ export default function CompletePage({
     setTimeout(() => setSaveMsg(null), 2500);
   };
 
-  const share = async () => {
+  const share = async (copyOnly = false) => {
+    if (shareBusy.current) return;
+    shareBusy.current = true;
     const url = groupSlug
       ? `${window.location.origin}/delivery/group/${groupSlug}`
       : `${window.location.origin}/delivery`;
     const text = "나 청첩장 배송 신청했다 🛵 같이 받을 사람?";
+    setShareMsg(null);
+    setManualLink(null);
     try {
-      if (navigator.share) {
-        await navigator.share({ title: text, text, url });
-        return;
+      if (!copyOnly && isMobileShareDevice() && navigator.share) {
+        try {
+          await navigator.share({ title: text, text, url });
+          return;
+        } catch (error) {
+          if (error instanceof Error && error.name === "AbortError") {
+            setShareMsg("공유를 취소했어요. 아래 링크 복사로도 공유할 수 있어요.");
+            return;
+          }
+          // Unsupported/blocked share must still offer a working link.
+        }
       }
-    } catch {
-      return; // 사용자가 취소
-    }
-    try {
-      await navigator.clipboard?.writeText(`${text} ${url}`);
-      setShareMsg("링크를 복사했어요! 단톡방에 붙여넣어 주세요");
-      setTimeout(() => setShareMsg(null), 2200);
-    } catch {
-      /* ignore */
+      if (await copyShareLink(url)) setShareMsg("링크를 복사했어요! 단톡방에 붙여넣어 주세요");
+      else setManualLink(url);
+    } finally {
+      shareBusy.current = false;
     }
   };
 
@@ -245,12 +256,15 @@ export default function CompletePage({
         {saveMsg && <p className="text-[11px] text-neutral-500">{saveMsg}</p>}
         <button
           type="button"
-          onClick={share}
+          onClick={() => share()}
           className="px-5 py-2.5 rounded-full bg-delivery-yellow text-delivery-dark text-sm font-extrabold"
         >
           “나 청첩장 배송 신청했다 🛵” 단톡방에 공유
         </button>
-        {shareMsg && <p className="text-[11px] text-neutral-500">{shareMsg}</p>}
+        <p className="text-[11px] text-neutral-500">PC에서는 공유 링크가 복사돼요.</p>
+        <button type="button" onClick={() => share(true)} className="text-sm text-delivery underline underline-offset-2 py-2">공유 링크 복사</button>
+        {shareMsg && <p role="status" className="text-xs text-neutral-500">{shareMsg}</p>}
+        {manualLink && <ManualShareLink url={manualLink} />}
         {manageToken && (
           <Link
             href={`/delivery/manage/${manageToken}`}
