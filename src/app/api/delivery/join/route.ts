@@ -96,7 +96,7 @@ export async function POST(req: Request) {
   // P1-4: 응답 후 아웃박스 드레인 (신규 + 재시도 도래분)
   // 에러를 삼키지 않는다 — 여기서 조용히 죽으면 알림이 왜 안 갔는지 알 길이 없다
   after(() =>
-    void drainNotifications(3).catch((e) =>
+    drainNotifications(3).catch((e) =>
       console.error("[outbox] drain failed (after):", e)
     )
   );

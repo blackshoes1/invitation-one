@@ -18,6 +18,7 @@ import InviteNotice from "@/components/delivery/InviteNotice";
 import GroupSpaceCard from "@/components/delivery/GroupSpaceCard";
 import RosterIntroCard from "@/components/delivery/RosterIntroCard";
 import { useInvite } from "@/components/delivery/useInvite";
+import { useRefreshOnReturn } from "@/components/delivery/useRefreshOnReturn";
 import JoinForm from "@/components/delivery/JoinForm";
 import OrderList from "@/components/delivery/OrderList";
 import HeartForm from "@/components/delivery/HeartForm";
@@ -73,6 +74,8 @@ function GroupPageInner() {
     if (typeof countRes.data === "number") setTaken(countRes.data);
     setOrdersLoaded(true);
   }, [slug]);
+
+  useRefreshOnReturn(loadOrders);
 
   useEffect(() => {
     let alive = true;

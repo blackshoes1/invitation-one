@@ -1,6 +1,7 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useRefreshOnReturn } from "@/components/delivery/useRefreshOnReturn";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { invitationHref } from "@/lib/inviteAccess";
@@ -36,15 +37,18 @@ function DeliveryPageInner() {
     convertId ? "delivery" : null
   );
 
-  useEffect(() => {
+  const loadCapacity = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) return;
-    (async () => {
-      // 남은 자리 = 총 수량 - 직접배달 신청 인원 합계
-      const { data } = await supabase!.rpc("get_delivery_guest_count");
-      // 실패하면 null 유지 — 잘못된 숫자를 보여주느니 자리표시자를 유지한다
-      if (typeof data === "number") setTaken(data);
-    })();
+    // 남은 자리 = 총 수량 - 직접배달 신청 인원 합계
+    const { data } = await supabase.rpc("get_delivery_guest_count");
+    // 조회 실패 시 마지막으로 확인한 값을 유지한다.
+    if (typeof data === "number") setTaken(data);
   }, []);
+  useRefreshOnReturn(loadCapacity);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- RPC completes asynchronously
+    void loadCapacity();
+  }, [loadCapacity]);
 
   const loaded = taken !== null;
   const remaining = loaded ? Math.max(0, DELIVERY_CAPACITY - taken) : 0;

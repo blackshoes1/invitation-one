@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { useRefreshOnReturn } from "./useRefreshOnReturn";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useEffect } from "react";
@@ -43,6 +44,20 @@ export default function CompletePage({
   const [manualLink, setManualLink] = useState<string | null>(null);
   const shareBusy = useRef(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [reorderHref, setReorderHref] = useState<string | null>(null);
+  const refreshOrder = useCallback(async () => {
+    if (!manageToken) return;
+    const response = await fetch(`/api/delivery/manage?t=${encodeURIComponent(manageToken)}`, { cache: "no-store" });
+    if (!response.ok) return;
+    const { participant } = await response.json();
+    if (participant?.status === "취소") {
+      // Reload the form, retain the personal invitation, and discard a used conversion token.
+      const url = new URL(window.location.href);
+      url.searchParams.delete("convert");
+      setReorderHref(url.pathname + url.search);
+    }
+  }, [manageToken]);
+  useRefreshOnReturn(refreshOrder);
   // 배송기사 표기 — 화면 카드와 저장용 PNG 주문서에서 공용 (신부/커플 주문도 정확히)
   const riderLabel =
     rider === "신랑+신부"
@@ -181,6 +196,16 @@ export default function CompletePage({
       shareBusy.current = false;
     }
   };
+
+  if (reorderHref) return (
+    <section className="max-w-md mx-auto px-6 py-12 text-center space-y-4">
+      <h2 className="text-xl font-bold">기존 주문이 취소되었어요</h2>
+      <p className="text-sm text-neutral-600">다른 날짜와 장소로 다시 신청하실 수 있어요.</p>
+      <a href={reorderHref} className="inline-block rounded-full bg-delivery px-6 py-3 font-bold text-white">
+        다시 신청하기
+      </a>
+    </section>
+  );
 
   return (
     <div className="min-h-[70vh] flex flex-col items-center justify-center px-6 py-12 text-center">

@@ -33,12 +33,17 @@ export async function GET(req: Request) {
   const ids = (data ?? []).map((m) => m.id);
   const hasGroupOrder = new Map<string, boolean>();
   if (ids.length > 0) {
-    const { data: parts } = await supabaseAdmin!
+    const { data: parts, error: partsError } = await supabaseAdmin!
       .from("participants")
-      .select("group_member_id, group_id")
+      .select("group_member_id, group_id, type, delivery:deliveries!delivery_id(status)")
       .in("group_member_id", ids);
-    for (const p of parts ?? []) {
-      if (!p.group_member_id) continue;
+    if (partsError) return NextResponse.json({ error: partsError.message }, { status: 500 });
+    for (const p of (parts ?? []) as unknown as {
+      group_member_id: string | null; group_id: string | null;
+      type: string; delivery: { status: string } | null;
+    }[]) {
+      // Cancellation history and heart messages do not reserve a paper invitation.
+      if (!p.group_member_id || p.type !== "직접배달" || !p.delivery || p.delivery.status === "취소") continue;
       hasGroupOrder.set(
         p.group_member_id,
         (hasGroupOrder.get(p.group_member_id) ?? false) ||

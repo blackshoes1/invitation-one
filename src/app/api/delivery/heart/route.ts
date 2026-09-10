@@ -94,7 +94,7 @@ export async function POST(req: Request) {
   // 트래픽이 있는 한 실패 알림이 다음 신청 시점에 재발송된다 (안전망 cron 은 별도).
   // 에러를 삼키지 않는다 — 여기서 조용히 죽으면 알림이 왜 안 갔는지 알 길이 없다
   after(() =>
-    void drainNotifications(3).catch((e) =>
+    drainNotifications(3).catch((e) =>
       console.error("[outbox] drain failed (after):", e)
     )
   );
