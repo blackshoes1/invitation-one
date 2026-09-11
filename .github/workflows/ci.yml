@@ -99,3 +99,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: bash scripts/db-verify.sh
+
+  nas-archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: sh -n ops/photo-archive/archive.sh ops/photo-archive/healthcheck.sh scripts/test-photo-archive.sh
+      - run: sh scripts/test-photo-archive.sh
