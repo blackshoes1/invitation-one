@@ -71,6 +71,9 @@ async function stubUploads(page: import("@playwright/test").Page, opts: StubOpts
   await page.route("**/api/guest-photos/token*", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", json: { token: "stub" } })
   );
+  await page.route("**/api/guest-photos/direct", (route) =>
+    route.fulfill({ status: 200, json: { storage: "supabase" } })
+  );
   await page.route("**/api/guest-photos", (route) => {
     const n = seen.length + 1;
     seen.push(n);
@@ -188,4 +191,43 @@ test("한 번에 올릴 수 있는 장수를 넘기면 잘라내되 그 사실�
   ).toBeVisible();
   // 말없이 사라지면 하객은 12장을 다 올린 줄 안다
   await expect(modal.getByText(/한 번에 10장까지 올릴 수 있어요/)).toBeVisible();
+});
+
+test("NAS 모드에서는 사진 본문을 NAS로 직접 보내고 JSON으로 등록한다", async ({ page }) => {
+  let uploads = 0;
+  let completions = 0;
+  let legacy = 0;
+  const nasUrl = 'https://nas.example.invalid/photos/snap/9a2c06ad-3f9f-49a3-9a29-1f95c5c31d83.jpg';
+  await page.route('**/api/guest-photos/token*', route => route.fulfill({ json: { token: 'stub' } }));
+  await page.route('**/api/guest-photos', route => { legacy++; return route.fulfill({ status: 500 }); });
+  await page.route('**/api/guest-photos/direct', async route => {
+    expect(route.request().headers()['content-type']).toContain('application/json');
+    const body = route.request().postDataJSON();
+    if (body.action === 'prepare') {
+      expect(body.size).toBeGreaterThan(0);
+      expect(body.sha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(body.file).toBeUndefined();
+      return route.fulfill({ json: { storage: 'nas', uploadUrl: nasUrl, ticket: 'test-ticket' } });
+    }
+    expect(body.action).toBe('complete');
+    expect(body.receipt).toBe('test-receipt');
+    completions++;
+    return route.fulfill({ json: { photo: { id: 'nas-photo', url: '/pic/gallery1.jpg', name: null, message: null, created_at: new Date().toISOString() } } });
+  });
+  await page.route(nasUrl, route => {
+    const headers = { 'Access-Control-Allow-Origin': new URL(page.url()).origin, 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'PUT, OPTIONS' };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    expect(route.request().method()).toBe('PUT');
+    expect(route.request().headers().authorization).toBe('Bearer test-ticket');
+    expect(route.request().postDataBuffer()!.length).toBeGreaterThan(0);
+    uploads++;
+    return route.fulfill({ headers, json: { receipt: 'test-receipt' } });
+  });
+  await page.goto(HOME);
+  const modal = await pickFromAlbum(page, [THREE[0]]);
+  await modal.getByRole('button', { name: '이대로 올리기', exact: true }).click();
+  await expect(modal).toBeHidden({ timeout: 15_000 });
+  expect(uploads).toBe(1);
+  expect(completions).toBe(1);
+  expect(legacy).toBe(0);
 });
