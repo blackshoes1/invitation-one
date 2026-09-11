@@ -21,9 +21,10 @@ const parse = async (res: Response): Promise<Result> => ({ res, j: await res.jso
 export async function uploadGuestPhoto(fd: FormData, token: string): Promise<Result> {
   const file = fd.get('file');
   if (!(file instanceof File)) fail('사진이 없습니다.', 'PHOTO_MISSING');
+  if (file.size < 1 || file.size > 20 * 1024 * 1024) fail('한 장당 20MB 이하의 사진을 선택해주세요.', 'PHOTO_SIZE');
   const bytes = new Uint8Array(await file.arrayBuffer());
   const mime = sniffImage(bytes);
-  if (!mime || bytes.length < 1 || bytes.length > 6 * 1024 * 1024) fail('6MB 이하의 JPG·PNG·WebP·HEIC 사진을 선택해주세요.', 'PHOTO_FORMAT');
+  if (!mime || bytes.length < 1 || bytes.length > 20 * 1024 * 1024) fail('20MB 이하의 JPG·PNG·WebP·HEIC 사진을 선택해주세요.', 'PHOTO_FORMAT');
   if (!globalThis.crypto?.subtle) fail('보안 연결에서 사진을 올려주세요. HTTPS 청첩장 주소로 다시 열어주세요.', 'PHOTO_CRYPTO');
   const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), v => v.toString(16).padStart(2, '0')).join('');
   const api = (body: object) => timedFetch('/api/guest-photos/direct', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, token }) }, 20_000);
@@ -39,7 +40,7 @@ export async function uploadGuestPhoto(fd: FormData, token: string): Promise<Res
   // A failed NAS request never silently uploads the photo to Supabase instead.
   let uploaded: Response;
   try {
-    uploaded = await timedFetch(plan.uploadUrl, { method: 'PUT', headers: { Authorization: `Bearer ${plan.ticket}`, 'Content-Type': mime }, body: file, credentials: 'omit', redirect: 'error' }, 90_000);
+    uploaded = await timedFetch(plan.uploadUrl, { method: 'PUT', headers: { Authorization: `Bearer ${plan.ticket}`, 'Content-Type': mime }, body: file, credentials: 'omit', redirect: 'error' }, 300_000);
   } catch { fail('사진 저장소에 연결하지 못했어요. 잠시 후 다시 시도해주세요.', 'NAS_CONNECT'); }
   if (!uploaded.ok) {
     const message = uploaded.status === 401

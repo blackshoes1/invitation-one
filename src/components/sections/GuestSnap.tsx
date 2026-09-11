@@ -7,12 +7,7 @@ import { supabase, isSupabaseConfigured, type GuestPhoto } from "@/lib/supabase"
 import {
   INVITATION_KEY,
   PHOTO_MISSIONS,
-  groom,
-  bride,
-  formatShortDate,
 } from "@/lib/wedding";
-import { compressImage } from "@/lib/image";
-import { applyFrame, FRAMES, type FrameId } from "@/lib/frames";
 import { uploadGuestPhoto, photoUploadErrorMessage } from "@/lib/uploadGuestPhoto";
 import FadeIn from "@/components/FadeIn";
 
@@ -27,7 +22,7 @@ const MAX_BATCH = 10;
 /**
  * 하객 스냅 — 하객이 찍은 사진을 청첩장에서 올리고 함께 보는 갤러리 (Epic A).
  * NAS 모드에서는 사진을 NAS에 직접 업로드하고 DB에는 주소와 작성자만 저장.
- * 사진은 브라우저에서 압축·EXIF 제거 후 전송.
+ * 사진은 브라우저가 제공한 원본 바이트 그대로 전송 (메타데이터 포함).
  */
 export default function GuestSnap({
   uploadToken = null,
@@ -79,9 +74,8 @@ export default function GuestSnap({
   const [mission, setMission] = useState<string | null>(null);
   /** 완료한 미션 (기기 로컬 기억 — 재방문해도 체크 유지) */
   const [doneMissions, setDoneMissions] = useState<string[]>([]);
-  /** 프레임 선택 단계 (GS-7) — 사진 고른 뒤 프레임 미리보기. 앨범 다중 선택이라 배열 */
+  /** 원본 확인 단계 (GS-7) — 사진 고른 뒤 원본 미리보기. 앨범 다중 선택이라 배열 */
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
-  const [frame, setFrame] = useState<FrameId>("none");
   const [preview, setPreview] = useState<string | null>(null);
   /** 여러 장 올리는 중 진행 표시 (몇 장까지 끝났는지) */
   const [done, setDone] = useState(0);
@@ -89,7 +83,6 @@ export default function GuestSnap({
   const cameraRef = useRef<HTMLInputElement>(null);
   const albumRef = useRef<HTMLInputElement>(null);
 
-  const signature = `${groom.name} ♥ ${bride.name} · ${formatShortDate()}`;
 
   // 완료 미션 로컬 복원
   useEffect(() => {
@@ -103,7 +96,7 @@ export default function GuestSnap({
     }
   }, []);
 
-  // 모달(라이트박스·프레임 선택) 열림: ESC 로 닫기 + 배경 스크롤 잠금
+  // 모달(라이트박스·원본 확인) 열림: ESC 로 닫기 + 배경 스크롤 잠금
   const modalOpen = lightbox !== null || pendingFiles.length > 0;
   useEffect(() => {
     if (!modalOpen) return;
@@ -171,10 +164,9 @@ export default function GuestSnap({
     });
   };
 
-  /** 사진을 고르면 곧바로 업로드하지 않고 프레임 선택 단계로 (GS-7) */
-  const beginDecorate = (files: File[]) => {
+  /** 사진을 고르면 곧바로 업로드하지 않고 원본 확인 단계로 (GS-7) */
+  const beginUpload = (files: File[]) => {
     setError(null);
-    setFrame("none");
     setDone(0);
     if (files.length > MAX_BATCH) {
       // 말없이 잘라내면 몇 장이 사라진 줄 모른다 — 앞의 MAX_BATCH 장만 진행한다고 알린다
@@ -188,38 +180,23 @@ export default function GuestSnap({
   /** 카메라·앨범 두 input 이 공유하는 처리 — 값을 비워 같은 사진을 다시 골라도 동작하게 한다 */
   const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
-    if (files.length) beginDecorate(files);
+    if (files.length) beginUpload(files);
     e.target.value = "";
   };
 
-  // 선택한 프레임으로 미리보기 갱신. 여러 장을 골랐어도 미리보기는 첫 장만 그린다 —
-  // 고른 프레임은 배치 전체에 똑같이 적용되므로 한 장이면 결과를 충분히 보여준다.
+  // 미리보기만 생성한다. 업로드 파일은 변환하지 않는다.
   const firstFile = pendingFiles[0] ?? null;
+  const [previewFailed, setPreviewFailed] = useState(false);
   useEffect(() => {
-    if (!firstFile) {
-      // 파일 선택 해제 시 미리보기 즉시 정리 (파생 상태 리셋)
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPreview(null);
-      return;
-    }
-    let alive = true;
-    let url: string | null = null;
-    (async () => {
-      const framed = await applyFrame(firstFile, frame, signature);
-      if (!alive) return;
-      url = URL.createObjectURL(framed);
-      setPreview(url);
-    })();
-    return () => {
-      alive = false;
-      if (url) URL.revokeObjectURL(url);
-    };
-    // signature 는 렌더마다 동일 문자열 (deps 제외)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firstFile, frame]);
+    const url = firstFile ? URL.createObjectURL(firstFile) : null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPreview(url);
+    setPreviewFailed(false);
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [firstFile]);
 
   /**
-   * 실제 업로드 (프레임 적용 후). 고른 사진을 한 장씩 차례로 올린다.
+   * 실제 업로드 (선택한 원본 그대로). 고른 사진을 한 장씩 차례로 올린다.
    *
    * 동시에 보내지 않는 이유: 업로드 API 는 요청당 한 장만 받고, 토큰당 10분 30장
    * rate limit 이 걸려 있다. 병렬로 쏘면 예식장 공용 Wi-Fi 에서 뒷장부터 무더기로
@@ -241,10 +218,8 @@ export default function GuestSnap({
     try {
       for (const [i, file] of files.entries()) {
         try {
-          const framed = await applyFrame(file, frame, signature);
-          const compressed = await compressImage(framed);
           const fd = new FormData();
-          fd.append("file", compressed);
+          fd.append("file", file);
           if (label) fd.append("name", label);
 
           const { res, j } = await postUpload(fd);
@@ -456,18 +431,18 @@ export default function GuestSnap({
         </div>
       )}
 
-      {/* 프레임 선택 (GS-7) */}
+      {/* 원본 확인 (GS-7) */}
       {pendingFiles.length > 0 && (
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="사진 프레임 고르기"
+          aria-label="사진 원본 확인"
           className="fade-in-soft fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4"
         >
           <div className="pop-in bg-white rounded-lg overflow-hidden w-full max-w-xs">
               <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100">
                 <p className="text-sm font-medium text-sage-700">
-                  프레임 고르기 🖼️
+                  원본으로 올리기
                   {pendingFiles.length > 1 && (
                     <span className="ml-1.5 text-xs font-normal text-neutral-500">
                       {pendingFiles.length}장
@@ -485,23 +460,23 @@ export default function GuestSnap({
               </div>
 
               <div className="bg-neutral-50 flex items-center justify-center p-3 min-h-[220px]">
-                {preview ? (
+                {preview && !previewFailed ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={preview}
                     alt="미리보기"
+                    onError={() => setPreviewFailed(true)}
                     className="max-h-[46vh] max-w-full object-contain shadow-sm"
                   />
                 ) : (
-                  <div className="w-40 h-40 bg-neutral-200 animate-pulse rounded" />
+                  <p className="text-xs text-neutral-500 text-center">미리보기를 표시할 수 없어도 원본은 올릴 수 있어요.</p>
                 )}
               </div>
 
-              {/* 미리보기는 첫 장만 — 고른 프레임이 전체에 적용된다는 걸 알려준다 */}
+              {/* 여러 장 중 첫 장만 미리보기로 표시 */}
               {pendingFiles.length > 1 && (
                 <p className="px-4 pt-2 text-[11px] text-neutral-500 text-center">
-                  첫 장 미리보기예요 · 고른 프레임이 {pendingFiles.length}장 모두에
-                  적용됩니다
+                  첫 장 미리보기예요 · 선택한 {pendingFiles.length}장을 원본으로 저장해요
                 </p>
               )}
 
@@ -516,23 +491,10 @@ export default function GuestSnap({
                 </p>
               )}
 
-              <div className="flex gap-2 px-4 py-3 overflow-x-auto">
-                {FRAMES.map((f) => (
-                  <button
-                    key={f.id}
-                    type="button"
-                    onClick={() => setFrame(f.id)}
-                    disabled={uploading}
-                    className={`shrink-0 text-[11px] px-3 py-1.5 rounded-full border transition-colors disabled:opacity-60 ${
-                      frame === f.id
-                        ? "bg-sage-700 text-white border-sage-700"
-                        : "bg-white text-neutral-500 border-wedding-gold/25"
-                    }`}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
+              <p className="px-4 py-3 text-[11px] text-neutral-500 text-center">
+                한 장당 최대 20MB · 압축과 프레임 없이 원본으로 저장해요.
+                사진에 포함된 위치정보 등 메타데이터도 유지돼요.
+              </p>
 
               <div className="px-4 pb-4 pt-1">
                 <button

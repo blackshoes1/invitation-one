@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-export const MAX_SIZE = 6 * 1024 * 1024;
+export const MAX_SIZE = 20 * 1024 * 1024;
 export const PATH_PATTERN = /^snap\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|webp|heic)$/;
 /** @param {Record<string, unknown>} claims @param {string} purpose @param {string} secret @param {number} ttl */
 export function sign(claims, purpose, secret, ttl = 600) {

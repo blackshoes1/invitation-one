@@ -31,10 +31,13 @@ describe('NAS direct photo API', () => {
     expect(mocks.from).not.toHaveBeenCalled();
     expect(mocks.storage).not.toHaveBeenCalled();
   });
+  it('accepts original photos up to 20MB', async () => {
+    expect((await req({ ...prepare, size: 20 * 1024 * 1024 })).status).toBe(200);
+  });
   it('rejects missing permission, oversized files and rate limits', async () => {
     mocks.auth.mockReturnValueOnce({ ok: false, reason: 'expired' });
     expect((await req(prepare)).status).toBe(401);
-    expect((await req({ ...prepare, size: 7 * 1024 * 1024 })).status).toBe(400);
+    expect((await req({ ...prepare, size: 21 * 1024 * 1024 })).status).toBe(400);
     mocks.allow.mockResolvedValue(false);
     expect((await req(prepare)).status).toBe(429);
   });

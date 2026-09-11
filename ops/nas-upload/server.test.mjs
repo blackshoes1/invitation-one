@@ -13,7 +13,8 @@ test('direct NAS upload: permissions, validation, idempotency, serving and delet
   const server = await createPhotoServer({ root, secret, origins: ['https://example.invalid'] });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
-  const bytes = Buffer.from([255, 216, 255, 224, 1, 2, 3]);
+  // Larger than the previous 6MB limit; opaque payload must survive byte-for-byte.
+  const bytes = Buffer.concat([Buffer.from([255, 216, 255, 224, 1, 2, 3]), Buffer.alloc(7 * 1024 * 1024, 0x34)]);
   const id = randomUUID();
   const path = `snap/${id}.jpg`;
   const claims = { id, path, size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') };

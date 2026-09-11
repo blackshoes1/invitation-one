@@ -23,8 +23,8 @@ export async function POST(req: Request) {
   try { config = nasPhotoConfig(); }
   catch { return reply({ error: '사진 저장소 연결 설정이 필요합니다.' }, 503); }
   if (input.action === 'prepare') {
-    if (auth.payload.exp < Date.now() / 1000 + 300) return reply({ error: '업로드 권한을 갱신해주세요.', code: 'token_expired' }, 401);
-    if (!Number.isSafeInteger(input.size) || input.size < 1 || input.size > MAX_SIZE || !/^[a-f0-9]{64}$/.test(input.sha256) || !['jpg','png','webp','heic'].includes(input.ext)) return reply({ error: '6MB 이하의 올바른 사진을 선택해주세요.' }, 400);
+    if (auth.payload.exp < Date.now() / 1000 + 660) return reply({ error: '업로드 권한을 갱신해주세요.', code: 'token_expired' }, 401);
+    if (!Number.isSafeInteger(input.size) || input.size < 1 || input.size > MAX_SIZE || !/^[a-f0-9]{64}$/.test(input.sha256) || !['jpg','png','webp','heic'].includes(input.ext)) return reply({ error: '20MB 이하의 올바른 사진을 선택해주세요.' }, 400);
     const allowed = await Promise.all([
       rateLimitAllow(`upload:tok:${auth.payload.n}`, 30, 600),
       rateLimitAllow(`upload:ip:${clientIp(req)}`, 300, 600),

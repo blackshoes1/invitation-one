@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
 
 /**
@@ -41,16 +42,16 @@ test("촬영 버튼이 여는 input 은 카메라를 바로 연다", async ({ pa
   expect(await picked.getAttribute("capture")).toBe("environment");
 });
 
-test("앨범에서 고른 사진도 프레임 고르기 단계로 이어진다", async ({ page }) => {
+test("앨범에서 고른 사진도 원본 확인 단계로 이어진다", async ({ page }) => {
   await page.goto(HOME);
 
   const chooser = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "앨범에서 고르기" }).click();
   await (await chooser).setFiles("public/pic/gallery1.jpg");
 
-  const modal = page.getByRole("dialog", { name: "사진 프레임 고르기" });
+  const modal = page.getByRole("dialog", { name: "사진 원본 확인" });
   await expect(modal).toBeVisible();
-  // 프레임을 입힌 미리보기가 실제로 그려져야 한다 (canvas 합성 실패 시 안 보인다)
+  // 선택한 원본의 미리보기를 보여주되 파일을 변환하지 않는다
   await expect(modal.getByAltText("미리보기")).toBeVisible();
 });
 
@@ -118,7 +119,7 @@ async function pickFromAlbum(page: import("@playwright/test").Page, files: strin
   const fc = await chooser;
   expect(fc.isMultiple()).toBe(true); // multiple 이 빠지면 한 장밖에 못 고른다
   await fc.setFiles(files);
-  const modal = page.getByRole("dialog", { name: "사진 프레임 고르기" });
+  const modal = page.getByRole("dialog", { name: "사진 원본 확인" });
   await modal.waitFor({ state: "visible" });
   return modal;
 }
@@ -219,7 +220,7 @@ test("NAS 모드에서는 사진 본문을 NAS로 직접 보내고 JSON으로 �
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
     expect(route.request().method()).toBe('PUT');
     expect(route.request().headers().authorization).toBe('Bearer test-ticket');
-    expect(route.request().postDataBuffer()!.length).toBeGreaterThan(0);
+    expect(route.request().postDataBuffer()).toEqual(readFileSync(THREE[0]));
     uploads++;
     return route.fulfill({ headers, json: { receipt: 'test-receipt' } });
   });

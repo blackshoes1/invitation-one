@@ -10,6 +10,7 @@ export async function createPhotoServer({ root, secret, origins }) {
   await mkdir(join(root, 'snap'), { recursive: true });
   await mkdir(join(root, 'deleted'), { recursive: true });
   let active = 0;
+  let uploads = 0;
   const server = http.createServer(async (req, res) => {
     const json = (status, body) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body)); };
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -41,8 +42,9 @@ export async function createPhotoServer({ root, secret, origins }) {
     const claims = purpose ? verify(token, purpose, secret) : null;
     if (req.method !== 'GET' && (!claims || claims.path !== path)) return json(401, { error: 'Invalid or expired permission' });
     if (!['GET', 'HEAD', 'PUT', 'DELETE'].includes(req.method)) return json(405, { error: 'Method not allowed' });
-    if (active >= 8) return json(503, { error: 'Busy, please retry' });
+    if (active >= 8 || (req.method === 'PUT' && uploads >= 2)) return json(503, { error: 'Busy, please retry' });
     active++;
+    if (req.method === 'PUT') uploads++;
     try {
       if (req.method === 'DELETE') {
         // Tombstone blocks replay of a still-valid upload ticket after deletion.
@@ -88,11 +90,11 @@ export async function createPhotoServer({ root, secret, origins }) {
       if (!res.headersSent) json(e.code === 'ENOENT' ? 404 : 503, { error: e.code === 'ENOENT' ? 'Not found' : 'Photo storage unavailable' });
       else res.destroy();
       if (e.code !== 'ENOENT') console.error('Photo service error:', e.code || 'request failed');
-    } finally { active--; }
+    } finally { active--; if (req.method === 'PUT') uploads--; }
   });
-  server.requestTimeout = 90_000;
+  server.requestTimeout = 300_000;
   server.headersTimeout = 15_000;
-  server.timeout = 90_000;
+  server.timeout = 300_000;
   return server;
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
