@@ -35,23 +35,23 @@ export async function uploadGuestPhoto(fd: FormData, token: string): Promise<Res
     fd.set('token', token);
     return parse(await fetch('/api/guest-photos', { method: 'POST', body: fd }));
   }
-  if (plan.storage !== 'nas' || typeof plan.uploadUrl !== 'string' || !plan.uploadUrl.startsWith('https://') || typeof plan.ticket !== 'string') fail('사진 저장소 설정을 확인해주세요.', 'NAS_CONFIG');
+  if (plan.storage !== 'nas' || typeof plan.uploadUrl !== 'string' || !plan.uploadUrl.startsWith('https://') || typeof plan.ticket !== 'string') fail('사진 저장소가 준비되지 않았어요. 잠시 후 다시 시도해주세요.', 'NAS_CONFIG');
   // A failed NAS request never silently uploads the photo to Supabase instead.
   let uploaded: Response;
   try {
     uploaded = await timedFetch(plan.uploadUrl, { method: 'PUT', headers: { Authorization: `Bearer ${plan.ticket}`, 'Content-Type': mime }, body: file, credentials: 'omit', redirect: 'error' }, 90_000);
-  } catch { fail('사진 저장소에 연결하지 못했어요. 접속 주소와 업로드 허용 설정을 확인해주세요.', 'NAS_CONNECT'); }
+  } catch { fail('사진 저장소에 연결하지 못했어요. 잠시 후 다시 시도해주세요.', 'NAS_CONNECT'); }
   if (!uploaded.ok) {
     const message = uploaded.status === 401
-      ? '사진 저장소 인증에 실패했어요. 서버와 NAS의 비밀키 및 시간을 확인해주세요.'
+      ? '사진 저장소 인증에 실패했어요. 관리자에게 문의해주세요.'
       : uploaded.status === 403 ? '현재 청첩장 주소에서 사진 업로드가 허용되지 않았어요.'
       : uploaded.status === 413 ? '사진이 너무 커서 저장소가 거절했어요.'
-      : uploaded.status === 404 ? '사진 업로드 주소를 찾지 못했어요. 저장소 주소를 확인해주세요.'
+      : uploaded.status === 404 ? '사진 업로드 주소를 찾지 못했어요. 관리자에게 문의해주세요.'
       : '사진 저장소가 업로드를 거절했어요. 잠시 후 다시 시도해주세요.';
     fail(message, `NAS_${uploaded.status}`);
   }
   const confirmation = await uploaded.json().catch(() => fail('사진 저장 완료 응답을 확인하지 못했어요.', 'NAS_RESPONSE'));
-  if (!confirmation || typeof confirmation.receipt !== 'string') fail('사진 저장 확인서가 없어요. 저장소 연결을 확인해주세요.', 'NAS_RECEIPT');
+  if (!confirmation || typeof confirmation.receipt !== 'string') fail('사진 저장 완료를 확인하지 못했어요. 잠시 후 앨범을 확인해주세요.', 'NAS_RECEIPT');
   const { receipt } = confirmation;
   // Retry metadata confirmation with the same receipt, never creating a second photo ID.
   let result: Result | undefined;

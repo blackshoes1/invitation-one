@@ -42,7 +42,7 @@ describe('photo upload error details', () => {
       .mockResolvedValueOnce(json({ error: 'private response' }, 401));
     const error = await uploadGuestPhoto(form(), 'session').catch(e => e);
     expect(photoUploadErrorMessage(error)).toContain('[NAS_401]');
-    expect(photoUploadErrorMessage(error)).toContain('비밀키');
+    expect(photoUploadErrorMessage(error)).toContain('인증');
     expect(photoUploadErrorMessage(error)).not.toContain('private response');
     expect(request).toHaveBeenCalledTimes(2);
   });
