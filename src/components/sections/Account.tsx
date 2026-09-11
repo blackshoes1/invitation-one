@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { accounts, type Account as Acct } from "@/lib/wedding";
+import { paymentUrl } from "@/lib/paymentLinks";
 import FadeIn from "@/components/FadeIn";
 
 async function copyText(text: string): Promise<boolean> {
@@ -42,13 +43,26 @@ function AccountRow({ acc }: { acc: Acct }) {
   };
 
   const handlePay = async (kind: "kakao" | "toss") => {
-    const url = kind === "kakao" ? acc.kakaoPayUrl : acc.tossUrl;
-    if (url) {
-      window.location.href = url;
+    const url = paymentUrl(
+      kind,
+      kind === "kakao" ? acc.kakaoPayUrl : acc.tossUrl,
+    );
+    const isMobile =
+      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+    if (url && isMobile) {
+      window.location.assign(url);
       return;
     }
-    if (await copyText(acc.number))
-      flash(`복사됐어요! ${kind === "kakao" ? "카카오페이" : "토스"}에서 붙여넣어 주세요`);
+
+    if (await copyText(acc.number)) {
+      flash(
+        url
+          ? "PC에서는 계좌번호를 복사해 드렸어요"
+          : `복사됐어요! ${kind === "kakao" ? "카카오페이" : "토스"}에서 붙여넣어 주세요`,
+      );
+    }
   };
 
   return (
