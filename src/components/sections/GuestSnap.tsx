@@ -13,6 +13,7 @@ import {
 } from "@/lib/wedding";
 import { compressImage } from "@/lib/image";
 import { applyFrame, FRAMES, type FrameId } from "@/lib/frames";
+import { uploadGuestPhoto } from "@/lib/uploadGuestPhoto";
 import FadeIn from "@/components/FadeIn";
 
 /**
@@ -25,7 +26,7 @@ const MAX_BATCH = 10;
 
 /**
  * 하객 스냅 — 하객이 찍은 사진을 청첩장에서 올리고 함께 보는 갤러리 (Epic A).
- * 업로드 → Supabase 'guest-photos' 버킷 → (NAS Cloud Sync 로 아카이브).
+ * NAS 모드에서는 사진을 NAS에 직접 업로드하고 DB에는 주소와 작성자만 저장.
  * 사진은 브라우저에서 압축·EXIF 제거 후 전송.
  */
 export default function GuestSnap({
@@ -58,14 +59,7 @@ export default function GuestSnap({
     j: { photo?: GuestPhoto; error?: string; code?: string };
   }> => {
     const send = async (tok: string) => {
-      fd.set("token", tok);
-      const res = await fetch("/api/guest-photos", { method: "POST", body: fd });
-      const j = (await res.json().catch(() => ({}))) as {
-        photo?: GuestPhoto;
-        error?: string;
-        code?: string;
-      };
-      return { res, j };
+      return uploadGuestPhoto(fd, tok);
     };
     let tok = tokenRef.current ?? (await renewToken());
     if (!tok) return { res: null, j: { error: "업로드 권한을 받지 못했어요. 청첩장을 새로고침 해주세요 🙏" } };
@@ -420,6 +414,7 @@ export default function GuestSnap({
                   {/* 3열 그리드 썸네일 — next/image 로 축소본 서빙 (원본 2000px 그대로 받지 않도록) */}
                   <Image
                     src={p.url}
+                    unoptimized={p.url.includes("/photos/snap/")}
                     alt={p.name ? `${p.name}님의 스냅` : "하객 스냅"}
                     fill
                     sizes="(max-width: 448px) 33vw, 150px"
@@ -451,6 +446,7 @@ export default function GuestSnap({
           {/* 원본은 폰 카메라 해상도 그대로 — 화면 폭에 맞춘 변환본을 받는다 */}
           <Image
             src={lightbox}
+            unoptimized={lightbox.includes("/photos/snap/")}
             alt="하객 스냅"
             fill
             sizes="100vw"

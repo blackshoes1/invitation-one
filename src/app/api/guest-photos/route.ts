@@ -21,6 +21,8 @@ const PER_IP = { limit: 300, windowSec: 600 };
  * - service role 로 Storage 업로드 + guest_photos insert (실패 시 파일 롤백).
  */
 export async function POST(req: Request) {
+  if (process.env.GUEST_PHOTO_STORAGE === "nas")
+    return NextResponse.json({ error: "청첩장을 새로고침한 뒤 다시 업로드해주세요.", code: "direct_upload_required" }, { status: 409 });
   if (!isAdminConfigured || !supabaseAdmin)
     return NextResponse.json({ error: "서버 설정이 필요합니다." }, { status: 503 });
 

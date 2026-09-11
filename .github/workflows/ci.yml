@@ -99,3 +99,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: bash scripts/db-verify.sh
+
+  nas-direct:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker run --rm -v "$PWD/ops/nas-upload:/app:ro" -w /app node:24-alpine node --test server.test.mjs

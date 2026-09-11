@@ -11,6 +11,9 @@ const supabaseOrigin = supabaseUrl ? new URL(supabaseUrl).origin : "https://*.su
  * 허용 출처: Supabase(REST/Storage/Realtime), 카카오(지도 SDK·공유 SDK·daumcdn 타일),
  *            네이버/티맵(링크만 — 리소스 로드 없음), YouTube 임베드, Pretendard(jsdelivr), next/font(self)
  */
+const nasBase = process.env.NAS_PHOTO_BASE_URL;
+const nasOrigin = nasBase ? new URL(nasBase).origin : "";
+
 const CSP = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -20,9 +23,9 @@ const CSP = [
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://dapi.kakao.com https://t1.kakaocdn.net https://*.daumcdn.net https://*.kakao.com",
   "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
   "font-src 'self' data: https://cdn.jsdelivr.net",
-  `img-src 'self' data: blob: ${supabaseOrigin} https://*.daumcdn.net https://*.kakaocdn.net https://*.kakao.com https://i.ytimg.com https://*.ytimg.com`,
+  `img-src 'self' data: blob: ${supabaseOrigin} ${nasOrigin} https://*.daumcdn.net https://*.kakaocdn.net https://*.kakao.com https://i.ytimg.com https://*.ytimg.com`,
   `media-src 'self' blob: ${supabaseOrigin}`,
-  `connect-src 'self' ${supabaseOrigin} ${supabaseOrigin.replace(/^https:/, "wss:")} https://dapi.kakao.com https://*.daumcdn.net https://*.kakao.com https://*.kakaocdn.net`,
+  `connect-src 'self' ${nasOrigin} ${supabaseOrigin} ${supabaseOrigin.replace(/^https:/, "wss:")} https://dapi.kakao.com https://*.daumcdn.net https://*.kakao.com https://*.kakaocdn.net`,
   "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://youtu.be https://*.kakao.com https://map.kakao.com https://map.naver.com https://tmap.life",
   "form-action 'self' https://*.kakao.com",
   "worker-src 'self' blob:",
@@ -70,13 +73,10 @@ const nextConfig: NextConfig = {
     minimumCacheTTL: 60 * 60 * 24 * 31, // 31일
     // 모바일 청첩장이라 데스크톱 대형 폭은 필요 없다 — 불필요한 변환본 생성을 막는다.
     deviceSizes: [360, 420, 640, 750, 828, 1080, 1200],
-    ...(supabaseUrl
-      ? {
-          remotePatterns: [
-            new URL(`${supabaseUrl.replace(/\/+$/, "")}/storage/v1/object/public/**`),
-          ],
-        }
-      : {}),
+    remotePatterns: [
+      ...(supabaseUrl ? [new URL(`${supabaseUrl.replace(/\/+$/, "")}/storage/v1/object/public/**`)] : []),
+      ...(nasOrigin ? [new URL(`${nasOrigin}/photos/snap/**`)] : []),
+    ],
   },
   async headers() {
     return [
