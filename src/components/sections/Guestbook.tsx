@@ -179,7 +179,7 @@ export default function Guestbook({
           )}
         </FadeIn>
 
-        <CelebrationForm onSent={() => setRefresh((value) => value + 1)} />
+        {!mapOnly && <CelebrationForm onSent={() => setRefresh((value) => value + 1)} />}
 
         {loadFailed && count === 0 ? (
           <p role="status" className="text-sm text-neutral-500 py-8">
@@ -256,6 +256,8 @@ export default function Guestbook({
             </FadeIn>
           </>
         )}
+
+        {mapOnly && <CelebrationForm onSent={() => setRefresh((value) => value + 1)} />}
 
         {/* 본인 확인 + 뱃지 — 종이 QR 진입자에게만 노출 */}
         {qrEntry && !mapOnly && (
