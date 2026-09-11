@@ -1,0 +1,35 @@
+services:
+  photo-archive:
+    image: rclone/rclone:1.75.1
+    container_name: invitation-photo-archive
+    user: "${NAS_UID:?Set NAS_UID in .env}:${NAS_GID:?Set NAS_GID in .env}"
+    init: true
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/app/archive.sh"]
+    environment:
+      ARCHIVE_INTERVAL_SECONDS: "300"
+      RCLONE_CONFIG: /config/rclone.conf
+      ARCHIVE_DEST: /archive/guest-photos
+      ARCHIVE_STATE: /archive/.archive-status
+    volumes:
+      - ./archive.sh:/app/archive.sh:ro
+      - ./healthcheck.sh:/app/healthcheck.sh:ro
+      - ./rclone.conf:/config/rclone.conf:ro
+      # Change only the left side to your NAS photo archive folder.
+      - /volume1/photo/wedding-snaps:/archive
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "/bin/sh", "/app/healthcheck.sh"]
+      interval: 60s
+      timeout: 10s
+      start_period: 60s
+      retries: 2
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"

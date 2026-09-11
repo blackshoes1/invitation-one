@@ -1,0 +1,10 @@
+[supabase]
+type = s3
+provider = Other
+env_auth = false
+access_key_id = REPLACE_ACCESS_KEY_ID
+secret_access_key = REPLACE_SECRET_ACCESS_KEY
+region = REPLACE_PROJECT_REGION
+endpoint = https://ljrwfhcksjjdmvtwpxdh.storage.supabase.co/storage/v1/s3
+force_path_style = true
+no_check_bucket = true

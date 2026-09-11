@@ -5,7 +5,7 @@
  * 사용법:  npm run backup
  * 필요:    .env.local 의 NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY
  *
- * ※ Storage 파일(사진 원본)은 포함하지 않음 — guest-photos 는 NAS Cloud Sync
+ * ※ Storage 파일은 포함하지 않음 — guest-photos 는 별도 NAS 보관 프로그램
  *   (docs/NAS_SYNC.md), invitation-media(갤러리/앨범)는 필요 시 Supabase
  *   대시보드 → Storage 에서 수동 다운로드.
  * ※ 새 테이블을 만들면 아래 TABLES 에 추가할 것.
