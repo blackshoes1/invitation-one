@@ -90,16 +90,20 @@ export default function OrdersTab({
 
   const changeStatus = async (id: string, status: DeliveryStatus) => {
     if (acting) return; // 진행 중 연타 방지 — SMS 중복 발송 가드
+    const restoring = status === "대기중";
+    if (restoring && !confirm("취소된 주문을 대기중으로 복구할까요? 숨김도 해제됩니다. 안내 문자는 보내지 않습니다.")) return;
     setActing(id);
     setNotice(null);
     try {
       const res = await api(`/api/admin/deliveries/${id}`, {
         method: "PATCH",
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(restoring ? { action: "restore" } : { status }),
       });
       const j = await res.json();
       if (!res.ok) return setError(j.error ?? "변경 실패");
-      if (status === "확정") {
+      if (restoring) {
+        setNotice("대기중으로 복구하고 숨김을 해제했습니다. 안내 문자는 보내지 않았어요.");
+      } else if (status === "확정") {
         // 한 건이라도 못 보냈으면 초록 알림이 아니라 빨간 오류다 (smsResult 참고)
         const r = describeSms(j.sms as SmsOutcome | null, "확정 처리");
         (r.ok ? setNotice : setError)(r.text);
@@ -145,7 +149,7 @@ export default function OrdersTab({
     setError(null);
     setNotice(null);
 
-    const notify = notifyOnSchedule;
+    const notify = notifyOnSchedule && rows.find((r) => r.id === editSched.id)?.status !== "취소";
     const res = await api(`/api/admin/deliveries/${editSched.id}`, {
       method: "PATCH",
       body: JSON.stringify({

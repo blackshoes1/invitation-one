@@ -137,8 +137,8 @@ export default function OrderCard({
         </div>
       )}
 
-      {/* 일정·장소 수정(취소 외 모든 주문 — 완료 후 정정 포함) + 합치기(활성 주문만) */}
-      {r.status !== "취소" && (
+      {/* 취소 상태에서도 일정 수정 가능. 합치기는 활성 주문만 허용. */}
+      {(
         <div className="flex justify-end gap-2 flex-wrap">
           <button
             onClick={() =>
@@ -162,7 +162,7 @@ export default function OrderCard({
           >
             {editSched?.id === r.id ? "수정 닫기" : "📝 일정·장소 수정"}
           </button>
-          {r.status !== "완료" &&
+          {r.status !== "완료" && r.status !== "취소" &&
             (mergeSource === null ? (
               <button
                 onClick={() => setMergeSource(r.id)}
@@ -221,11 +221,18 @@ export default function OrderCard({
           onSave={onSaveSchedule}
           notify={notify}
           setNotify={setNotify}
+          cancelled={r.status === "취소"}
         />
       )}
 
-      {(nextAction || cancelable) && (
+      {(nextAction || cancelable || r.status === "취소") && (
         <div className="flex justify-end gap-2">
+          {r.status === "취소" && (
+            <button onClick={() => onChangeStatus(r.id, "대기중")} disabled={acting !== null}
+              className="px-3 py-1.5 text-xs bg-sage-600 text-white disabled:opacity-40">
+              {acting === r.id ? "복구 중…" : "대기중으로 복구"}
+            </button>
+          )}
           {cancelable && (
             <button
               onClick={() => onChangeStatus(r.id, "취소")}
