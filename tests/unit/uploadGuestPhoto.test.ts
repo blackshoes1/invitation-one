@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { uploadGuestPhoto } from '@/lib/uploadGuestPhoto';
+import { uploadGuestPhoto, photoUploadErrorMessage } from '@/lib/uploadGuestPhoto';
 const request = vi.fn();
 const json = (body: object, status = 200) => new Response(JSON.stringify(body), { status });
 const form = () => { const fd = new FormData(); fd.set('file', new File([new Uint8Array([255,216,255,224])], 'photo.jpg', { type: 'image/jpeg' })); return fd; };
@@ -32,5 +32,32 @@ describe('browser NAS photo flow', () => {
     await uploadGuestPhoto(form(), 'session');
     expect(request.mock.calls[1][0]).toBe('/api/guest-photos');
     expect(request.mock.calls[1][1].body).toBeInstanceOf(FormData);
+  });
+});
+
+
+describe('photo upload error details', () => {
+  it('shows NAS authentication rejection without exposing raw response contents', async () => {
+    request.mockResolvedValueOnce(json({ storage: 'nas', uploadUrl: 'https://nas.invalid/photo', ticket: 'ticket' }))
+      .mockResolvedValueOnce(json({ error: 'private response' }, 401));
+    const error = await uploadGuestPhoto(form(), 'session').catch(e => e);
+    expect(photoUploadErrorMessage(error)).toContain('[NAS_401]');
+    expect(photoUploadErrorMessage(error)).toContain('비밀키');
+    expect(photoUploadErrorMessage(error)).not.toContain('private response');
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+  it('labels a failed connection instead of hiding it behind the generic message', async () => {
+    request.mockResolvedValueOnce(json({ storage: 'nas', uploadUrl: 'https://nas.invalid/photo', ticket: 'ticket' })).mockRejectedValueOnce(new Error('offline'));
+    const error = await uploadGuestPhoto(form(), 'session').catch(e => e);
+    expect(photoUploadErrorMessage(error)).toContain('[NAS_CONNECT]');
+  });
+  it('identifies a non-JSON preparation response', async () => {
+    request.mockResolvedValueOnce(new Response('<html>gateway</html>', { status: 502 }));
+    const error = await uploadGuestPhoto(form(), 'session').catch(e => e);
+    expect(photoUploadErrorMessage(error)).toContain('[PREPARE_502]');
+  });
+  it('keeps unexpected exception internals out of the public UI', () => {
+    expect(photoUploadErrorMessage(new Error('secret=value'))).toContain('[PHOTO_PROCESS]');
+    expect(photoUploadErrorMessage(new Error('secret=value'))).not.toContain('secret');
   });
 });

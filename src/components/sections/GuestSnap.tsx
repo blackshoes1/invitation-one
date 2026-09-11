@@ -13,7 +13,7 @@ import {
 } from "@/lib/wedding";
 import { compressImage } from "@/lib/image";
 import { applyFrame, FRAMES, type FrameId } from "@/lib/frames";
-import { uploadGuestPhoto } from "@/lib/uploadGuestPhoto";
+import { uploadGuestPhoto, photoUploadErrorMessage } from "@/lib/uploadGuestPhoto";
 import FadeIn from "@/components/FadeIn";
 
 /**
@@ -261,8 +261,8 @@ export default function GuestSnap({
           setPhotos((prev) => [j.photo as GuestPhoto, ...prev]);
           ok += 1;
           setDone(ok);
-        } catch {
-          failure = "업로드 중 오류가 발생했어요.";
+        } catch (error) {
+          failure = photoUploadErrorMessage(error);
           remaining.push(file);
         }
       }
