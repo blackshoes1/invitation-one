@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import type { Group, GroupMemberRow } from "@/lib/supabase";
 import { formatPhone } from "@/lib/wedding";
 import type { TabCtx } from "@/app/admin/shared";
+import SoloOrderForm from "./SoloOrderForm";
 
 /**
  * 개별 초대 — 모임에 속하지 않은 사람에게 이름·연락처가 자동 입력되는 링크를 준다.
@@ -21,6 +22,7 @@ export default function SoloInvites({ api, setError, setNotice, groups, onGroupe
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
+  const [orderMember, setOrderMember] = useState<GroupMemberRow | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [grouping, setGrouping] = useState(false);
   const [target, setTarget] = useState("new");
@@ -314,6 +316,10 @@ export default function SoloInvites({ api, setError, setNotice, groups, onGroupe
             </div>
           )}
 
+          {orderMember && <SoloOrderForm key={orderMember.id} member={orderMember}
+            api={api} setError={setError} setNotice={setNotice}
+            onClose={() => setOrderMember(null)} onCreated={load} />}
+
           <ul className="space-y-2">
             {(rows ?? []).map((m) => (
               <li key={m.id} className="flex flex-wrap items-center gap-2 text-sm text-neutral-600 px-1">
@@ -340,6 +346,13 @@ export default function SoloInvites({ api, setError, setNotice, groups, onGroupe
                 {m.applied && (
                   <span className="text-[10px] whitespace-nowrap text-sage-700">신청</span>
                 )}
+                <button type="button" disabled={busy || Boolean(m.applied)}
+                  aria-label={`${m.name} 주문 생성`}
+                  onClick={async () => {
+                    if (await savePhone(m, phoneDrafts.current.get(m.id) ?? m.phone ?? ""))
+                      setOrderMember({ ...m, phone: phoneValues[m.id] ?? m.phone });
+                  }}
+                  className="text-xs text-sage-700 whitespace-nowrap disabled:opacity-40">주문 생성</button>
                 <button
                   onClick={() => issue(m)}
                   disabled={busy}

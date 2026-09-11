@@ -122,6 +122,10 @@ export async function POST(req: Request) {
     );
 
   const groupId = typeof b.group_id === "string" && b.group_id ? b.group_id : null;
+  const memberId = b.member_id;
+  if (memberId !== undefined && (typeof memberId !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(memberId) || groupId))
+    return NextResponse.json({ error: "개별 초대 인원을 다시 선택해주세요." }, { status: 400 });
   // 그룹 주문이면 명단 전원을 신청 처리 (기본 동작 — 체크 해제 시 대표자만)
   const includeRoster = Boolean(groupId) && b.include_roster !== false;
   const rider = RIDERS.includes(b.rider as never) ? (b.rider as string) : "신랑";
@@ -137,7 +141,7 @@ export async function POST(req: Request) {
       ? b.request_key.slice(0, 100)
       : crypto.randomUUID();
 
-  if (ownerName || ownerPhone) {
+  if (memberId === undefined && (ownerName || ownerPhone)) {
     if (ownerName.length < 2)
       return NextResponse.json({ error: "대표자 성함을 2자 이상 입력해주세요." }, { status: 400 });
     if (!isValidPhone(ownerPhone))
@@ -147,7 +151,10 @@ export async function POST(req: Request) {
       );
   }
 
-  const { data, error } = await supabaseAdmin!.rpc("admin_create_order_v1", {
+  const { data, error } = await supabaseAdmin!.rpc(memberId ? "admin_create_solo_order_v1" : "admin_create_order_v1", memberId ? {
+    p_request_key: requestKey, p_member: memberId, p_location: location,
+    p_date: date, p_time: slot, p_message: message, p_rider: rider,
+  } : {
     p_request_key: requestKey,
     p_group_id: groupId,
     p_owner_name: ownerName || null,
@@ -160,6 +167,10 @@ export async function POST(req: Request) {
     p_include_roster: includeRoster,
   });
   if (error) {
+    if (error.message.includes("already_ordered"))
+      return NextResponse.json({ error: "이미 유효한 주문이 있어요. 주문 탭에서 기존 신청을 확인해주세요." }, { status: 409 });
+    if (error.message.includes("member_invalid"))
+      return NextResponse.json({ error: "개별 초대 명단이 변경됐어요. 목록을 새로고침해주세요." }, { status: 409 });
     // 예상 가능한 거절과 진짜 오류를 구분해서 내려준다 — 예전에는 명단 등록 실패가
     // 성공 응답의 skipped 인원으로 둔갑했다.
     if (error.message.includes("date_blocked"))

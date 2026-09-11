@@ -26,6 +26,7 @@ export async function PATCH(
 
   const { id } = await params;
   const body = (await req.json()) as {
+    action?: string;
     status?: DeliveryStatus;
     tracking_stage?: TrackingStage;
     // 일정 수정 (그룹 담당자가 신청한 일자·시간·장소를 관리자가 조정)
@@ -36,6 +37,20 @@ export async function PATCH(
     /** 표시 전용 숨김 — DB 는 보존하고 관리자 목록에서만 감춘다 */
     hidden?: boolean;
   };
+
+  if (body.action === "restore") {
+    const { data, error } = await supabaseAdmin!.rpc("admin_restore_order_v1", { p_delivery: id });
+    if (error) return NextResponse.json({ error: "복구하지 못했습니다. 잠시 후 다시 시도해주세요." }, { status: 500 });
+    const messages: Record<string, string> = {
+      empty: "참여자가 없는 주문입니다. 개별 초대 또는 그룹에서 새 주문을 만들어주세요.",
+      conflict: "이미 다른 주문에 신청한 참여자가 있어요. 기존 신청을 확인한 뒤 복구해주세요.",
+      blocked: "차단된 날짜입니다. 일정·장소를 수정하거나 날짜 차단을 해제한 뒤 복구해주세요.",
+      not_found: "주문을 찾을 수 없습니다.",
+    };
+    if (data !== "ok" && data !== "already_restored")
+      return NextResponse.json({ error: messages[data] ?? "취소된 주문만 복구할 수 있어요." }, { status: 409 });
+    return NextResponse.json({ restored: true });
+  }
 
   const patch: {
     status?: DeliveryStatus;
@@ -240,7 +255,7 @@ export async function PATCH(
 
 
   // 일정 변경 → 참여자 전원에게 변경 안내 SMS (notify=false 로 생략 가능)
-  if (data && scheduleChange && body.notify !== false) {
+  if (data && data.status !== "취소" && scheduleChange && body.notify !== false) {
     const { data: parts } = await supabaseAdmin!
       .from("participants")
       .select("name, phone")
