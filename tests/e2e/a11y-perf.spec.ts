@@ -10,6 +10,37 @@ import { test, expect } from "@playwright/test";
 const KEY = process.env.NEXT_PUBLIC_INVITATION_KEY ?? "ci-dummy-key";
 const HOME = `/?key=${encodeURIComponent(KEY)}`;
 
+test("청첩장은 큰 글씨가 기본이고 작은 글씨 선택을 기억한다", async ({ page }) => {
+  await page.goto(HOME);
+
+  const toggle = page.getByRole("button", { name: "작은 글씨로 보기" });
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  expect(
+    await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize))
+  ).toBeGreaterThan(16);
+
+  await toggle.click();
+  await expect(page.getByRole("button", { name: "큰 글씨로 보기" })).toHaveAttribute(
+    "aria-pressed",
+    "false"
+  );
+  await page.reload();
+  await expect(page.getByRole("button", { name: "큰 글씨로 보기" })).toHaveAttribute(
+    "aria-pressed",
+    "false"
+  );
+});
+
+test("청첩장 본문은 한글 어절 단위 줄바꿈을 사용한다", async ({ page }) => {
+  await page.goto(HOME);
+  const wrapping = await page.locator("main.invitation-content").evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { wordBreak: style.wordBreak, overflowWrap: style.overflowWrap };
+  });
+
+  expect(wrapping).toEqual({ wordBreak: "keep-all", overflowWrap: "break-word" });
+});
+
 test("페이지 제목 역할을 하는 h1 이 하나 있고 신랑신부 이름을 담는다", async ({
   page,
 }) => {
