@@ -82,7 +82,7 @@ export default async function Home({
   const heroUrl = await fetchHeroImage();
 
   return (
-    <main className="w-full min-h-screen bg-white text-neutral-800 antialiased">
+    <main className="invitation-content w-full min-h-screen bg-white text-neutral-800 antialiased">
       <RememberInvitationKey />
       <TextSizeToggle />
       <BgmToggle />
