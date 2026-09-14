@@ -11,7 +11,7 @@ create table notification_outbox(participant_id uuid,status text,last_error text
 create function enqueue() returns trigger language plpgsql as $$begin insert into public.notification_outbox values(new.id,'pending',null,now()); return new; end;$$;
 create trigger enqueue after insert on participants for each row execute function enqueue();
 grant all on all tables in schema public to service_role;`);
-await db.exec(readFileSync(new URL('../../supabase/migrations/20260914045031_admin_add_order_member.sql', import.meta.url),'utf8'));
+await db.exec(readFileSync(new URL('../../supabase/migrations/20260914051154_admin_add_order_member.sql', import.meta.url),'utf8'));
 const u = n => `00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
 await db.query(`insert into deliveries values ($1,$3,'대기중'),($2,$3,'확정'),($4,$3,'취소'),($5,null,'대기중'),($6,$3,'완료')`,[u(1),u(2),u(9),u(3),u(4),u(5)]);
 for (let n=10;n<17;n++) await db.query('insert into group_members values($1,$2,$3,null)',[u(n),u(n===16?99:9),`사람${n}`]);

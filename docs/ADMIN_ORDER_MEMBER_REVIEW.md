@@ -13,7 +13,7 @@
 
 ## 적용
 
-`supabase/migrations/20260914045031_admin_add_order_member.sql`을 대상 DB에 먼저 적용한 후 앱을 배포한다.
+`supabase/migrations/20260914051154_admin_add_order_member.sql`을 대상 DB에 먼저 적용한 후 앱을 배포한다.
 기존 행/테이블은 변경하지 않으며 service_role만 새 함수를 실행할 수 있다.
 이번 작업에서 운영 DB 적용, 실제 알림 발송, 운영 배포는 수행하지 않았다.
 
