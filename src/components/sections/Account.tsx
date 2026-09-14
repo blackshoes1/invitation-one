@@ -40,7 +40,9 @@ function AccountRow({ acc }: { acc: Acct }) {
   };
 
   const handleCopy = async () => {
-    if (await copyText(`${acc.bank} ${acc.number} ${acc.name}`)) flash("복사됐어요!");
+    flash(await copyText(acc.number)
+      ? "계좌번호를 복사했어요. 은행 앱에서 이체해주세요."
+      : "복사하지 못했어요. 위 계좌번호를 직접 입력해주세요.");
   };
 
   const handlePay = (event: MouseEvent<HTMLAnchorElement>, kind: PaymentProvider) => {
@@ -83,13 +85,13 @@ function AccountRow({ acc }: { acc: Acct }) {
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <a
-          href={paymentAppUrl("kakao", acc.kakaoPayUrl)}
-          onClick={(event) => handlePay(event, "kakao")}
+        <button
+          type="button"
+          onClick={handleCopy}
           className="py-2 text-center text-[11px] bg-[#FEE500] text-[#3C1E1E] font-medium tracking-wide rounded-sm"
         >
-          카카오페이로 보내기
-        </a>
+          카카오뱅크 계좌번호 복사
+        </button>
         <a
           href={paymentAppUrl("toss", acc.tossUrl)}
           onClick={(event) => handlePay(event, "toss")}
@@ -98,6 +100,8 @@ function AccountRow({ acc }: { acc: Acct }) {
           토스로 보내기
         </a>
       </div>
+
+      <p className="text-xs text-neutral-600 leading-relaxed">복사한 계좌번호로 은행 앱에서 카카오뱅크 계좌에 이체해주세요.</p>
 
       {selectedApp && <div className="text-xs text-neutral-600 leading-relaxed space-y-2">
         <p>앱에서 은행·계좌번호와 받는 분을 확인한 뒤 송금해주세요.</p>
