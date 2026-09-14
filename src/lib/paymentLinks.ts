@@ -1,5 +1,11 @@
 export type PaymentProvider = "kakao" | "toss";
 
+// App launch only: never invent account-prefill/transfer endpoints.
+export const PAYMENT_APPS = {
+  kakao: { scheme: "kakaopay://", website: "https://www.kakaopay.com/" },
+  toss: { scheme: "supertoss://", website: "https://toss.im/" },
+} as const;
+
 const configuredLinks: Record<PaymentProvider, string | undefined> = {
   kakao: process.env.NEXT_PUBLIC_KAKAO_PAY_URL,
   toss: process.env.NEXT_PUBLIC_TOSS_PAY_URL,
@@ -22,4 +28,8 @@ export function paymentUrl(
   } catch {
     return undefined;
   }
+}
+
+export function paymentAppUrl(provider: PaymentProvider, accountUrl?: string): string {
+  return paymentUrl(provider, accountUrl) ?? PAYMENT_APPS[provider].scheme;
 }

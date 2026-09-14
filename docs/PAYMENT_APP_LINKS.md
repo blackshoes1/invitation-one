@@ -1,0 +1,10 @@
+# 축의금 앱 연결
+
+- 모바일에서 카카오페이/토스 버튼은 native anchor로 앱을 호출한다.
+- 계좌별 URL 또는 NEXT_PUBLIC_KAKAO_PAY_URL / NEXT_PUBLIC_TOSS_PAY_URL의 유효한 HTTPS 링크를 우선한다. 없으면 고정 앱 실행 스킴 `kakaopay://`, `supertoss://`를 사용한다.
+- 계좌 복사는 best-effort로 실행하며, clipboard 응답을 기다리느라 최초 클릭의 앱 실행 권한을 잃지 않도록 한다. PC는 앱 실행 대신 계좌 복사 안내를 제공한다.
+- 계좌 자동 입력, 송금 화면 진입, 송금 완료는 보장하지 않는다. 임의의 계좌 송금 API나 금액 파라미터를 만들지 않는다.
+- 앱 미설치/인앱 브라우저 차단은 브라우저에서 확실히 감지할 수 없으므로 자동 스토어 이동 타이머를 쓰지 않는다. 복사 재시도·공식 설치 안내를 유지한다.
+- 실제 iOS/Android 앱 실행은 사용자의 설치된 앱과 브라우저에서 수동 확인이 필요하다. 자동 테스트는 연결 URL과 브라우저 동작까지만 검증한다.
+
+참고: [카카오페이 앱 스킴 안내](https://developers.kakaopay.com/forum/t/topic/1055), [토스 스킴 문서](https://developers-apps-in-toss.toss.im/learn-more/query-parameter-deprecated.html). 앱 내부 송금 경로를 공식 계약으로 가정하지 않는다.
