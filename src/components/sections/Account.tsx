@@ -1,9 +1,8 @@
 "use client";
 
-import { useId, useState, type MouseEvent } from "react";
+import { useId, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { accounts, type Account as Acct } from "@/lib/wedding";
-import { paymentAppUrl, PAYMENT_APPS, type PaymentProvider } from "@/lib/paymentLinks";
 import FadeIn from "@/components/FadeIn";
 
 async function copyText(text: string): Promise<boolean> {
@@ -32,7 +31,6 @@ async function copyText(text: string): Promise<boolean> {
 
 function AccountRow({ acc }: { acc: Acct }) {
   const [toast, setToast] = useState<string | null>(null);
-  const [selectedApp, setSelectedApp] = useState<PaymentProvider | null>(null);
 
   const flash = (msg: string) => {
     setToast(msg);
@@ -43,20 +41,6 @@ function AccountRow({ acc }: { acc: Acct }) {
     flash(await copyText(acc.number)
       ? "계좌번호를 복사했어요. 은행 앱에서 이체해주세요."
       : "복사하지 못했어요. 위 계좌번호를 직접 입력해주세요.");
-  };
-
-  const handlePay = (event: MouseEvent<HTMLAnchorElement>, kind: PaymentProvider) => {
-    const isMobile =
-      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
-      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-
-    if (!isMobile) event.preventDefault();
-    setSelectedApp(kind);
-    // Keep native link activation in the original tap. Awaiting clipboard permission
-    // first can lose user activation and prevent iOS/in-app browsers from opening apps.
-    void copyText(acc.number).then((copied) => flash(copied
-      ? isMobile ? "계좌번호를 복사했어요. 앱에서 붙여넣어 주세요." : "PC에서는 계좌번호를 복사해 드렸어요. 휴대폰 앱에서 보내주세요."
-      : "복사하지 못했어요. 위 계좌번호를 직접 입력해주세요."));
   };
 
   return (
@@ -84,35 +68,7 @@ function AccountRow({ acc }: { acc: Acct }) {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="py-2 text-center text-[11px] bg-[#FEE500] text-[#3C1E1E] font-medium tracking-wide rounded-sm"
-        >
-          카카오뱅크 계좌번호 복사
-        </button>
-        <a
-          href={paymentAppUrl("toss", acc.tossUrl)}
-          onClick={(event) => handlePay(event, "toss")}
-          className="py-2 text-center text-[11px] bg-[#3182F6] text-white font-medium tracking-wide rounded-sm"
-        >
-          토스로 보내기
-        </a>
-      </div>
-
       <p className="text-xs text-neutral-600 leading-relaxed">복사한 계좌번호로 은행 앱에서 카카오뱅크 계좌에 이체해주세요.</p>
-
-      {selectedApp && <div className="text-xs text-neutral-600 leading-relaxed space-y-2">
-        <p>앱에서 은행·계좌번호와 받는 분을 확인한 뒤 송금해주세요.</p>
-        <p>앱이 열리지 않으면 설치 여부를 확인하거나 Safari·Chrome에서 다시 열어주세요.</p>
-        <div className="flex gap-4">
-          <button type="button" onClick={handleCopy} className="underline">계좌 다시 복사</button>
-          <a href={PAYMENT_APPS[selectedApp].website} target="_blank" rel="noopener noreferrer" className="underline">
-            {selectedApp === "kakao" ? "카카오페이" : "토스"} 설치 안내
-          </a>
-        </div>
-      </div>}
 
       {/* 복사 완료 등 짧은 안내 — 스크린리더에도 전달되도록 라이브 영역으로 둔다 */}
       <p className="text-[11px] text-sage-600 text-center" role="status">
