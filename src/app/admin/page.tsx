@@ -11,6 +11,7 @@ import MessagesTab from "@/components/admin/MessagesTab";
 import SnapTab from "@/components/admin/SnapTab";
 import ContentTab from "@/components/admin/ContentTab";
 import GroupsTab from "@/components/admin/GroupsTab";
+import AdminShell from "@/components/admin/AdminShell";
 import { Metric } from "@/components/admin/ui";
 import { type AdminStats, type Totals, type View } from "@/app/admin/shared";
 
@@ -186,45 +187,11 @@ export default function AdminPage() {
 
   /* ----------------------------- 본문 ----------------------------- */
   return (
-    <main className="min-h-screen bg-wedding-cream px-4 py-8">
-      <div className="max-w-2xl mx-auto space-y-5">
-        <h1 className="font-serif text-xl text-sage-700 tracking-widest text-center">
-          배달 관리자
-        </h1>
-
-        <div className="flex justify-center gap-2 flex-wrap">
-          {(
-            [
-              ["dashboard", "요약"],
-              ["orders", "주문"],
-              ["calendar", "캘린더"],
-              ["route", "배송경로"],
-              ["groups", "그룹"],
-              ["waiting", "대기자"],
-              ["messages", "방명록"],
-              ["snap", "하객스냅"],
-              ["field", "현장운영"],
-              ["content", "콘텐츠"],
-            ] as [View, string][]
-          ).map(([v, label]) => (
-            <button
-              key={v}
-              onClick={() => {
-                setView(v);
-                // 주문·캘린더·경로·대기자·방명록·스냅·콘텐츠 탭은 마운트 시 자체 로드
-                if (v === "dashboard") loadStats();
-                if (v === "groups") loadGroups();
-              }}
-              className={`px-4 py-2 text-xs tracking-wider border ${
-                view === v
-                  ? "bg-sage-700 text-white border-sage-700"
-                  : "bg-white text-neutral-500 border-wedding-gold/20"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+    <AdminShell view={view} onNavigate={(v) => {
+      setView(v);
+      if (v === "dashboard") loadStats();
+      if (v === "groups") loadGroups();
+    }}>
 
         {(notify?.status === "expired" || notify?.status === "error") && (
           <p className="text-xs text-center text-red-600 bg-red-50 py-2 border border-red-200">
@@ -399,8 +366,6 @@ export default function AdminPage() {
         {view === "content" && (
           <ContentTab api={api} setError={setError} setNotice={setNotice} />
         )}
-      </div>
-    </main>
+    </AdminShell>
   );
 }
-
