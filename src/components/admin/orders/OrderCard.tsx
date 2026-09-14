@@ -7,11 +7,14 @@ import { formatYmdKo } from "@/lib/wedding";
 import { splitRegion } from "@/lib/regions";
 import { type AdminDelivery, ownerName, NEXT_ACTION } from "@/app/admin/shared";
 import ScheduleEditor from "./ScheduleEditor";
+import AddOrderMember from "./AddOrderMember";
+import type { AdminApi } from "@/app/admin/shared";
+import type { Group } from "@/lib/supabase";
 import type { EditSched } from "./types";
 
 /** 주문 1건 카드 — 참여자 명단·추적 단계·일정 수정·합치기·상태 변경 버튼 */
 export default function OrderCard({
-  r,
+  r, api, groups, onMembersAdded,
   groupName,
   acting,
   mergeSource,
@@ -27,6 +30,9 @@ export default function OrderCard({
   onToggleHidden,
 }: {
   r: AdminDelivery;
+  api: AdminApi;
+  groups: Group[];
+  onMembersAdded: () => Promise<void>;
   groupName: (id: string | null) => string;
   acting: string | null;
   mergeSource: string | null;
@@ -112,6 +118,8 @@ export default function OrderCard({
           ))}
         </ul>
       )}
+
+      {cancelable && <AddOrderMember orderId={r.id} groupId={r.group_id} groups={groups} api={api} onAdded={onMembersAdded} />}
 
       {/* 배송 추적 단계 (재미 트래킹, 하객 화면 실시간 반영) */}
       {r.status !== "취소" && (

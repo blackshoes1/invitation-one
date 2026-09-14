@@ -292,6 +292,9 @@ export default function OrdersTab({
           <OrderCard
             key={r.id}
             r={r}
+            api={api}
+            groups={groups}
+            onMembersAdded={() => loadOrders()}
             groupName={groupName}
             acting={acting}
             mergeSource={mergeSource}
