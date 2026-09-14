@@ -6,7 +6,7 @@ test("payment buttons have app links and desktop keeps copy fallback", async ({ 
   });
   await page.goto("/?key=ci-dummy-key");
   await page.getByRole("button", { name: "마음 전하기 · 계좌 보기" }).click();
-  await expect(page.getByRole("link", { name: "카카오페이로 보내기" })).toHaveAttribute("href", "kakaopay://");
+  await expect(page.getByRole("link", { name: "카카오페이로 보내기" })).toHaveAttribute("href", "https://qr.kakaopay.com/Ej7kfQhHh");
   const toss = page.getByRole("link", { name: "토스로 보내기" });
   await expect(toss).toHaveAttribute("href", "supertoss://");
   await toss.click();
@@ -24,7 +24,7 @@ test("mobile tap retains native app navigation even when clipboard fails", async
     // Observe React's decision, then suppress launching a real external payment app in CI.
     document.addEventListener("click", (e) => {
       const a = (e.target as Element).closest("a");
-      if (a?.getAttribute("href") === "kakaopay://") {
+      if (a?.getAttribute("href") === "https://qr.kakaopay.com/Ej7kfQhHh") {
         document.documentElement.dataset.nativeAppNavigation = String(!e.defaultPrevented);
         e.preventDefault();
       }

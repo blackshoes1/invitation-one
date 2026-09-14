@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { paymentAppUrl, paymentUrl } from "@/lib/paymentLinks";
+import { accounts } from "@/lib/wedding";
 
 describe("payment links", () => {
+  it("uses the supplied recipient QR link instead of the bare Kakao app scheme", () => {
+    expect(paymentAppUrl("kakao", accounts[0].kakaoPayUrl)).toBe("https://qr.kakaopay.com/Ej7kfQhHh");
+  });
   it("opens the selected app when no personal payment URL is configured", () => {
     expect(paymentAppUrl("kakao")).toBe("kakaopay://");
     expect(paymentAppUrl("toss")).toBe("supertoss://");
