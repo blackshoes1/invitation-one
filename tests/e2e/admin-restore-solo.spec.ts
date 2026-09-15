@@ -47,6 +47,7 @@ test("solo invite creates a personal order from the selected roster entry", asyn
       : path === "/api/admin/deliveries" ? { deliveries: [] } : {} });
   });
   await page.goto("/admin");
+  await page.getByRole("button", { name: "메뉴 열기" }).click();
   await page.getByRole("button", { name: "그룹", exact: true }).click();
   await page.getByRole("button", { name: /개별 초대/ }).click();
   await page.getByRole("button", { name: "개별하객 주문 생성" }).click();
