@@ -73,6 +73,23 @@ export async function PATCH(
     body.time_slot !== undefined ||
     body.location !== undefined;
   if (scheduleChange) {
+    // 일정 수정 폼은 날짜를 바꾸지 않아도 현재 날짜를 함께 보낸다. 해당 날짜가
+    // 신규 신청 마감 상태라면 자기 주문 때문에 장소·시간 수정까지 막히던 문제를
+    // 피하려고, 현재 주문의 날짜인지 먼저 구분한다.
+    let currentDate: string | undefined;
+    if (body.date !== undefined || body.time_slot !== undefined) {
+      const { data: current, error: currentError } = await supabaseAdmin!
+        .from("deliveries")
+        .select("date")
+        .eq("id", id)
+        .maybeSingle();
+      if (currentError)
+        return NextResponse.json({ error: currentError.message }, { status: 500 });
+      if (!current)
+        return NextResponse.json({ error: "not found" }, { status: 404 });
+      currentDate = current.date as string;
+    }
+
     if (body.date !== undefined) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(body.date))
         return NextResponse.json({ error: "날짜 형식이 올바르지 않습니다." }, { status: 400 });
@@ -81,17 +98,22 @@ export async function PATCH(
           { error: `배달 가능 기간(${DELIVERY_START}~${DELIVERY_END})을 벗어났어요.` },
           { status: 400 }
         );
-      // 차단일 검사 — 관리자가 직접 막아둔 날이므로 실수 예약을 방지
-      const { data: blocked } = await supabaseAdmin!
-        .from("blocked_dates")
-        .select("date")
-        .eq("date", body.date)
-        .maybeSingle();
-      if (blocked)
-        return NextResponse.json(
-          { error: "차단된 날짜예요. 캘린더 탭에서 차단을 해제한 뒤 변경하세요." },
-          { status: 409 }
-        );
+      // 다른 날짜로 옮길 때만 신규 신청 마감을 검사한다. 현재 주문이 이미 자리한
+      // 날짜는 마감돼 있어도 그 주문의 시간·장소를 수정할 수 있어야 한다.
+      if (body.date !== currentDate) {
+        const { data: blocked, error: blockedError } = await supabaseAdmin!
+          .from("blocked_dates")
+          .select("date")
+          .eq("date", body.date)
+          .maybeSingle();
+        if (blockedError)
+          return NextResponse.json({ error: blockedError.message }, { status: 500 });
+        if (blocked)
+          return NextResponse.json(
+            { error: "차단된 날짜예요. 캘린더 탭에서 차단을 해제한 뒤 변경하세요." },
+            { status: 409 }
+          );
+      }
       // ※ 같은 날짜 중복 주문은 허용된다 (v10_multi_orders 에서 하루 1건 제한 폐지 —
       //    마감은 blocked_dates 로만 관리). 예전 규칙대로 중복 검사를 하면 같은 날
       //    다른 주문이 있는 건의 일정 수정이 전부 409 로 막혀 저장이 안 된다.
@@ -101,15 +123,7 @@ export async function PATCH(
       if (!TIME_SLOTS.includes(body.time_slot as TimeSlot))
         return NextResponse.json({ error: "시간대가 올바르지 않습니다." }, { status: 400 });
       // 날짜를 함께 바꾸지 않으면 기존 날짜 기준으로 검사 (평일에 오전/오후 방지)
-      let effectiveDate = body.date;
-      if (!effectiveDate) {
-        const { data: cur } = await supabaseAdmin!
-          .from("deliveries")
-          .select("date")
-          .eq("id", id)
-          .maybeSingle();
-        effectiveDate = cur?.date as string | undefined;
-      }
+      const effectiveDate = body.date ?? currentDate;
       if (
         effectiveDate &&
         !slotsForDate(effectiveDate).includes(body.time_slot as TimeSlot)

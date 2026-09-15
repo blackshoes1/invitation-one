@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { X } from "lucide-react";
 import { formatYmdKo, toYmd } from "@/lib/wedding";
 import {
   type AdminDelivery,
@@ -19,6 +20,7 @@ export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
   const [allRows, setAllRows] = useState<AdminDelivery[]>([]);
   const [blocked, setBlocked] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [detailDate, setDetailDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,6 +46,15 @@ export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!detailDate) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDetailDate(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [detailDate]);
 
   /** 날짜 선택 토글 (다중 선택 → 일괄 차단/해제) */
   const toggleSelect = (ymd: string) => {
@@ -148,8 +159,8 @@ export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
         <Legend color="bg-neutral-700" label="마감됨 🚫" />
       </div>
       <p className="text-[11px] text-neutral-400 text-center">
-        날짜를 눌러 여러 개 선택한 뒤 한 번에 마감/해제 — 주문이 있는 날도 마감할 수
-        있어요 (기존 주문 유지, 신규 신청만 차단)
+        날짜를 누르면 주문 정보를 확인할 수 있어요. 레이어에서 날짜를 선택한 뒤
+        여러 날짜를 한 번에 마감하거나 해제할 수 있습니다.
       </p>
 
       {selected.size > 0 && (
@@ -220,8 +231,9 @@ export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
                       <button
                         key={ymd}
                         type="button"
-                        onClick={() => toggleSelect(ymd)}
-                        title={title || "선택 후 마감"}
+                        onClick={() => setDetailDate(ymd)}
+                        aria-label={`${formatYmdKo(ymd)} 주문 정보${list.length > 0 ? `, ${list.length}건` : ""}`}
+                        title={title || "주문 없음"}
                         className={`relative aspect-square rounded-md text-[11px] flex items-center justify-center ${color} ${
                           isSelected
                             ? "ring-2 ring-delivery ring-offset-1 font-bold"
@@ -243,6 +255,98 @@ export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
           </div>
         );
       })}
+
+      {detailDate && (() => {
+        const list = byDate[detailDate] ?? [];
+        const isBlocked = blocked.has(detailDate);
+        const isSelected = selected.has(detailDate);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <button
+              type="button"
+              aria-label="주문 정보 닫기"
+              onClick={() => setDetailDate(null)}
+              className="absolute inset-0 bg-black/35"
+            />
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="calendar-detail-title"
+              className="relative z-10 max-h-[80vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 id="calendar-detail-title" className="text-lg font-semibold text-[#203a32]">
+                    {formatYmdKo(detailDate)}
+                  </h2>
+                  <p className={`mt-1 text-xs ${isBlocked ? "text-red-600" : "text-sage-600"}`}>
+                    {isBlocked ? "신규 신청 마감됨" : "신규 신청 가능"} · 주문 {list.length}건
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="레이어 닫기"
+                  onClick={() => setDetailDate(null)}
+                  className="rounded-full p-2 text-neutral-500 hover:bg-neutral-100"
+                >
+                  <X size={18} aria-hidden="true" />
+                </button>
+              </div>
+
+              {list.length === 0 ? (
+                <p className="mt-5 rounded-xl bg-neutral-50 px-4 py-5 text-center text-sm text-neutral-500">
+                  이 날짜에는 주문이 없습니다.
+                </p>
+              ) : (
+                <ul className="mt-4 space-y-2">
+                  {list.map((order) => {
+                    const count = order.participants?.length ?? 0;
+                    return (
+                      <li key={order.id} className="rounded-xl border border-neutral-200 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-medium text-neutral-800">
+                            {ownerName(order)} {count > 1 ? `외 ${count - 1}명` : ""}
+                          </p>
+                          <span className="shrink-0 rounded-full bg-sage-50 px-2 py-1 text-[10px] font-medium text-sage-700">
+                            {order.status}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-neutral-600">
+                          {order.time_slot} · {count}명
+                        </p>
+                        <p className="mt-1 break-words text-xs leading-5 text-neutral-500">
+                          {order.location || "장소 미정"}
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              <div className="mt-5 flex justify-end gap-2 border-t border-neutral-100 pt-4">
+                <button
+                  type="button"
+                  onClick={() => toggleSelect(detailDate)}
+                  className={`rounded-full px-4 py-2 text-xs font-medium ${
+                    isSelected
+                      ? "border border-neutral-300 text-neutral-600"
+                      : "bg-neutral-700 text-white"
+                  }`}
+                >
+                  {isSelected ? "마감 작업 선택 해제" : "마감 작업에 선택"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDetailDate(null)}
+                  className="rounded-full bg-sage-600 px-4 py-2 text-xs font-medium text-white"
+                >
+                  확인
+                </button>
+              </div>
+            </section>
+          </div>
+        );
+      })()}
     </div>
   );
 }
