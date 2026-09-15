@@ -47,6 +47,8 @@ async function setup(page: Page, options: { failOnce?: boolean; holdPhone?: Prom
     await route.fulfill({ json });
   });
   await page.goto("/admin");
+  const menu = page.getByRole("button", { name: "메뉴 열기" });
+  if (await menu.isVisible()) await menu.click();
   await page.getByRole("button", { name: "그룹", exact: true }).click();
   await page.getByRole("button", { name: /개별 초대/ }).click();
   await expect(page.getByRole("checkbox", { name: "홍길동 선택" })).toBeVisible();
