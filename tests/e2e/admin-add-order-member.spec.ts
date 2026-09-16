@@ -18,6 +18,11 @@ test("주문에서 명단 개인 검색·추가·인원 갱신, 중복 및 완�
       { id: 'm1', name: '테스트개인', phone: null, applied: additions > 0 },
       { id: 'm2', name: '기존신청자', phone: '010-1234-5678', applied: true },
     ] };
+    if (path === '/api/admin/deliveries/d1/members' && route.request().method() === 'DELETE') {
+      expect(route.request().postDataJSON()).toEqual({ participant_id: 'p1' });
+      participants.splice(0);
+      return route.fulfill({ json: { result: 'removed' } });
+    }
     if (path === '/api/admin/deliveries/d1/members') {
       expect(route.request().postDataJSON()).toEqual({ member_id: 'm1' });
       additions++; participants.push({ id: 'p1', name: '테스트개인', phone: null, is_owner: false });
@@ -35,5 +40,14 @@ test("주문에서 명단 개인 검색·추가·인원 갱신, 중복 및 완�
   await expect(page.getByText('테스트개인님을 추가했습니다.', { exact: false })).toBeVisible();
   await expect(page.getByRole('button', { name: '테스트개인 추가', exact: true })).toBeDisabled();
   await expect(page.getByText('👥 1명', { exact: false })).toBeVisible();
+  page.once('dialog', dialog => dialog.dismiss());
+  await page.getByRole('button', { name: '테스트개인 주문에서 삭제' }).click();
+  await expect(page.getByRole('button', { name: '테스트개인 주문에서 삭제' })).toBeVisible();
+  page.once('dialog', async dialog => {
+    expect(dialog.message()).toContain('마지막 참여자를 삭제하면 주문은 취소됩니다');
+    await dialog.accept();
+  });
+  await page.getByRole('button', { name: '테스트개인 주문에서 삭제' }).click();
+  await expect(page.getByRole('button', { name: '테스트개인 주문에서 삭제' })).toHaveCount(0);
   expect(additions).toBe(1); expect(errors).toEqual([]);
 });
