@@ -22,6 +22,8 @@ export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detailDate, setDetailDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [blockError, setBlockError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -67,33 +69,43 @@ export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
   };
 
   /** 선택한 날짜들 일괄 마감/해제 (주문 있는 날짜도 마감 가능 — 신규 신청만 차단) */
-  const applyBlock = async (block: boolean) => {
-    if (selected.size === 0) return;
+  const applyBlock = async (block: boolean, dates = [...selected]) => {
+    if (dates.length === 0 || saving) return;
+    setSaving(true);
+    setBlockError(null);
     setError(null);
     setNotice(null);
     try {
       const res = await api("/api/admin/blocked", {
         method: "POST",
-        body: JSON.stringify({ dates: [...selected], block }),
+        body: JSON.stringify({ dates, block }),
       });
       const j = await res.json();
-      if (!res.ok) return setError(j.error ?? "마감 처리 실패");
+      if (!res.ok) {
+        const message = j.error ?? "마감 처리 실패";
+        setBlockError(message);
+        return setError(message);
+      }
       setBlocked((prev) => {
         const next = new Set(prev);
-        for (const d of selected) {
+        for (const d of dates) {
           if (block) next.add(d);
           else next.delete(d);
         }
         return next;
       });
-      setSelected(new Set());
+      setSelected((prev) => new Set([...prev].filter((date) => !dates.includes(date))));
       setNotice(
         block
           ? `${j.done}개 날짜를 마감했어요 🚫 (기존 주문은 유지돼요)`
           : `${j.done}개 날짜 마감을 해제했어요 ✅`
       );
     } catch {
-      setError("마감 처리 요청이 실패했습니다. 네트워크를 확인해주세요.");
+      const message = "마감 처리 요청이 실패했습니다. 네트워크를 확인해주세요.";
+      setBlockError(message);
+      setError(message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -169,12 +181,14 @@ export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
             {selected.size}개 선택
           </span>
           <button
+            disabled={saving}
             onClick={() => applyBlock(true)}
             className="px-3 py-1.5 text-xs bg-neutral-700 text-white rounded-full"
           >
             마감 🚫
           </button>
           <button
+            disabled={saving}
             onClick={() => applyBlock(false)}
             className="px-3 py-1.5 text-xs bg-sage-600 text-white rounded-full"
           >
@@ -231,7 +245,7 @@ export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
                       <button
                         key={ymd}
                         type="button"
-                        onClick={() => setDetailDate(ymd)}
+                        onClick={() => { setBlockError(null); setDetailDate(ymd); }}
                         aria-label={`${formatYmdKo(ymd)} 주문 정보${list.length > 0 ? `, ${list.length}건` : ""}`}
                         title={title || "주문 없음"}
                         className={`relative aspect-square rounded-md text-[11px] flex items-center justify-center ${color} ${
@@ -323,7 +337,19 @@ export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
                 </ul>
               )}
 
-              <div className="mt-5 flex justify-end gap-2 border-t border-neutral-100 pt-4">
+              <div className="mt-5 space-y-2 border-t border-neutral-100 pt-4">
+                <p className="text-xs text-neutral-500">마감하면 신규 신청만 차단되며 기존 주문은 유지됩니다.</p>
+                {blockError && <p role="alert" className="text-sm text-red-600">{blockError}</p>}
+                <button
+                  type="button"
+                  disabled={saving || loading}
+                  onClick={() => applyBlock(!isBlocked, [detailDate])}
+                  className="w-full rounded-xl bg-sage-700 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  {saving ? "저장 중…" : isBlocked ? "이 날짜 마감 해제" : "이 날짜 마감"}
+                </button>
+              </div>
+              <div className="mt-3 flex flex-wrap justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => toggleSelect(detailDate)}

@@ -24,8 +24,13 @@ const DELIVERY = {
 };
 
 test("캘린더 날짜를 누르면 주문 요약 레이어가 열린다", async ({ page }) => {
+  const changes: { dates: string[]; block: boolean }[] = [];
   await page.route("**/api/admin/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path === "/api/admin/blocked" && route.request().method() === "POST") {
+      changes.push(route.request().postDataJSON());
+      return route.fulfill({ json: { done: 1 } });
+    }
     let json: object = {};
     if (path === "/api/admin/login") json = { ok: true };
     if (path === "/api/admin/groups") json = { groups: [], total_members: 0 };
@@ -48,6 +53,16 @@ test("캘린더 날짜를 누르면 주문 요약 레이어가 열린다", async
 
   await dialog.getByRole("button", { name: "마감 작업에 선택" }).click();
   await expect(dialog.getByRole("button", { name: "마감 작업 선택 해제" })).toBeVisible();
+  await dialog.getByRole("button", { name: "이 날짜 마감 해제", exact: true }).click();
+  await expect(dialog).toContainText("신규 신청 가능");
+  await dialog.getByRole("button", { name: "이 날짜 마감", exact: true }).click();
+  await expect(dialog).toContainText("신규 신청 마감됨");
+  expect(changes).toEqual([
+    { dates: [DELIVERY.date], block: false },
+    { dates: [DELIVERY.date], block: true },
+  ]);
+  await expect(dialog).toContainText("김관리 외 1명");
+  await dialog.getByRole("button", { name: "마감 작업에 선택" }).click();
   await dialog.getByRole("button", { name: "확인" }).click();
   await expect(page.getByText("1개 선택")).toBeVisible();
 });
