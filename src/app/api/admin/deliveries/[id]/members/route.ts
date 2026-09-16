@@ -27,3 +27,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
   return NextResponse.json({ result: data });
 }
+
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const bad = await adminGuard(req);
+  if (bad) return bad;
+  const { id } = await params;
+  const body = await req.json().catch(() => null);
+  if (!UUID.test(id) || typeof body?.participant_id !== "string" || !UUID.test(body.participant_id))
+    return NextResponse.json({ error: "삭제할 참여자를 선택해주세요." }, { status: 400 });
+  const { data, error } = await supabaseAdmin!.rpc("admin_remove_order_member_v1", {
+    p_delivery: id, p_participant: body.participant_id,
+  });
+  if (error) return NextResponse.json({ error: error.message === "order_not_found"
+    ? "주문을 찾을 수 없습니다." : "삭제하지 못했습니다. 잠시 후 다시 시도해주세요." },
+    { status: error.message === "order_not_found" ? 404 : 500 });
+  return NextResponse.json({ result: data });
+}
