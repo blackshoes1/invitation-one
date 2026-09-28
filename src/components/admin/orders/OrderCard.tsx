@@ -28,6 +28,7 @@ export default function OrderCard({
   notify,
   setNotify,
   onToggleHidden,
+  allowMerge = true,
 }: {
   r: AdminDelivery;
   api: AdminApi;
@@ -48,6 +49,8 @@ export default function OrderCard({
   setNotify: Dispatch<SetStateAction<boolean>>;
   /** 표시 숨김/복구 (DB 보존) */
   onToggleHidden: (id: string, hidden: boolean, active: boolean) => void;
+  /** 주문 상세(한 건만 보는 화면)에서는 합칠 대상을 고를 수 없으니 끈다 */
+  allowMerge?: boolean;
 }) {
   const [removing, setRemoving] = useState<string | null>(null);
   const removeLock = useRef(false);
@@ -200,7 +203,7 @@ export default function OrderCard({
           >
             {editSched?.id === r.id ? "수정 닫기" : "📝 일정·장소 수정"}
           </button>
-          {r.status !== "완료" && r.status !== "취소" &&
+          {allowMerge && r.status !== "완료" && r.status !== "취소" &&
             (mergeSource === null ? (
               <button
                 onClick={() => setMergeSource(r.id)}

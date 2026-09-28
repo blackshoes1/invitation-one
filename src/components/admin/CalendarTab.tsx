@@ -15,8 +15,17 @@ import {
 } from "@/app/admin/shared";
 import { Legend } from "@/components/admin/ui";
 
-/** 캘린더 탭 — 월별 주문 현황 + 날짜 일괄 마감/해제 + 이번 주 .ics. 마운트 시 자체 로드. */
-export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
+/**
+ * 캘린더 탭 — 어드민 첫 화면.
+ * 오늘 주문 + 월별 주문 현황 + 날짜 일괄 마감/해제 + 이번 주 .ics. 마운트 시 자체 로드.
+ * 주문을 누르면 `onOpenOrder` 로 주문 상세로 간다.
+ */
+export default function CalendarTab({
+  api,
+  setError,
+  setNotice,
+  onOpenOrder,
+}: TabCtx & { onOpenOrder?: (id: string) => void }) {
   const [allRows, setAllRows] = useState<AdminDelivery[]>([]);
   const [blocked, setBlocked] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -132,6 +141,32 @@ export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
       {loading && (
         <p className="text-xs text-neutral-400 text-center">불러오는 중…</p>
       )}
+
+      {/* 오늘 주문 — 있을 때만. 로그인하자마자 오늘 할 일부터 보이게 */}
+      {(() => {
+        const today = toYmd(new Date());
+        const list = (byDate[today] ?? [])
+          .slice()
+          .sort((a, b) => a.time_slot.localeCompare(b.time_slot));
+        if (loading || list.length === 0) return null;
+        return (
+          <section
+            aria-label="오늘의 주문"
+            className="bg-white border-2 border-sage-300 p-4 space-y-2"
+          >
+            <p className="text-sm font-semibold text-sage-700">
+              오늘의 주문 · {formatYmdKo(today)} · {list.length}건
+            </p>
+            <ul className="space-y-2">
+              {list.map((order) => (
+                <li key={order.id}>
+                  <OrderRow order={order} onOpen={onOpenOrder} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })()}
 
       {/* 이번 주 일정 + .ics */}
       {(() => {
@@ -313,27 +348,11 @@ export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
                 </p>
               ) : (
                 <ul className="mt-4 space-y-2">
-                  {list.map((order) => {
-                    const count = order.participants?.length ?? 0;
-                    return (
-                      <li key={order.id} className="rounded-xl border border-neutral-200 p-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="font-medium text-neutral-800">
-                            {ownerName(order)} {count > 1 ? `외 ${count - 1}명` : ""}
-                          </p>
-                          <span className="shrink-0 rounded-full bg-sage-50 px-2 py-1 text-[10px] font-medium text-sage-700">
-                            {order.status}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-xs text-neutral-600">
-                          {order.time_slot} · {count}명
-                        </p>
-                        <p className="mt-1 break-words text-xs leading-5 text-neutral-500">
-                          {order.location || "장소 미정"}
-                        </p>
-                      </li>
-                    );
-                  })}
+                  {list.map((order) => (
+                    <li key={order.id}>
+                      <OrderRow order={order} onOpen={onOpenOrder} />
+                    </li>
+                  ))}
                 </ul>
               )}
 
@@ -374,5 +393,49 @@ export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
         );
       })()}
     </div>
+  );
+}
+
+/** 주문 한 줄 — 누르면 주문 상세로 (onOpen 이 없으면 그냥 표시만) */
+function OrderRow({
+  order,
+  onOpen,
+}: {
+  order: AdminDelivery;
+  onOpen?: (id: string) => void;
+}) {
+  const count = order.participants?.length ?? 0;
+  const body = (
+    <>
+      <div className="flex items-center justify-between gap-2">
+        <p className="font-medium text-neutral-800">
+          {ownerName(order)} {count > 1 ? `외 ${count - 1}명` : ""}
+        </p>
+        <span className="shrink-0 rounded-full bg-sage-50 px-2 py-1 text-[10px] font-medium text-sage-700">
+          {order.status}
+        </span>
+      </div>
+      <p className="mt-1 text-xs text-neutral-600">
+        {order.time_slot} · {count}명
+      </p>
+      <p className="mt-1 break-words text-xs leading-5 text-neutral-500">
+        {order.location || "장소 미정"}
+      </p>
+      {onOpen && (
+        <p className="mt-1 text-right text-[11px] font-medium text-sage-600">주문 상세 보기 →</p>
+      )}
+    </>
+  );
+  if (!onOpen)
+    return <div className="rounded-xl border border-neutral-200 p-3">{body}</div>;
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(order.id)}
+      aria-label={`${ownerName(order)} 주문 상세 보기`}
+      className="block w-full rounded-xl border border-neutral-200 p-3 text-left hover:border-sage-400 hover:bg-sage-50/40"
+    >
+      {body}
+    </button>
   );
 }

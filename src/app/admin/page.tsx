@@ -18,7 +18,38 @@ import { type AdminStats, type Totals, type View } from "@/app/admin/shared";
 export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [authed, setAuthed] = useState(false);
-  const [view, setView] = useState<View>("orders");
+  // 첫 화면은 캘린더 — 오늘 주문과 날짜별 일정을 먼저 본다
+  const [view, setView] = useState<View>("calendar");
+  /**
+   * 주문 상세로 보고 있는 주문 id. 주소에도 `?order=<id>` 로 남겨서
+   * 브라우저 뒤로가기로 캘린더에 돌아오고, 링크로 바로 열 수도 있게 한다.
+   */
+  const [focusOrder, setFocusOrder] = useState<string | null>(null);
+
+  const openOrder = (id: string) => {
+    setFocusOrder(id);
+    setView("orders");
+    window.history.pushState({ adminOrder: id }, "", `?order=${encodeURIComponent(id)}`);
+  };
+  const closeOrder = () => {
+    // 캘린더에서 눌러 들어왔으면 뒤로가기와 같게 — 브라우저 기록도 한 칸 되돌린다
+    if (window.history.state?.adminOrder) window.history.back();
+    else {
+      setFocusOrder(null);
+      setView("calendar");
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  };
+
+  useEffect(() => {
+    const onPop = () => {
+      const id = new URLSearchParams(window.location.search).get("order");
+      setFocusOrder(id);
+      setView(id ? "orders" : "calendar");
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   const [groups, setGroups] = useState<Group[]>([]);
   /** 전체 등록인원 (취소 주문 참여자 제외, 그룹 미지정 포함) */
@@ -96,6 +127,12 @@ export default function AdminPage() {
   /** 로그인 성공/세션 확인 후 공통 진입 처리 */
   const enter = async () => {
     setAuthed(true);
+    // 주문 상세 주소(?order=)로 바로 들어왔으면 그 주문부터
+    const linked = new URLSearchParams(window.location.search).get("order");
+    if (linked) {
+      setFocusOrder(linked);
+      setView("orders");
+    }
     await loadGroups(); // 주문 필터·그룹명 표시 공용 (주문 목록은 OrdersTab 이 자체 로드)
     // 알림 채널 연결 상태 (고장 사전 경고)
     api("/api/admin/kakao-status")
@@ -189,6 +226,11 @@ export default function AdminPage() {
   return (
     <AdminShell view={view} onNavigate={(v) => {
       setView(v);
+      // 메뉴로 이동하면 주문 상세에서 빠져나온다
+      if (focusOrder) {
+        setFocusOrder(null);
+        window.history.replaceState(null, "", window.location.pathname);
+      }
       if (v === "dashboard") loadStats();
       if (v === "groups") loadGroups();
     }}>
@@ -310,6 +352,10 @@ export default function AdminPage() {
         {/* ===== 주문 ===== */}
         {view === "orders" && (
           <OrdersTab
+            key={focusOrder ?? "list"}
+            focusId={focusOrder}
+            onBack={closeOrder}
+            backLabel="← 캘린더로 돌아가기"
             api={api}
             setError={setError}
             setNotice={setNotice}
@@ -320,7 +366,12 @@ export default function AdminPage() {
 
         {/* ===== 캘린더 ===== */}
         {view === "calendar" && (
-          <CalendarTab api={api} setError={setError} setNotice={setNotice} />
+          <CalendarTab
+            api={api}
+            setError={setError}
+            setNotice={setNotice}
+            onOpenOrder={openOrder}
+          />
         )}
 
         {/* ===== 배송경로 ===== */}
