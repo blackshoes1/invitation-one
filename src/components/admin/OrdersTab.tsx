@@ -19,9 +19,16 @@ export default function OrdersTab({
   setNotice,
   groups,
   groupName,
+  focusId = null,
+  onBack,
+  backLabel = "← 목록으로",
 }: TabCtx & {
   groups: Group[];
   groupName: (id: string | null) => string;
+  /** 주문 상세 — 이 주문 하나만 보여준다 (캘린더에서 주문을 눌러 들어온 경우) */
+  focusId?: string | null;
+  onBack?: () => void;
+  backLabel?: string;
 }) {
   const [tab, setTab] = useState<DeliveryStatus | "전체">("전체");
   const [groupFilter, setGroupFilter] = useState("");
@@ -35,7 +42,8 @@ export default function OrdersTab({
   /** 일정 변경 시 참여자 안내 문자 발송 여부 (폼 체크박스) */
   const [notifyOnSchedule, setNotifyOnSchedule] = useState(true);
   /** 숨김 처리한 주문까지 볼지 (DB 는 보존 — 표시 전용) */
-  const [showHidden, setShowHidden] = useState(false);
+  // 상세로 들어온 주문이 숨김 상태여도 보여야 한다
+  const [showHidden, setShowHidden] = useState(Boolean(focusId));
   const [loading, setLoading] = useState(true);
 
   const loadOrders = async (
@@ -70,7 +78,9 @@ export default function OrdersTab({
     let alive = true;
     (async () => {
       try {
-        const res = await api("/api/admin/deliveries");
+        const res = await api(
+          focusId ? "/api/admin/deliveries?include_hidden=1" : "/api/admin/deliveries"
+        );
         if (!alive || res.status === 401) return;
         const j = await res.json();
         if (!res.ok) return setError(j.error ?? "불러오기 실패");
@@ -230,6 +240,49 @@ export default function OrdersTab({
       )
     );
   }, [rows, search]);
+
+  if (focusId) {
+    const order = rows.find((r) => r.id === focusId);
+    return (
+      <div className="space-y-3">
+        {onBack && (
+          <button type="button" onClick={onBack}
+            className="text-xs text-sage-700 underline underline-offset-2">
+            {backLabel}
+          </button>
+        )}
+        <h2 className="text-sm font-semibold text-[#203a32]">주문 상세</h2>
+        {loading ? (
+          <p className="text-xs text-neutral-400 text-center">불러오는 중…</p>
+        ) : !order ? (
+          <p className="text-sm text-neutral-400 text-center py-10">
+            주문을 찾을 수 없습니다. 삭제됐거나 주소가 잘못됐어요.
+          </p>
+        ) : (
+          <OrderCard
+            r={order}
+            api={api}
+            groups={groups}
+            onMembersAdded={() => loadOrders()}
+            groupName={groupName}
+            acting={acting}
+            mergeSource={null}
+            setMergeSource={() => {}}
+            notify={notifyOnSchedule}
+            setNotify={setNotifyOnSchedule}
+            onToggleHidden={toggleHidden}
+            editSched={editSched}
+            setEditSched={setEditSched}
+            onChangeStatus={changeStatus}
+            onChangeStage={changeStage}
+            onMerge={() => {}}
+            onSaveSchedule={saveSchedule}
+            allowMerge={false}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <>

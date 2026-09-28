@@ -16,7 +16,8 @@ for (const width of [320, 390, 1280]) {
       await route.fulfill({ json });
     });
     await page.goto("/admin");
-    await expect(page.getByRole("heading", { name: "주문", exact: true })).toBeVisible();
+    // 첫 화면은 캘린더다 (오늘 주문·날짜별 일정부터)
+    await expect(page.getByRole("heading", { name: "캘린더", exact: true })).toBeVisible();
     if (width < 1024) await page.getByRole("button", { name: "메뉴 열기" }).click();
     const nav = page.getByRole("navigation", { name: "관리자 메뉴" });
     await expect(nav.getByRole("button")).toHaveCount(10);
