@@ -32,7 +32,7 @@ npm run restore -- backups/<스탬프> rsvp,checkins
 ## 포함되지 않는 것
 
 - **Storage 사진 원본**
-  - `guest-photos`(하객 스냅): NAS Cloud Sync 로 자동 보관 — `docs/NAS_SYNC.md`
+  - `guest-photos`(기존 하객 스냅): Storage 파일은 별도 백업 필요. NAS 직접 업로드 전환 후 새 파일은 NAS에 저장 — `docs/NAS_DIRECT_UPLOAD.md`
   - `invitation-media`(갤러리/앨범/메인): 원본을 이미 갖고 있는 사진들.
     필요 시 Supabase 대시보드 → Storage 에서 수동 다운로드
 - 새 테이블을 만들면 `scripts/backup-db.mjs` 의 `TABLES` 목록에 추가하세요

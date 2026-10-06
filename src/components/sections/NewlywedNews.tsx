@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { newlywedNews } from "@/lib/wedding";
 import FadeIn from "@/components/FadeIn";
 
@@ -19,7 +20,7 @@ export default function NewlywedNews() {
           <h2 className="font-serif text-2xl font-light tracking-widest text-sage-700">
             신혼 근황
           </h2>
-          <p className="text-xs text-neutral-400 pt-1">
+          <p className="text-xs text-neutral-500 pt-1">
             잊지 않고 찾아주셔서 감사해요 💌
           </p>
         </FadeIn>
@@ -31,13 +32,17 @@ export default function NewlywedNews() {
               className="bg-white border border-wedding-gold/15 overflow-hidden rounded-sm"
             >
               {n.image && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={n.image}
-                  alt={n.title}
-                  loading="lazy"
-                  className="w-full aspect-[4/3] object-cover"
-                />
+                <div className="relative w-full aspect-[4/3] overflow-hidden">
+                  <Image
+                    src={n.image}
+                    alt={n.title}
+                    fill
+                    sizes="(max-width: 420px) 100vw, 384px"
+                    quality={70}
+                    loading="lazy"
+                    className="object-cover"
+                  />
+                </div>
               )}
               <div className="p-4 space-y-1.5 text-left">
                 <p className="text-[11px] tracking-wide text-wedding-gold">

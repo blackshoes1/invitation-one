@@ -27,7 +27,7 @@ export default function ManagePage() {
         <div className="h-[60vh] flex flex-col items-center justify-center text-center gap-3 px-8">
           <div className="text-5xl">🔐</div>
           <p className="font-bold text-neutral-700">관리 링크 방식이 바뀌었어요</p>
-          <p className="text-xs text-neutral-400 leading-relaxed">
+          <p className="text-xs text-neutral-500 leading-relaxed">
             더 안전한 링크로 바뀌어 예전 주소는 더 이상 쓸 수 없어요.
             <br />
             아래에서 <b>내 신청 찾기</b>로 새 관리 링크를 받아주세요.

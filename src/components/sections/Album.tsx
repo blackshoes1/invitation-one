@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { getSiteSettings, type GalleryItem } from "@/lib/settings";
 import { venue, formatShortDate } from "@/lib/wedding";
 import FadeIn from "@/components/FadeIn";
+
+/** 콜라주는 max-w-sm(384px) 카드 안 2단 그리드 — 한 칸은 화면 폭의 절반 남짓 */
+const SIZES = "(max-width: 420px) 45vw, 170px";
 
 /**
  * 앨범 — "SAVE the DATE" 콜라주 카드 (갤러리와 D-Day 사이).
@@ -31,51 +35,16 @@ export default function Album() {
             
           </p>
 
-          {/* 2단 비대칭 콜라주 — 좌: 세로/정방형, 우: 정방형/세로 (지그재그) */}
+          {/* 2단 비대칭 콜라주 — 좌: 세로/정방형, 우: 정방형/세로 (지그재그).
+              원본은 한 장에 1.5MB 까지 올라오므로 next/image 로 축소·AVIF 변환본을 받는다. */}
           <div className="grid grid-cols-2 gap-2.5">
             <div className="flex flex-col gap-2.5">
-              {a && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={a.src}
-                  alt={a.alt ?? "앨범 사진 1"}
-                  loading="lazy"
-                  decoding="async"
-                  className="w-full aspect-[3/4] object-cover"
-                />
-              )}
-              {c && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={c.src}
-                  alt={c.alt ?? "앨범 사진 3"}
-                  loading="lazy"
-                  decoding="async"
-                  className="w-full aspect-square object-cover"
-                />
-              )}
+              <AlbumPhoto photo={a} alt="앨범 사진 1" ratio="aspect-[3/4]" />
+              <AlbumPhoto photo={c} alt="앨범 사진 3" ratio="aspect-square" />
             </div>
             <div className="flex flex-col gap-2.5">
-              {b && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={b.src}
-                  alt={b.alt ?? "앨범 사진 2"}
-                  loading="lazy"
-                  decoding="async"
-                  className="w-full aspect-square object-cover"
-                />
-              )}
-              {d && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={d.src}
-                  alt={d.alt ?? "앨범 사진 4"}
-                  loading="lazy"
-                  decoding="async"
-                  className="w-full aspect-[3/4] object-cover"
-                />
-              )}
+              <AlbumPhoto photo={b} alt="앨범 사진 2" ratio="aspect-square" />
+              <AlbumPhoto photo={d} alt="앨범 사진 4" ratio="aspect-[3/4]" />
             </div>
           </div>
 
@@ -90,5 +59,31 @@ export default function Album() {
         </div>
       </FadeIn>
     </section>
+  );
+}
+
+/** 콜라주 한 칸 — 비율 상자를 먼저 잡아 사진이 늦게 와도 레이아웃이 밀리지 않는다 */
+function AlbumPhoto({
+  photo,
+  alt,
+  ratio,
+}: {
+  photo?: GalleryItem;
+  alt: string;
+  ratio: string;
+}) {
+  if (!photo) return null;
+  return (
+    <div className={`relative w-full overflow-hidden ${ratio}`}>
+      <Image
+        src={photo.src}
+        alt={photo.alt ?? alt}
+        fill
+        sizes={SIZES}
+        quality={70}
+        loading="lazy"
+        className="object-cover"
+      />
+    </div>
   );
 }

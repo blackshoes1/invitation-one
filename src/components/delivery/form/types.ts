@@ -14,8 +14,8 @@ export const RIDERS: { value: Rider; emoji: string; desc: string }[] = [
   { value: "신랑+신부", emoji: "💑", desc: "둘이 같이 갈게요" },
 ];
 
-/** 0 받는분(이름+연락처) · 1 배송지 · 2 날짜 · 3 시간 · 4 배송기사 · 5 요청 → 요약 → 완료 */
-export const TOTAL = 6;
+export const DELIVERY_STEPS = ["받는 지역", "날짜·시간", "전달 방법", "확인"] as const;
+export const TOTAL = DELIVERY_STEPS.length;
 export const DRAFT_KEY = "delivery-form-draft";
 
 /** 새로고침/이탈 복원용 초안 — 개인정보(이름·연락처·배송지)는 저장하지 않는다 (P2-3) */

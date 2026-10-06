@@ -97,7 +97,7 @@ export default function RouteMap({
 
   if (!KAKAO_KEY) {
     return (
-      <div className="w-full aspect-[4/3] bg-neutral-100 flex items-center justify-center text-xs text-neutral-400 border border-neutral-200">
+      <div className="w-full aspect-[4/3] bg-neutral-100 flex items-center justify-center text-xs text-neutral-500 border border-neutral-200">
         지도 키가 설정되지 않았어요
       </div>
     );

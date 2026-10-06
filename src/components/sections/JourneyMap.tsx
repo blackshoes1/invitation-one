@@ -157,7 +157,7 @@ export default function JourneyMap({
     return (
       <div className="rounded-2xl bg-gradient-to-b from-sage-50 to-wedding-cream border border-wedding-gold/15 py-14 text-center">
         <div className="text-4xl mb-2">🗺️</div>
-        <p className="text-sm text-neutral-400">
+        <p className="text-sm text-neutral-500">
           아직 배송 여정이 시작되지 않았어요
           <br />첫 만남을 기다리고 있어요 🛵
         </p>
@@ -275,7 +275,7 @@ export default function JourneyMap({
                         {pin.area}에서 도착한 마음 💌
                       </span>
                       {pin.entries.map((e) => (
-                        <span key={e.id} className="block text-[10px] text-neutral-400">
+                        <span key={e.id} className="block text-[10px] text-neutral-500">
                           {e.stamp ?? "💌"} {e.name}님
                         </span>
                       ))}
@@ -285,7 +285,7 @@ export default function JourneyMap({
                       <span className="block text-[11px] font-bold text-sage-700">
                         {pin.entries[0].name}님을 만났어요 🛵
                       </span>
-                      <span className="block text-[10px] text-neutral-400">
+                      <span className="block text-[10px] text-neutral-500">
                         {pin.entries[0].date ? formatYmdKo(pin.entries[0].date) : ""}
                         {pin.area ? ` · ${pin.area}` : ""}
                       </span>
@@ -297,7 +297,7 @@ export default function JourneyMap({
           );
         })}
       </div>
-      <p className="mt-2 text-[11px] text-neutral-400 text-center">
+      <p className="mt-2 text-[11px] text-neutral-500 text-center">
         핀을 탭해보세요 · 정확한 주소는 공개하지 않아요
       </p>
     </div>

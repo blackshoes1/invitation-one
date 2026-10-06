@@ -1,0 +1,33 @@
+# 시놀로지 Container Manager 용 — 프로젝트로 가져와 실행한다 (docs/NAS_RUNNER.md).
+#
+# RUNNER_TOKEN 은 1시간짜리 **등록** 토큰이다. 컨테이너를 다시 만들 때마다
+# Settings → Actions → Runners 에서 새로 받아 .env 를 갱신해야 한다.
+# (한 번 등록되면 컨테이너가 계속 도는 동안에는 다시 필요 없다)
+services:
+  runner:
+    build: .
+    container_name: gha-runner
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      RUNNER_REPO_URL: https://github.com/blackshoes1/invitation-one
+      RUNNER_NAME: nas-ds920
+      RUNNER_LABELS: self-hosted,linux,x64
+    volumes:
+      # 작업 디렉터리를 볼륨으로 뺀다 — 컨테이너를 갈아끼워도 npm 캐시가 남고,
+      # 무엇보다 **SSD 볼륨에 두면** 빌드가 눈에 띄게 빨라진다 (DS920+ NVMe 권장).
+      - runner-work:/home/pwuser/runner/_work
+
+      # ── 2단계(db-verify · e2e-db)에서만 필요 ──────────────────────────────
+      # 나스의 Docker 데몬을 빌려 형제 컨테이너(postgres·supabase 스택)를 띄운다.
+      # ⚠️ 소켓을 주면 이 컨테이너가 사실상 나스 root 권한을 갖는다. 1단계에서는
+      #    필요 없으므로 주석으로 둔다 — 2단계에 들어갈 때 함께 해제할 것.
+      # - /var/run/docker.sock:/var/run/docker.sock
+
+    # ── 2단계에서만 필요 ────────────────────────────────────────────────────
+    # 워크플로가 127.0.0.1:54322 로 postgres 에 붙는데, host 네트워크가 아니면
+    # 그 localhost 는 러너 컨테이너 안이라 형제 컨테이너를 찾지 못한다.
+    # network_mode: host
+
+volumes:
+  runner-work:

@@ -7,7 +7,7 @@ export function LoadingView() {
     <motion.p
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="text-sm text-neutral-400 py-8"
+      className="text-sm text-neutral-500 py-8"
     >
       예약 정보를 확인하고 있어요…
     </motion.p>

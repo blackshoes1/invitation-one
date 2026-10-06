@@ -41,7 +41,7 @@ export default function CheckinQrPage() {
         <p className="text-sm text-neutral-500">
           입구·안내데스크에 두면 하객이 스캔해 <b>참석 체크인</b> 해요.
         </p>
-        <p className="text-[11px] text-neutral-400 break-all">
+        <p className="text-[11px] text-neutral-500 break-all">
           {origin ? `${origin}/checkin` : "…"}
         </p>
         <button
@@ -74,7 +74,7 @@ export default function CheckinQrPage() {
           <p className="text-sm font-serif text-sage-700 tracking-widest">
             {groom.name} <span className="text-wedding-gold">♥</span> {bride.name}
           </p>
-          <p className="text-[11px] text-neutral-400">{venue.name}</p>
+          <p className="text-[11px] text-neutral-500">{venue.name}</p>
         </div>
       </div>
     </main>

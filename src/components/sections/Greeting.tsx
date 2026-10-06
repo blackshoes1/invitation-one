@@ -5,11 +5,11 @@ function ParentLine({ label, person }: { label: string; person: Person }) {
   const parents = [person.father, person.mother].filter(Boolean).join(" · ");
   return (
     <div className="flex justify-center items-center gap-2">
-      <span className="text-xs text-neutral-400">{label}</span>
+      <span className="text-xs text-neutral-500">{label}</span>
       {parents && (
         <>
           <span className="font-normal text-neutral-600">{parents}</span>
-          <span className="text-xs text-neutral-400">의 {person.relation}</span>
+          <span className="text-xs text-neutral-500">의 {person.relation}</span>
         </>
       )}
       <span className="font-medium text-sage-700 ml-1">{person.name}</span>

@@ -11,23 +11,61 @@ import MessagesTab from "@/components/admin/MessagesTab";
 import SnapTab from "@/components/admin/SnapTab";
 import ContentTab from "@/components/admin/ContentTab";
 import GroupsTab from "@/components/admin/GroupsTab";
+import AdminShell from "@/components/admin/AdminShell";
 import { Metric } from "@/components/admin/ui";
-import { type AdminStats, type View } from "@/app/admin/shared";
+import { type AdminStats, type Totals, type View } from "@/app/admin/shared";
 
 export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [authed, setAuthed] = useState(false);
-  const [view, setView] = useState<View>("orders");
+  // 첫 화면은 캘린더 — 오늘 주문과 날짜별 일정을 먼저 본다
+  const [view, setView] = useState<View>("calendar");
+  /**
+   * 주문 상세로 보고 있는 주문 id. 주소에도 `?order=<id>` 로 남겨서
+   * 브라우저 뒤로가기로 캘린더에 돌아오고, 링크로 바로 열 수도 있게 한다.
+   */
+  const [focusOrder, setFocusOrder] = useState<string | null>(null);
+
+  const openOrder = (id: string) => {
+    setFocusOrder(id);
+    setView("orders");
+    window.history.pushState({ adminOrder: id }, "", `?order=${encodeURIComponent(id)}`);
+  };
+  const closeOrder = () => {
+    // 캘린더에서 눌러 들어왔으면 뒤로가기와 같게 — 브라우저 기록도 한 칸 되돌린다
+    if (window.history.state?.adminOrder) window.history.back();
+    else {
+      setFocusOrder(null);
+      setView("calendar");
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  };
+
+  useEffect(() => {
+    const onPop = () => {
+      const id = new URLSearchParams(window.location.search).get("order");
+      setFocusOrder(id);
+      setView(id ? "orders" : "calendar");
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   const [groups, setGroups] = useState<Group[]>([]);
   /** 전체 등록인원 (취소 주문 참여자 제외, 그룹 미지정 포함) */
   const [totalMembers, setTotalMembers] = useState<number | null>(null);
+  /** 전체 신청 **기록 수** 내역 (그룹 미지정 포함) — 고유 인원이 아니다 */
+  const [totals, setTotals] = useState<Totals | null>(null);
   const [stats, setStats] = useState<AdminStats | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [kakao, setKakao] = useState<"ok" | "expired" | "unconfigured" | null>(null);
+  /** 알림 채널 연결 상태 — 채널마다 실패 값이 다르다 (카카오 expired / 텔레그램 error) */
+  const [notify, setNotify] = useState<{
+    status: "ok" | "expired" | "error" | "unconfigured" | null;
+    channel: string;
+  } | null>(null);
 
   const groupName = (id: string | null) =>
     id ? groups.find((g) => g.id === id)?.name ?? "그룹" : "—";
@@ -53,12 +91,22 @@ export default function AdminPage() {
   const loadGroups = async () => {
     try {
       const res = await api("/api/admin/groups");
-      if (res.ok) {
-        const j = await res.json();
-        setGroups(j.groups ?? []);
-        setTotalMembers(typeof j.total_members === "number" ? j.total_members : null);
+      if (!res.ok) {
+        // 집계 실패를 0명으로 보여주지 않는다 — "아무도 신청 안 함"으로 오해된다
+        setTotals(null);
+        setTotalMembers(null);
+        if (res.status !== 401) setError("그룹 목록을 불러오지 못했습니다.");
+        return;
       }
+      const j = await res.json();
+      setGroups(j.groups ?? []);
+      setTotalMembers(typeof j.total_members === "number" ? j.total_members : null);
+      setTotals(
+        j.totals && typeof j.totals.orders === "number" ? (j.totals as Totals) : null
+      );
     } catch {
+      setTotals(null);
+      setTotalMembers(null);
       setError("그룹 목록을 불러오지 못했습니다.");
     }
   };
@@ -79,11 +127,17 @@ export default function AdminPage() {
   /** 로그인 성공/세션 확인 후 공통 진입 처리 */
   const enter = async () => {
     setAuthed(true);
+    // 주문 상세 주소(?order=)로 바로 들어왔으면 그 주문부터
+    const linked = new URLSearchParams(window.location.search).get("order");
+    if (linked) {
+      setFocusOrder(linked);
+      setView("orders");
+    }
     await loadGroups(); // 주문 필터·그룹명 표시 공용 (주문 목록은 OrdersTab 이 자체 로드)
-    // 카카오 알림 연결 상태 (만료 사전 경고)
+    // 알림 채널 연결 상태 (고장 사전 경고)
     api("/api/admin/kakao-status")
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => j && setKakao(j.status));
+      .then((j) => j && setNotify({ status: j.status, channel: j.channel }));
   };
 
   // 새로고침 시 세션 쿠키(8시간)가 살아 있으면 재로그인 없이 바로 진입
@@ -170,54 +224,34 @@ export default function AdminPage() {
 
   /* ----------------------------- 본문 ----------------------------- */
   return (
-    <main className="min-h-screen bg-wedding-cream px-4 py-8">
-      <div className="max-w-2xl mx-auto space-y-5">
-        <h1 className="font-serif text-xl text-sage-700 tracking-widest text-center">
-          배달 관리자
-        </h1>
+    <AdminShell view={view} onNavigate={(v) => {
+      setView(v);
+      // 메뉴로 이동하면 주문 상세에서 빠져나온다
+      if (focusOrder) {
+        setFocusOrder(null);
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+      if (v === "dashboard") loadStats();
+      if (v === "groups") loadGroups();
+    }}>
 
-        <div className="flex justify-center gap-2 flex-wrap">
-          {(
-            [
-              ["dashboard", "요약"],
-              ["orders", "주문"],
-              ["calendar", "캘린더"],
-              ["route", "배송경로"],
-              ["groups", "그룹"],
-              ["waiting", "대기자"],
-              ["messages", "방명록"],
-              ["snap", "하객스냅"],
-              ["field", "현장운영"],
-              ["content", "콘텐츠"],
-            ] as [View, string][]
-          ).map(([v, label]) => (
-            <button
-              key={v}
-              onClick={() => {
-                setView(v);
-                // 주문·캘린더·경로·대기자·방명록·스냅·콘텐츠 탭은 마운트 시 자체 로드
-                if (v === "dashboard") loadStats();
-                if (v === "groups") loadGroups();
-              }}
-              className={`px-4 py-2 text-xs tracking-wider border ${
-                view === v
-                  ? "bg-sage-700 text-white border-sage-700"
-                  : "bg-white text-neutral-500 border-wedding-gold/20"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {kakao === "expired" && (
+        {(notify?.status === "expired" || notify?.status === "error") && (
           <p className="text-xs text-center text-red-600 bg-red-50 py-2 border border-red-200">
-            🔔 카카오 알림 연결이 만료됐어요 — 새 주문 알림이 오지 않습니다. refresh
-            token 재발급이 필요해요 (README/kakao.ts 참고).
+            🔔 알림 연결이 끊겼어요 — 새 주문 알림이 오지 않습니다.{" "}
+            {notify.channel === "kakao"
+              ? "카카오 refresh token 재발급이 필요해요 (src/lib/kakao.ts 참고)."
+              : "봇 토큰을 확인해주세요 (src/lib/telegram.ts 참고)."}
           </p>
         )}
-        {kakao === "ok" && (
-          <p className="text-[11px] text-center text-sage-500">🔔 카카오 알림 연결됨</p>
+        {notify?.status === "unconfigured" && (
+          <p className="text-xs text-center text-red-600 bg-red-50 py-2 border border-red-200">
+            🔔 알림 채널이 설정되지 않았어요 — 새 주문 알림이 발송되지 않습니다.
+          </p>
+        )}
+        {notify?.status === "ok" && (
+          <p className="text-[11px] text-center text-sage-500">
+            🔔 {notify.channel === "telegram" ? "텔레그램" : "카카오"} 알림 연결됨
+          </p>
         )}
 
         {/* 알림 배너 — 목록을 내려본 상태에서 작업해도 보이도록 화면 상단에 고정.
@@ -318,6 +352,10 @@ export default function AdminPage() {
         {/* ===== 주문 ===== */}
         {view === "orders" && (
           <OrdersTab
+            key={focusOrder ?? "list"}
+            focusId={focusOrder}
+            onBack={closeOrder}
+            backLabel="← 캘린더로 돌아가기"
             api={api}
             setError={setError}
             setNotice={setNotice}
@@ -328,7 +366,12 @@ export default function AdminPage() {
 
         {/* ===== 캘린더 ===== */}
         {view === "calendar" && (
-          <CalendarTab api={api} setError={setError} setNotice={setNotice} />
+          <CalendarTab
+            api={api}
+            setError={setError}
+            setNotice={setNotice}
+            onOpenOrder={openOrder}
+          />
         )}
 
         {/* ===== 배송경로 ===== */}
@@ -344,6 +387,7 @@ export default function AdminPage() {
             setNotice={setNotice}
             groups={groups}
             totalMembers={totalMembers}
+            totals={totals}
             reload={loadGroups}
             bumpRoster={bumpRoster}
           />
@@ -373,8 +417,6 @@ export default function AdminPage() {
         {view === "content" && (
           <ContentTab api={api} setError={setError} setNotice={setNotice} />
         )}
-      </div>
-    </main>
+    </AdminShell>
   );
 }
-

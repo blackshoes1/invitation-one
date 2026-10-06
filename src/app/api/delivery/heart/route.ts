@@ -2,7 +2,8 @@ import { after } from "next/server";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
 import { drainNotifications } from "@/lib/notifyOutbox";
 import { rateLimitAllow, clientIp } from "@/lib/rateLimit";
-import { json, parseName, parsePhone, parseText, parseUuid, firstRow, rpcErrorCode } from "@/lib/deliveryApi";
+import { json, parseName, parsePhone, parseText, loadGroupById, resolveInvite, firstRow, rpcErrorCode } from "@/lib/deliveryApi";
+import { resolveOrderKind } from "@/lib/orderKind";
 import { isValidAnonAlias } from "@/lib/anonAlias";
 import { REGIONS, OVERSEAS, joinRegion } from "@/lib/regions";
 import { STAMPS } from "@/lib/wedding";
@@ -26,7 +27,16 @@ export async function POST(req: Request) {
   const b = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!b) return json({ error: "bad_request" }, 400);
 
-  const name = parseName(b.name);
+  const inviteToken = b.inviteToken == null || b.inviteToken === "" ? null : b.inviteToken;
+  const invite = inviteToken ? await resolveInvite(inviteToken) : null;
+  if (inviteToken !== null && !invite) return json({ error: "invite_invalid" }, 401);
+  const group = await loadGroupById(b.groupId);
+  if (b.groupId != null && b.groupId !== "" && !group)
+    return json({ error: "group_invalid" }, 400);
+  const kind = resolveOrderKind({ group, invite });
+  if (!kind.ok) return json({ error: kind.error }, 403);
+
+  const name = parseName(invite ? invite.name : b.name);
   if (!name) return json({ error: "name_invalid" }, 400);
 
   // 지역 — 시/도는 allowlist, 국내 구·군도 allowlist, 해외는 나라명 자유 입력(≤30자)
@@ -57,8 +67,9 @@ export async function POST(req: Request) {
   // 별명은 허용 목록 조합일 때만 그대로 저장 — 아니면 null → DB 가 결정적 생성 (P1-3)
   const anonAlias = isValidAnonAlias(b.anonAlias) ? b.anonAlias : null;
 
-  const { data, error } = await supabaseAdmin.rpc("send_heart_v2", {
-    p_group_id: parseUuid(b.groupId),
+  const { data, error } = await supabaseAdmin.rpc("send_heart_v3", {
+    p_group_id: kind.groupId,
+    p_invite_token: inviteToken,
     p_name: name,
     p_region: joinRegion(sido, sub),
     p_stamp: stamp,
@@ -73,7 +84,7 @@ export async function POST(req: Request) {
   if (error) {
     const e = rpcErrorCode(error.message);
     if (e.code === "server_error")
-      console.error("[api/delivery/heart] send_heart_v2:", error.message);
+      console.error("[api/delivery/heart] send_heart_v3:", error.message);
     return json({ error: e.code }, e.status);
   }
 
@@ -81,7 +92,12 @@ export async function POST(req: Request) {
   if (!row?.participant_id) return json({ error: "server_error" }, 500);
   // P1-4: 응답 후 아웃박스 드레인 — 신규 알림 즉시 시도 + 이전 실패분(재시도 도래) 처리.
   // 트래픽이 있는 한 실패 알림이 다음 신청 시점에 재발송된다 (안전망 cron 은 별도).
-  after(() => void drainNotifications(3).catch(() => {}));
+  // 에러를 삼키지 않는다 — 여기서 조용히 죽으면 알림이 왜 안 갔는지 알 길이 없다
+  after(() =>
+    drainNotifications(3).catch((e) =>
+      console.error("[outbox] drain failed (after):", e)
+    )
+  );
 
   // participant_id(공개 식별자)는 내려주지 않음 — 관리에는 manage_token 만 사용
   return json({ manage_token: row.manage_token });

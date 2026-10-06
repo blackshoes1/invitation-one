@@ -35,7 +35,7 @@ if (!dirArg) {
   process.exit(1);
 }
 const dir = path.resolve(root, dirArg);
-const ORDER = ["rsvp", "groups", "group_members", "deliveries", "participants", "seating_tables", "checkins"];
+const ORDER = ["rsvp", "groups", "group_members", "group_attendance", "deliveries", "participants", "seating_tables", "checkins"];
 const all = fs.readdirSync(dir).filter((f) => f.endsWith(".json")).map((f) => f.replace(/\.json$/, ""));
 const want = tablesArg ? tablesArg.split(",").map((s) => s.trim()) : all;
 const tables = [...ORDER.filter((t) => want.includes(t)), ...want.filter((t) => !ORDER.includes(t))];

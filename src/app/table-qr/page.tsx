@@ -52,7 +52,7 @@ export default function TableQrPage() {
           하객이 스캔하면 <b>하객 스냅 업로드</b>로 바로 이동해요. 아래 [인쇄]로 뽑아
           테이블에 두세요.
         </p>
-        <p className="text-[11px] text-neutral-400 break-all">{targetUrl || "…"}</p>
+        <p className="text-[11px] text-neutral-500 break-all">{targetUrl || "…"}</p>
         <button
           onClick={() => window.print()}
           className="px-5 py-2.5 rounded-full bg-sage-700 text-white text-sm font-bold"
@@ -84,7 +84,7 @@ export default function TableQrPage() {
               <br />
               저희에게 소중히 간직됩니다
             </p>
-            <p className="text-[11px] text-neutral-400 tracking-widest">
+            <p className="text-[11px] text-neutral-500 tracking-widest">
               {groom.name} · {bride.name}
             </p>
           </div>

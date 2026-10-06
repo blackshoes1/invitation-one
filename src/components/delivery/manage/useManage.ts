@@ -10,6 +10,7 @@ import {
 import { type TimeSlot, STAMPS } from "@/lib/wedding";
 import { OVERSEAS, joinRegion } from "@/lib/regions";
 import type { Mode } from "./types";
+import { useRefreshOnReturn } from "../useRefreshOnReturn";
 
 /** 관리 API 호출 헬퍼 — 토큰은 본문에 담아 전송 */
 async function manageApi(body: Record<string, unknown>) {
@@ -88,6 +89,8 @@ export function useManage(token: string) {
       setBooked(set);
     }
   }, [token]);
+
+  useRefreshOnReturn(load);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect

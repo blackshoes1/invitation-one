@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { adminGuard } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { sendSms, isSmsConfigured } from "@/lib/sms";
-import { rotateManageToken, manageUrl } from "@/lib/manageToken";
+import { sendSms } from "@/lib/sms";
 import {
   formatYmdKo,
   slotsForDate,
   TIME_SLOTS,
+  INVITATION_KEY,
   DELIVERY_START,
   DELIVERY_END,
 } from "@/lib/wedding";
@@ -26,6 +26,7 @@ export async function PATCH(
 
   const { id } = await params;
   const body = (await req.json()) as {
+    action?: string;
     status?: DeliveryStatus;
     tracking_stage?: TrackingStage;
     // 일정 수정 (그룹 담당자가 신청한 일자·시간·장소를 관리자가 조정)
@@ -36,6 +37,20 @@ export async function PATCH(
     /** 표시 전용 숨김 — DB 는 보존하고 관리자 목록에서만 감춘다 */
     hidden?: boolean;
   };
+
+  if (body.action === "restore") {
+    const { data, error } = await supabaseAdmin!.rpc("admin_restore_order_v1", { p_delivery: id });
+    if (error) return NextResponse.json({ error: "복구하지 못했습니다. 잠시 후 다시 시도해주세요." }, { status: 500 });
+    const messages: Record<string, string> = {
+      empty: "참여자가 없는 주문입니다. 개별 초대 또는 그룹에서 새 주문을 만들어주세요.",
+      conflict: "이미 다른 주문에 신청한 참여자가 있어요. 기존 신청을 확인한 뒤 복구해주세요.",
+      blocked: "차단된 날짜입니다. 일정·장소를 수정하거나 날짜 차단을 해제한 뒤 복구해주세요.",
+      not_found: "주문을 찾을 수 없습니다.",
+    };
+    if (data !== "ok" && data !== "already_restored")
+      return NextResponse.json({ error: messages[data] ?? "취소된 주문만 복구할 수 있어요." }, { status: 409 });
+    return NextResponse.json({ restored: true });
+  }
 
   const patch: {
     status?: DeliveryStatus;
@@ -58,6 +73,23 @@ export async function PATCH(
     body.time_slot !== undefined ||
     body.location !== undefined;
   if (scheduleChange) {
+    // 일정 수정 폼은 날짜를 바꾸지 않아도 현재 날짜를 함께 보낸다. 해당 날짜가
+    // 신규 신청 마감 상태라면 자기 주문 때문에 장소·시간 수정까지 막히던 문제를
+    // 피하려고, 현재 주문의 날짜인지 먼저 구분한다.
+    let currentDate: string | undefined;
+    if (body.date !== undefined || body.time_slot !== undefined) {
+      const { data: current, error: currentError } = await supabaseAdmin!
+        .from("deliveries")
+        .select("date")
+        .eq("id", id)
+        .maybeSingle();
+      if (currentError)
+        return NextResponse.json({ error: currentError.message }, { status: 500 });
+      if (!current)
+        return NextResponse.json({ error: "not found" }, { status: 404 });
+      currentDate = current.date as string;
+    }
+
     if (body.date !== undefined) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(body.date))
         return NextResponse.json({ error: "날짜 형식이 올바르지 않습니다." }, { status: 400 });
@@ -66,17 +98,22 @@ export async function PATCH(
           { error: `배달 가능 기간(${DELIVERY_START}~${DELIVERY_END})을 벗어났어요.` },
           { status: 400 }
         );
-      // 차단일 검사 — 관리자가 직접 막아둔 날이므로 실수 예약을 방지
-      const { data: blocked } = await supabaseAdmin!
-        .from("blocked_dates")
-        .select("date")
-        .eq("date", body.date)
-        .maybeSingle();
-      if (blocked)
-        return NextResponse.json(
-          { error: "차단된 날짜예요. 캘린더 탭에서 차단을 해제한 뒤 변경하세요." },
-          { status: 409 }
-        );
+      // 다른 날짜로 옮길 때만 신규 신청 마감을 검사한다. 현재 주문이 이미 자리한
+      // 날짜는 마감돼 있어도 그 주문의 시간·장소를 수정할 수 있어야 한다.
+      if (body.date !== currentDate) {
+        const { data: blocked, error: blockedError } = await supabaseAdmin!
+          .from("blocked_dates")
+          .select("date")
+          .eq("date", body.date)
+          .maybeSingle();
+        if (blockedError)
+          return NextResponse.json({ error: blockedError.message }, { status: 500 });
+        if (blocked)
+          return NextResponse.json(
+            { error: "차단된 날짜예요. 캘린더 탭에서 차단을 해제한 뒤 변경하세요." },
+            { status: 409 }
+          );
+      }
       // ※ 같은 날짜 중복 주문은 허용된다 (v10_multi_orders 에서 하루 1건 제한 폐지 —
       //    마감은 blocked_dates 로만 관리). 예전 규칙대로 중복 검사를 하면 같은 날
       //    다른 주문이 있는 건의 일정 수정이 전부 409 로 막혀 저장이 안 된다.
@@ -86,15 +123,7 @@ export async function PATCH(
       if (!TIME_SLOTS.includes(body.time_slot as TimeSlot))
         return NextResponse.json({ error: "시간대가 올바르지 않습니다." }, { status: 400 });
       // 날짜를 함께 바꾸지 않으면 기존 날짜 기준으로 검사 (평일에 오전/오후 방지)
-      let effectiveDate = body.date;
-      if (!effectiveDate) {
-        const { data: cur } = await supabaseAdmin!
-          .from("deliveries")
-          .select("date")
-          .eq("id", id)
-          .maybeSingle();
-        effectiveDate = cur?.date as string | undefined;
-      }
+      const effectiveDate = body.date ?? currentDate;
       if (
         effectiveDate &&
         !slotsForDate(effectiveDate).includes(body.time_slot as TimeSlot)
@@ -189,7 +218,13 @@ export async function PATCH(
 
   // 상태 전이 시 참여자 전원에게 SMS (참여 시스템 — 연락처 보유자 대상, 키 없으면 자동 skip)
   let sms: unknown = null;
-  if (statusChanged && (patch.status === "확정" || patch.status === "취소")) {
+  const origin = siteOrigin(req);
+  // 문자에 넣는 청첩장 링크 — 카톡이 밀려도 문자함에 남아 재방문 경로가 된다
+  const invitationUrl = INVITATION_KEY ? `${origin}/?key=${INVITATION_KEY}` : origin;
+  // **확정에서만 문자를 보낸다.** 취소는 보내지 않는다 (2026-09-09).
+  // 취소 안내는 사정을 설명해야 하는 연락인데, 자동 문자는 "취소되었습니다"만
+  // 남기고 끝나 하객을 더 당황하게 한다. 취소는 신랑신부가 직접 연락한다.
+  if (statusChanged && patch.status === "확정") {
     const { data: parts } = await supabaseAdmin!
       .from("participants")
       .select("name, phone")
@@ -198,7 +233,7 @@ export async function PATCH(
 
     // 확정 감사 문자 커스텀 템플릿 (LC-2) — 관리자가 콘텐츠 탭에서 설정, 없으면 기본
     let confirmTpl = "";
-    if (patch.status === "확정") {
+    {
       const { data: st } = await supabaseAdmin!
         .from("site_settings")
         .select("value")
@@ -212,17 +247,15 @@ export async function PATCH(
         .replace(/\{이름\}/g, name)
         .replace(/\{날짜\}/g, dateK)
         .replace(/\{시간\}/g, data.time_slot)
-        .replace(/\{장소\}/g, data.location ?? "");
+        .replace(/\{장소\}/g, data.location ?? "")
+        .replace(/\{청첩장\}/g, invitationUrl);
 
     const targets = (parts ?? []) as { name: string; phone: string }[];
     const results = await Promise.all(
       targets.map((p) => {
-        const text =
-          patch.status === "확정"
-            ? confirmTpl
-              ? fill(confirmTpl, p.name)
-              : `[청첩장 배달] ${p.name}님, 소중한 마음으로 신청해주셔서 감사합니다 🙏 ${dateK} ${data.time_slot} ${data.location}(으)로 찾아뵙겠습니다. 곧 만나요!`
-            : `[청첩장 배달] ${p.name}님, 부득이하게 ${dateK} ${data.time_slot} 일정이 취소되었습니다. 자세한 안내는 곧 연락드리겠습니다. 양해 부탁드립니다.`;
+        const text = confirmTpl
+          ? fill(confirmTpl, p.name)
+          : `[청첩장 배달] ${p.name}님, 소중한 마음으로 신청해주셔서 감사합니다 🙏 ${dateK} ${data.time_slot} ${data.location}(으)로 찾아뵙겠습니다. 곧 만나요!\n💌 청첩장 다시 보기: ${invitationUrl}`;
         return sendSms(p.phone, text).then((r) => ({ name: p.name, ...r }));
       })
     );
@@ -234,54 +267,9 @@ export async function PATCH(
     };
   }
 
-  // 배송 완료 전이 → 리뷰요청 문자 (DL-3) — 개인 리뷰 링크(manage) 포함
-  if (statusChanged && patch.status === "완료") {
-    const { data: parts } = await supabaseAdmin!
-      .from("participants")
-      .select("id, name, phone")
-      .eq("delivery_id", id)
-      .not("phone", "is", null);
-
-    let reviewTpl = "";
-    const { data: st } = await supabaseAdmin!
-      .from("site_settings")
-      .select("value")
-      .eq("key", "review_sms")
-      .maybeSingle();
-    if (typeof st?.value === "string") reviewTpl = st.value.trim();
-
-    const origin = siteOrigin(req);
-    const dateK = formatYmdKo(data.date);
-    const targets = (parts ?? []) as { id: string; name: string; phone: string }[];
-    const results = await Promise.all(
-      targets.map(async (p) => {
-        // 관리 링크는 토큰 기반 (P0-2). SMS 가 실제 나갈 때만 토큰을 회전 발급해
-        // 미설정 환경에서 기존 링크가 무효화되지 않도록 함.
-        const tok = isSmsConfigured ? await rotateManageToken(p.id) : null;
-        const link = tok ? manageUrl(origin, tok) : `${origin}/delivery`;
-        const fill = (tpl: string) =>
-          tpl
-            .replace(/\{이름\}/g, p.name)
-            .replace(/\{날짜\}/g, dateK)
-            .replace(/\{시간\}/g, data.time_slot)
-            .replace(/\{장소\}/g, data.location ?? "")
-            .replace(/\{링크\}/g, link);
-        const text = reviewTpl
-          ? fill(reviewTpl)
-          : `[청첩장 배달] ${p.name}님, 청첩장 잘 받으셨나요? 😊 짧은 한줄 후기를 남겨주시면 큰 힘이 됩니다 🙏 ${link}`;
-        return sendSms(p.phone, text).then((r) => ({ name: p.name, ...r }));
-      })
-    );
-    sms = {
-      count: targets.length,
-      sent: results.filter((r) => r.ok && !r.skipped).length,
-      skipped: results.some((r) => r.skipped),
-      results,
-    };
-  }
 
   // 일정 변경 → 참여자 전원에게 변경 안내 SMS (notify=false 로 생략 가능)
-  if (data && scheduleChange && body.notify !== false) {
+  if (data && data.status !== "취소" && scheduleChange && body.notify !== false) {
     const { data: parts } = await supabaseAdmin!
       .from("participants")
       .select("name, phone")

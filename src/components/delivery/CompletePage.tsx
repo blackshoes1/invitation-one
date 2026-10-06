@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { useRefreshOnReturn } from "./useRefreshOnReturn";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useEffect } from "react";
@@ -8,6 +9,9 @@ import { formatYmdKo, groom, bride, VIDEO_URL, INVITATION_KEY } from "@/lib/wedd
 import type { TimeSlot } from "@/lib/wedding";
 import { getSiteSettings } from "@/lib/settings";
 import TrackingView from "@/components/delivery/TrackingView";
+import SaveInvitationLink from "@/components/delivery/SaveInvitationLink";
+import ManualShareLink from "@/components/ManualShareLink";
+import { copyShareLink, isMobileShareDevice } from "@/lib/shareLink";
 
 export default function CompletePage({
   name,
@@ -37,7 +41,23 @@ export default function CompletePage({
   groupSlug?: string | null;
 }) {
   const [shareMsg, setShareMsg] = useState<string | null>(null);
+  const [manualLink, setManualLink] = useState<string | null>(null);
+  const shareBusy = useRef(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [reorderHref, setReorderHref] = useState<string | null>(null);
+  const refreshOrder = useCallback(async () => {
+    if (!manageToken) return;
+    const response = await fetch(`/api/delivery/manage?t=${encodeURIComponent(manageToken)}`, { cache: "no-store" });
+    if (!response.ok) return;
+    const { participant } = await response.json();
+    if (participant?.status === "취소") {
+      // Reload the form, retain the personal invitation, and discard a used conversion token.
+      const url = new URL(window.location.href);
+      url.searchParams.delete("convert");
+      setReorderHref(url.pathname + url.search);
+    }
+  }, [manageToken]);
+  useRefreshOnReturn(refreshOrder);
   // 배송기사 표기 — 화면 카드와 저장용 PNG 주문서에서 공용 (신부/커플 주문도 정확히)
   const riderLabel =
     rider === "신랑+신부"
@@ -148,27 +168,44 @@ export default function CompletePage({
     setTimeout(() => setSaveMsg(null), 2500);
   };
 
-  const share = async () => {
+  const share = async (copyOnly = false) => {
+    if (shareBusy.current) return;
+    shareBusy.current = true;
     const url = groupSlug
       ? `${window.location.origin}/delivery/group/${groupSlug}`
       : `${window.location.origin}/delivery`;
     const text = "나 청첩장 배송 신청했다 🛵 같이 받을 사람?";
+    setShareMsg(null);
+    setManualLink(null);
     try {
-      if (navigator.share) {
-        await navigator.share({ title: text, text, url });
-        return;
+      if (!copyOnly && isMobileShareDevice() && navigator.share) {
+        try {
+          await navigator.share({ title: text, text, url });
+          return;
+        } catch (error) {
+          if (error instanceof Error && error.name === "AbortError") {
+            setShareMsg("공유를 취소했어요. 아래 링크 복사로도 공유할 수 있어요.");
+            return;
+          }
+          // Unsupported/blocked share must still offer a working link.
+        }
       }
-    } catch {
-      return; // 사용자가 취소
-    }
-    try {
-      await navigator.clipboard?.writeText(`${text} ${url}`);
-      setShareMsg("링크를 복사했어요! 단톡방에 붙여넣어 주세요");
-      setTimeout(() => setShareMsg(null), 2200);
-    } catch {
-      /* ignore */
+      if (await copyShareLink(url)) setShareMsg("링크를 복사했어요! 단톡방에 붙여넣어 주세요");
+      else setManualLink(url);
+    } finally {
+      shareBusy.current = false;
     }
   };
+
+  if (reorderHref) return (
+    <section className="max-w-md mx-auto px-6 py-12 text-center space-y-4">
+      <h2 className="text-xl font-bold">기존 주문이 취소되었어요</h2>
+      <p className="text-sm text-neutral-600">다른 날짜와 장소로 다시 신청하실 수 있어요.</p>
+      <a href={reorderHref} className="inline-block rounded-full bg-delivery px-6 py-3 font-bold text-white">
+        다시 신청하기
+      </a>
+    </section>
+  );
 
   return (
     <div className="min-h-[70vh] flex flex-col items-center justify-center px-6 py-12 text-center">
@@ -227,7 +264,7 @@ export default function CompletePage({
         <TrackingView stage="주문접수" />
       </div>
 
-      <p className="mt-5 text-xs text-neutral-400 leading-relaxed">
+      <p className="mt-5 text-xs text-neutral-500 leading-relaxed">
         배송기사가 직접 찾아갑니다 🛵
         <br />
         곧 연락드릴게요!
@@ -241,15 +278,18 @@ export default function CompletePage({
         >
           주문서 이미지로 저장 📸
         </button>
-        {saveMsg && <p className="text-[11px] text-neutral-400">{saveMsg}</p>}
+        {saveMsg && <p className="text-[11px] text-neutral-500">{saveMsg}</p>}
         <button
           type="button"
-          onClick={share}
+          onClick={() => share()}
           className="px-5 py-2.5 rounded-full bg-delivery-yellow text-delivery-dark text-sm font-extrabold"
         >
           “나 청첩장 배송 신청했다 🛵” 단톡방에 공유
         </button>
-        {shareMsg && <p className="text-[11px] text-neutral-400">{shareMsg}</p>}
+        <p className="text-[11px] text-neutral-500">PC에서는 공유 링크가 복사돼요.</p>
+        <button type="button" onClick={() => share(true)} className="text-sm text-delivery underline underline-offset-2 py-2">공유 링크 복사</button>
+        {shareMsg && <p role="status" className="text-xs text-neutral-500">{shareMsg}</p>}
+        {manualLink && <ManualShareLink url={manualLink} />}
         {manageToken && (
           <Link
             href={`/delivery/manage/${manageToken}`}
@@ -277,7 +317,7 @@ export default function CompletePage({
             영상 보기 ▶
           </a>
         ) : (
-          <p className="text-[11px] text-neutral-400 py-2">영상 준비 중이에요 🎬</p>
+          <p className="text-[11px] text-neutral-500 py-2">영상 준비 중이에요 🎬</p>
         )}
       </div>
 
@@ -288,6 +328,7 @@ export default function CompletePage({
       >
         💌 모바일 청첩장 보기
       </Link>
+      <SaveInvitationLink />
     </div>
   );
 }
@@ -303,7 +344,7 @@ function Row({
 }) {
   return (
     <div className="flex justify-between gap-3">
-      <span className="text-neutral-400">{label}</span>
+      <span className="text-neutral-500">{label}</span>
       <span
         className={`text-right ${
           highlight ? "text-delivery font-bold" : "text-neutral-700 font-medium"

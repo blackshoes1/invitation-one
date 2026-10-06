@@ -116,7 +116,7 @@ export default function ParkingRouteMap() {
             {parkingLot.name} → {venue.name}
           </p>
           <p className="text-xs text-neutral-500">{parkingLot.address}</p>
-          <p className="text-[10px] text-neutral-400 mt-1 tracking-wide">
+          <p className="text-[10px] text-neutral-500 mt-1 tracking-wide">
             아래 버튼으로 도보 길찾기를 이용해 주세요
           </p>
         </div>

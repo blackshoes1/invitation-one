@@ -116,7 +116,7 @@ export default function VerifyBadge({
           </p>
         )}
         {!isHeart && !done && (
-          <p className="text-[11px] text-neutral-400">
+          <p className="text-[11px] text-neutral-500">
             아직 배송 준비 중이에요 — 곧 만나요 🛵
           </p>
         )}
@@ -145,6 +145,7 @@ export default function VerifyBadge({
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="성함"
+        aria-label="성함"
         className="w-full p-2.5 text-base border border-wedding-gold/20 rounded-lg focus:outline-none focus:border-sage-600"
       />
       <input
@@ -152,6 +153,7 @@ export default function VerifyBadge({
         onChange={(e) => setLast4(e.target.value.replace(/\D/g, "").slice(0, 4))}
         inputMode="numeric"
         placeholder="전화번호 끝 4자리"
+        aria-label="전화번호 끝 4자리"
         className="w-full p-2.5 text-base border border-wedding-gold/20 rounded-lg focus:outline-none focus:border-sage-600"
       />
       {needYmd && (
@@ -159,6 +161,7 @@ export default function VerifyBadge({
           value={ymd}
           onChange={(e) => setYmd(e.target.value)}
           placeholder="만난 날짜 (예: 2026-08-15)"
+          aria-label="만난 날짜"
           className="w-full p-2.5 text-base border border-wedding-gold/20 rounded-lg focus:outline-none focus:border-sage-600"
         />
       )}
@@ -170,7 +173,7 @@ export default function VerifyBadge({
             setOpen(false);
             setError(null);
           }}
-          className="px-4 py-2.5 text-sm text-neutral-400 border border-wedding-gold/20 rounded-full"
+          className="px-4 py-2.5 text-sm text-neutral-500 border border-wedding-gold/20 rounded-full"
         >
           닫기
         </button>

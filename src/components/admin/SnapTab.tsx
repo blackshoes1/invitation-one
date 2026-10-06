@@ -140,8 +140,8 @@ export default function SnapTab({ api, setError, setNotice: _setNotice }: TabCtx
         </div>
       )}
       <p className="text-[11px] text-neutral-400 text-center">
-        하객이 올린 사진입니다. 부적절한 사진은 숨기거나 삭제하세요. 원본은
-        NAS(Cloud Sync)에 자동 보관돼요.
+        하객이 올린 사진입니다. 숨기면 앨범에서 제외됩니다.
+        삭제하면 연결된 저장소의 사진도 삭제됩니다.
       </p>
       {loading && (
         <p className="text-xs text-neutral-400 text-center">불러오는 중…</p>

@@ -20,11 +20,68 @@ test.describe("E2E-2 개인 초대", () => {
 
   test("초대 링크 진입 — 페이지 어디에도 전체 전화번호가 노출되지 않는다", async ({ page }) => {
     await page.goto(`/delivery/group/e2e-group?i=${INVITE_TOKEN}`);
-    await expect(page.getByText("E2E그룹")).toBeVisible();
+    // 제목(h1)을 콕 집는다. GroupSpaceCard 가 "<그룹명> 분들과 함께 초대했어요." 를
+    // 함께 렌더하므로 getByText("E2E그룹") 은 두 요소에 걸려 strict mode 위반이 난다.
+    await expect(page.getByRole("heading", { name: "E2E그룹" })).toBeVisible();
     // 초대 해석(fetch) 완료 후에도 전체 번호는 HTML 에 없어야 한다 (마스킹만)
     await page.waitForLoadState("networkidle");
     const html = await page.content();
     expect(html).not.toMatch(/010-\d{3,4}-\d{4}/);
+  });
+
+  test("개인 링크로 들어오면 묻지 않고 이름을 부르며 확인만 받는다", async ({ page }) => {
+    // 이미 아는 정보를 "알려주세요"라고 묻지 않는다 — 초대 링크의 목적이
+    // 다시 입력하는 번거로움을 없애는 것이므로 첫 화면부터 그게 드러나야 한다.
+    await page.goto(`/delivery?i=${INVITE_TOKEN}`);
+
+    await expect(page.getByRole("region", { name: "초대받은 분 확인" })).toContainText("초대손님님 전용 링크");
+    await page.getByRole("button", { name: /청첩장 받을 일정 정하기/ }).click();
+    await expect(page.getByText("받는 분 정보를 알려주세요")).toHaveCount(0);
+    // 번호는 마스킹만 — 실제 번호는 제출 시 서버가 토큰으로 채운다.
+    // 마스킹 번호는 이제 두 곳에 뜬다: 수신자 확인 카드와 1단계 확인 박스.
+    // 둘 다 마스킹이라 어느 쪽이든 되지만, 범위를 좁혀야 strict mode 위반이 안 난다.
+    await expect(
+      page.getByRole("region", { name: "초대받은 분 확인" }).getByText("010-****-5432")
+    ).toBeVisible();
+    await expect(page.getByText("초대받은 연락처로 신청해요.", { exact: false })).toBeVisible();
+
+    await page.waitForLoadState("networkidle");
+    expect(await page.content()).not.toMatch(/010-\d{3,4}-\d{4}/);
+  });
+
+  test("'정보 수정'을 누르면 직접 입력할 수 있다 (명단 이름이 틀릴 수 있으므로)", async ({
+    page,
+  }) => {
+    await page.goto(`/delivery?i=${INVITE_TOKEN}`);
+    await page.getByRole("button", { name: /청첩장 받을 일정 정하기/ }).click();
+    await page.getByRole("button", { name: "정보 수정" }).click();
+
+    // 이름 칸은 초대값이 채워진 채로 열린다 — 지우고 고칠 수 있다
+    await expect(page.getByLabel("성함")).toHaveValue("초대손님");
+    // 번호는 여전히 마스킹 확인 박스 + "다른 번호 입력" 경로
+    // (눌러도 inviteToken 은 계속 전송되어 명단 연결이 유지된다 — 결함 ①)
+    await expect(page.getByRole("button", { name: "다른 번호 입력" })).toBeVisible();
+    expect(await page.content()).not.toMatch(/010-\d{3,4}-\d{4}/);
+  });
+
+  test("마음배송 전환에도 개인 식별을 전달하고 연락처를 다시 묻지 않는다", async ({ page }) => {
+    await page.goto(`/delivery?i=${INVITE_TOKEN}`);
+    await page.getByRole("button", { name: /축하 한마디만 남기기/ }).click();
+    await expect(page.getByRole("textbox", { name: "이름", exact: true })).toHaveValue("초대손님");
+    await expect(page.getByText(/초대받은 연락처 010-\*\*\*\*-5432를 사용해요/)).toBeVisible();
+    await page.getByRole("combobox", { name: "시/도" }).selectOption("서울");
+    await page.getByRole("combobox", { name: "시/군/구" }).selectOption("강남구");
+    const sent = page.waitForRequest((request) => request.url().endsWith("/api/delivery/heart") && request.method() === "POST");
+    await page.getByRole("button", { name: "마음 전하기 💌", exact: true }).click();
+    expect((await sent).postDataJSON()).toMatchObject({ inviteToken: INVITE_TOKEN, phone: null, groupId: null });
+    await expect(page.getByText("따뜻한 마음 잘 받았어요 🥰")).toBeVisible();
+    expect(await page.content()).not.toMatch(/010-\d{3,4}-\d{4}/);
+  });
+
+  test("초대 없이 들어오면 화면이 그대로다", async ({ page }) => {
+    await page.goto("/delivery");
+    await page.getByRole("button", { name: /청첩장 받을 일정 정하기/ }).click();
+    await expect(page.getByText("받는 분 정보를 알려주세요")).toBeVisible();
   });
 
   test("초대 해석 API 는 이름 + 마스킹 번호만 반환한다", async ({ request }) => {
@@ -62,7 +119,8 @@ test.describe("E2E-3/4 배송 신청 + manage token", () => {
   test.skip(!DB, "E2E_DB 필요");
 
   test("신규 배송 신청 → manage token 발급 → 관리 페이지 접근", async ({ request, page }) => {
-    // 주말 후보 날짜 — 재시도(retry)로 이미 점유됐으면 다음 날짜 사용
+    // 주말 후보 날짜 — 재시도(retry)로 이미 점유됐으면 다음 날짜 사용.
+    // 평일을 쓰면 안 된다: slotsForDate() 가 평일엔 점심·저녁만 허용해 '오후' 는 400.
     const dates = ["2026-10-10", "2026-10-11", "2026-10-03", "2026-10-04"];
     let token: string | null = null;
     for (const date of dates) {
@@ -151,5 +209,134 @@ test.describe("E2E-6 체크인 운영 시간", () => {
     });
     expect(res.status()).toBe(403);
     expect((await res.json()).error).toBe("event_key");
+  });
+});
+
+test.describe("P1-4 알림 채널 가드", () => {
+  test.skip(!DB, "E2E_DB 필요");
+
+  test("채널 미설정이면 클레임하지 않고 조용히 0을 반환한다", async ({ request }) => {
+    // CI 에는 TELEGRAM_*/KAKAO_* 가 없다. 이때 드레인이 행을 꺼내 놓고 못 보내면
+    // 그 행은 'sending' 에 갇힌다 — 그래서 아예 클레임하지 않는 게 맞다.
+    //
+    // 이 테스트가 지키는 건 채널을 갈아끼울 때의 사고다: 환경변수만 지우고 가드를
+    // 안 고치면 알림이 outbox 에 쌓이기만 하고 조용히 멈춘다. ready=false 가
+    // 응답에 드러나야 안전망 워크플로가 그걸 장애로 잡는다.
+    const res = await request.post("/api/notify");
+    expect(res.status()).toBe(200);
+    const j = await res.json();
+    expect(j.ready).toBe(false);
+    expect(j.channel).toBe("none");
+    expect(j.claimed).toBe(0);
+  });
+});
+
+test.describe("문제 4 관리 링크 복구", () => {
+  test.skip(!DB, "E2E_DB 필요");
+
+  test("이름·끝4자리·날짜만으로는 관리 토큰을 받지 못한다", async ({ request }) => {
+    // 예전에는 이 셋이 맞으면 그 자리에서 manage_url 을 돌려줬다. 그 셋은
+    // 청첩장을 받은 사람이면 대개 아는 정보라 본인 인증이 못 된다.
+    const res = await request.post("/api/delivery/find", {
+      data: { name: "E2E테스터", last4: "1234", date: "2026-10-10" },
+    });
+    expect(res.status()).toBe(200);
+    const body = await res.text();
+    expect(body).not.toMatch(/manage_url|manage_token/);
+    expect(body).not.toMatch(/[0-9a-f]{32}/); // 어떤 토큰도 실리지 않는다
+    expect(body).not.toMatch(/010-?\d{3,4}-?\d{4}/); // 전체 번호도 없다
+  });
+
+  test("일치하든 안 하든 같은 응답 — 존재 여부를 알 수 없다", async ({ request }) => {
+    const hit = await request.post("/api/delivery/find", {
+      data: { name: "E2E테스터", last4: "1234", date: "2026-10-10" },
+    });
+    const miss = await request.post("/api/delivery/find", {
+      data: { name: "없는사람", last4: "0000", date: "2026-10-10" },
+    });
+    expect(hit.status()).toBe(miss.status());
+    expect(await hit.text()).toBe(await miss.text());
+  });
+
+  test("위조·만료 복구 토큰은 401 이고 관리 링크를 주지 않는다", async ({ request }) => {
+    const res = await request.post("/api/delivery/recover", {
+      data: { token: "00000000000000000000000000000000" },
+    });
+    expect(res.status()).toBe(401);
+    expect(await res.text()).not.toMatch(/manage_url/);
+  });
+
+  test("형식이 아닌 토큰도 조용히 401 (오류 종류를 알려주지 않는다)", async ({ request }) => {
+    for (const token of ["", "abc", "<script>", "0".repeat(64)]) {
+      const res = await request.post("/api/delivery/recover", { data: { token } });
+      expect(res.status()).toBe(401);
+    }
+  });
+});
+
+test.describe("문제 7 마감 상태에서도 기존 신청 복구", () => {
+  test.skip(!DB, "E2E_DB 필요 (Supabase 가 설정돼야 정원 조회가 일어난다)");
+
+  /** 정원 조회 응답을 가로채 마감 상태를 만든다 (DB 를 건드리지 않는다) */
+  const forceClosed = async (page: import("@playwright/test").Page) => {
+    await page.route("**/rest/v1/rpc/get_delivery_guest_count", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: "9999", // DELIVERY_CAPACITY(100) 초과
+      })
+    );
+  };
+
+  test("마감이면 신규 신청 메뉴는 막히지만 '내 신청 찾기'는 남는다", async ({ page }) => {
+    // 정원이 차는 순간 기존 하객의 취소·변경까지 막히면 안 된다 —
+    // 그건 신규 신청 정원과 아무 상관이 없는 일이다.
+    await forceClosed(page);
+    await page.goto("/delivery");
+
+    await expect(page.getByText("아쉽게도 마감됐어요")).toBeVisible();
+    // 신규 직접배달 진입은 계속 막힌다
+    await expect(page.getByRole("button", { name: /청첩장 받을 일정 정하기/ })).toHaveCount(0);
+    // 복구 동선은 살아 있다
+    await expect(page.getByRole("button", { name: /내 신청 찾기/ })).toBeVisible();
+  });
+
+  test("마감 상태로 ?find=1 로 들어오면 복구 폼이 열린 채 보인다", async ({ page }) => {
+    await forceClosed(page);
+    await page.goto("/delivery?find=1");
+
+    await expect(page.getByText("아쉽게도 마감됐어요")).toBeVisible();
+    await expect(page.getByPlaceholder("연락처 끝 4자리")).toBeVisible();
+    await expect(page.getByRole("button", { name: /찾기/ })).toBeVisible();
+  });
+
+  test("마감이어도 유효한 관리 링크는 그대로 동작한다", async ({ request, page }) => {
+    // ⚠️ **주말** 날짜여야 한다. 평일은 slotsForDate() 가 점심·저녁만 허용해서
+    //    '오후' 로 신청하면 409(마감)가 아니라 400 이 온다.
+    //    위 E2E-3 이 쓰는 날짜(10/10·10/11·10/03·10/04)와 겹치지 않게 고른다.
+    const dates = ["2026-09-26", "2026-09-27", "2026-09-19", "2026-09-20"];
+    let token: string | null = null;
+    for (const date of dates) {
+      const res = await request.post("/api/delivery/create", {
+        data: {
+          name: "마감테스터",
+          phone: "010-9999-4321",
+          location: "서울 강남구 테스트로 2",
+          date,
+          time: "오후",
+          message: null,
+        },
+      });
+      if (res.status() === 200) {
+        token = (await res.json()).manage_token;
+        break;
+      }
+      expect(res.status()).toBe(409);
+    }
+    expect(token).toMatch(/^[0-9a-f]{32}$/);
+
+    await forceClosed(page);
+    await page.goto(`/delivery/manage/${token}`);
+    await expect(page.getByText("마감테스터").first()).toBeVisible();
   });
 });

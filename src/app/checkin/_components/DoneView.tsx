@@ -58,7 +58,7 @@ export function DoneView({ done }: { done: DoneInfo }) {
         )}
       </div>
 
-      <p className="text-sm text-neutral-400">와주셔서 감사합니다 💐</p>
+      <p className="text-sm text-neutral-500">와주셔서 감사합니다 💐</p>
     </motion.div>
   );
 }

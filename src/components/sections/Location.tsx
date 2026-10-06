@@ -132,7 +132,7 @@ export default function Location() {
                 {venue.parking}
               </span>
               <br />
-              <span className="text-[11px] text-neutral-400">
+              <span className="text-[11px] text-neutral-500">
                 ({parkingLot.address} · 주차 후 예식장까지 도보 이동)
               </span>
             </p>
@@ -143,7 +143,7 @@ export default function Location() {
             </p>
           </div>
           <ParkingRouteMap />
-          <p className="text-[11px] text-neutral-400 tracking-wide">
+          <p className="text-[11px] text-neutral-500 tracking-wide">
             🚶 주차장 → 예식장 도보 길찾기
           </p>
           <div className="grid grid-cols-2 gap-3">

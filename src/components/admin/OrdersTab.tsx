@@ -6,6 +6,8 @@ import { type AdminDelivery, type TabCtx } from "@/app/admin/shared";
 import OrderFilters from "./orders/OrderFilters";
 import OrderCard from "./orders/OrderCard";
 import type { EditSched } from "./orders/types";
+import { describeSms, type SmsOutcome } from "@/lib/smsResult";
+import { joinLocation } from "@/lib/regions";
 
 /**
  * 주문 탭 — 상태별 목록·검색·상태 변경(SMS)·추적 단계·일정 수정·주문 합치기.
@@ -17,9 +19,16 @@ export default function OrdersTab({
   setNotice,
   groups,
   groupName,
+  focusId = null,
+  onBack,
+  backLabel = "← 목록으로",
 }: TabCtx & {
   groups: Group[];
   groupName: (id: string | null) => string;
+  /** 주문 상세 — 이 주문 하나만 보여준다 (캘린더에서 주문을 눌러 들어온 경우) */
+  focusId?: string | null;
+  onBack?: () => void;
+  backLabel?: string;
 }) {
   const [tab, setTab] = useState<DeliveryStatus | "전체">("전체");
   const [groupFilter, setGroupFilter] = useState("");
@@ -33,7 +42,8 @@ export default function OrdersTab({
   /** 일정 변경 시 참여자 안내 문자 발송 여부 (폼 체크박스) */
   const [notifyOnSchedule, setNotifyOnSchedule] = useState(true);
   /** 숨김 처리한 주문까지 볼지 (DB 는 보존 — 표시 전용) */
-  const [showHidden, setShowHidden] = useState(false);
+  // 상세로 들어온 주문이 숨김 상태여도 보여야 한다
+  const [showHidden, setShowHidden] = useState(Boolean(focusId));
   const [loading, setLoading] = useState(true);
 
   const loadOrders = async (
@@ -68,7 +78,9 @@ export default function OrdersTab({
     let alive = true;
     (async () => {
       try {
-        const res = await api("/api/admin/deliveries");
+        const res = await api(
+          focusId ? "/api/admin/deliveries?include_hidden=1" : "/api/admin/deliveries"
+        );
         if (!alive || res.status === 401) return;
         const j = await res.json();
         if (!res.ok) return setError(j.error ?? "불러오기 실패");
@@ -88,27 +100,26 @@ export default function OrdersTab({
 
   const changeStatus = async (id: string, status: DeliveryStatus) => {
     if (acting) return; // 진행 중 연타 방지 — SMS 중복 발송 가드
+    const restoring = status === "대기중";
+    if (restoring && !confirm("취소된 주문을 대기중으로 복구할까요? 숨김도 해제됩니다. 안내 문자는 보내지 않습니다.")) return;
     setActing(id);
     setNotice(null);
     try {
       const res = await api(`/api/admin/deliveries/${id}`, {
         method: "PATCH",
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(restoring ? { action: "restore" } : { status }),
       });
       const j = await res.json();
       if (!res.ok) return setError(j.error ?? "변경 실패");
-      if (status === "확정" || status === "취소") {
-        const sms = j.sms as
-          | { count: number; sent: number; skipped: boolean }
-          | null;
-        const label = status === "확정" ? "확정" : "취소";
-        setNotice(
-          !sms || sms.count === 0
-            ? `${label} 처리됨 — 연락처 보유 참여자가 없어 SMS 미발송.`
-            : sms.skipped
-            ? `${label} 처리됨 — SMS는 솔라피 키 미설정으로 미발송 (${sms.count}명 대상).`
-            : `${label} 처리 및 참여자 ${sms.sent}/${sms.count}명에게 SMS 발송 완료.`
-        );
+      if (restoring) {
+        setNotice("대기중으로 복구하고 숨김을 해제했습니다. 안내 문자는 보내지 않았어요.");
+      } else if (status === "확정") {
+        // 한 건이라도 못 보냈으면 초록 알림이 아니라 빨간 오류다 (smsResult 참고)
+        const r = describeSms(j.sms as SmsOutcome | null, "확정 처리");
+        (r.ok ? setNotice : setError)(r.text);
+      } else if (status === "취소") {
+        // 취소는 문자를 보내지 않는다 — "연락처가 없어 미발송" 처럼 들리면 안 된다.
+        setNotice("취소 처리됐습니다. 안내 문자는 보내지 않았어요 — 필요하면 직접 연락해주세요.");
       }
       loadOrders();
     } catch {
@@ -139,33 +150,34 @@ export default function OrdersTab({
     if (!editSched) return;
     if (!editSched.date) return setError("날짜를 선택해주세요.");
     if (!editSched.time) return setError("시간대를 선택해주세요.");
-    if (!editSched.location.trim()) return setError("장소를 입력해주세요.");
+    // 시/도·시/군/구는 필수 — 첫 낱말이 시/도여야 배송경로 지도에 핀이 붙는다.
+    // 예전 자유 입력 값은 '상세 위치'에 그대로 실려 있으니 여기서 잃지 않는다.
+    if (!editSched.sido || !editSched.sub)
+      return setError(
+        "장소의 시/도·시/군/구를 골라주세요. (원래 적혀 있던 내용은 '상세 위치'에 그대로 남아 있어요)"
+      );
     setError(null);
     setNotice(null);
 
-    const notify = notifyOnSchedule;
+    const notify = notifyOnSchedule && rows.find((r) => r.id === editSched.id)?.status !== "취소";
     const res = await api(`/api/admin/deliveries/${editSched.id}`, {
       method: "PATCH",
       body: JSON.stringify({
         date: editSched.date,
         time_slot: editSched.time,
-        location: editSched.location.trim(),
+        location: joinLocation(editSched.sido, editSched.sub, editSched.detail),
         notify,
       }),
     });
     const j = await res.json();
     if (!res.ok) return setError(j.error ?? "일정 변경 실패");
 
-    const sms = j.sms as { count: number; sent: number; skipped: boolean } | null;
-    setNotice(
-      !notify
-        ? "일정이 변경되었습니다 (문자 안내 생략)."
-        : !sms || sms.count === 0
-        ? "일정이 변경되었습니다 — 연락처 보유 참여자가 없어 SMS 미발송."
-        : sms.skipped
-        ? `일정이 변경되었습니다 — SMS는 솔라피 키 미설정으로 미발송 (${sms.count}명 대상).`
-        : `일정 변경 및 참여자 ${sms.sent}/${sms.count}명에게 안내 SMS 발송 완료.`
-    );
+    if (!notify) {
+      setNotice("일정이 변경되었습니다 (문자 안내 생략).");
+    } else {
+      const r = describeSms(j.sms as SmsOutcome | null, "일정 변경");
+      (r.ok ? setNotice : setError)(r.text);
+    }
     setEditSched(null);
     loadOrders();
   };
@@ -229,6 +241,49 @@ export default function OrdersTab({
     );
   }, [rows, search]);
 
+  if (focusId) {
+    const order = rows.find((r) => r.id === focusId);
+    return (
+      <div className="space-y-3">
+        {onBack && (
+          <button type="button" onClick={onBack}
+            className="text-xs text-sage-700 underline underline-offset-2">
+            {backLabel}
+          </button>
+        )}
+        <h2 className="text-sm font-semibold text-[#203a32]">주문 상세</h2>
+        {loading ? (
+          <p className="text-xs text-neutral-400 text-center">불러오는 중…</p>
+        ) : !order ? (
+          <p className="text-sm text-neutral-400 text-center py-10">
+            주문을 찾을 수 없습니다. 삭제됐거나 주소가 잘못됐어요.
+          </p>
+        ) : (
+          <OrderCard
+            r={order}
+            api={api}
+            groups={groups}
+            onMembersAdded={() => loadOrders()}
+            groupName={groupName}
+            acting={acting}
+            mergeSource={null}
+            setMergeSource={() => {}}
+            notify={notifyOnSchedule}
+            setNotify={setNotifyOnSchedule}
+            onToggleHidden={toggleHidden}
+            editSched={editSched}
+            setEditSched={setEditSched}
+            onChangeStatus={changeStatus}
+            onChangeStage={changeStage}
+            onMerge={() => {}}
+            onSaveSchedule={saveSchedule}
+            allowMerge={false}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <>
       <OrderFilters
@@ -290,6 +345,9 @@ export default function OrdersTab({
           <OrderCard
             key={r.id}
             r={r}
+            api={api}
+            groups={groups}
+            onMembersAdded={() => loadOrders()}
             groupName={groupName}
             acting={acting}
             mergeSource={mergeSource}

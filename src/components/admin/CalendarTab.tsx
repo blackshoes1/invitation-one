@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { X } from "lucide-react";
 import { formatYmdKo, toYmd } from "@/lib/wedding";
 import {
   type AdminDelivery,
@@ -14,12 +15,24 @@ import {
 } from "@/app/admin/shared";
 import { Legend } from "@/components/admin/ui";
 
-/** 캘린더 탭 — 월별 주문 현황 + 날짜 일괄 마감/해제 + 이번 주 .ics. 마운트 시 자체 로드. */
-export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
+/**
+ * 캘린더 탭 — 어드민 첫 화면.
+ * 오늘 주문 + 월별 주문 현황 + 날짜 일괄 마감/해제 + 이번 주 .ics. 마운트 시 자체 로드.
+ * 주문을 누르면 `onOpenOrder` 로 주문 상세로 간다.
+ */
+export default function CalendarTab({
+  api,
+  setError,
+  setNotice,
+  onOpenOrder,
+}: TabCtx & { onOpenOrder?: (id: string) => void }) {
   const [allRows, setAllRows] = useState<AdminDelivery[]>([]);
   const [blocked, setBlocked] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [detailDate, setDetailDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [blockError, setBlockError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -45,6 +58,15 @@ export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!detailDate) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDetailDate(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [detailDate]);
+
   /** 날짜 선택 토글 (다중 선택 → 일괄 차단/해제) */
   const toggleSelect = (ymd: string) => {
     setSelected((prev) => {
@@ -56,33 +78,43 @@ export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
   };
 
   /** 선택한 날짜들 일괄 마감/해제 (주문 있는 날짜도 마감 가능 — 신규 신청만 차단) */
-  const applyBlock = async (block: boolean) => {
-    if (selected.size === 0) return;
+  const applyBlock = async (block: boolean, dates = [...selected]) => {
+    if (dates.length === 0 || saving) return;
+    setSaving(true);
+    setBlockError(null);
     setError(null);
     setNotice(null);
     try {
       const res = await api("/api/admin/blocked", {
         method: "POST",
-        body: JSON.stringify({ dates: [...selected], block }),
+        body: JSON.stringify({ dates, block }),
       });
       const j = await res.json();
-      if (!res.ok) return setError(j.error ?? "마감 처리 실패");
+      if (!res.ok) {
+        const message = j.error ?? "마감 처리 실패";
+        setBlockError(message);
+        return setError(message);
+      }
       setBlocked((prev) => {
         const next = new Set(prev);
-        for (const d of selected) {
+        for (const d of dates) {
           if (block) next.add(d);
           else next.delete(d);
         }
         return next;
       });
-      setSelected(new Set());
+      setSelected((prev) => new Set([...prev].filter((date) => !dates.includes(date))));
       setNotice(
         block
           ? `${j.done}개 날짜를 마감했어요 🚫 (기존 주문은 유지돼요)`
           : `${j.done}개 날짜 마감을 해제했어요 ✅`
       );
     } catch {
-      setError("마감 처리 요청이 실패했습니다. 네트워크를 확인해주세요.");
+      const message = "마감 처리 요청이 실패했습니다. 네트워크를 확인해주세요.";
+      setBlockError(message);
+      setError(message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -109,6 +141,32 @@ export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
       {loading && (
         <p className="text-xs text-neutral-400 text-center">불러오는 중…</p>
       )}
+
+      {/* 오늘 주문 — 있을 때만. 로그인하자마자 오늘 할 일부터 보이게 */}
+      {(() => {
+        const today = toYmd(new Date());
+        const list = (byDate[today] ?? [])
+          .slice()
+          .sort((a, b) => a.time_slot.localeCompare(b.time_slot));
+        if (loading || list.length === 0) return null;
+        return (
+          <section
+            aria-label="오늘의 주문"
+            className="bg-white border-2 border-sage-300 p-4 space-y-2"
+          >
+            <p className="text-sm font-semibold text-sage-700">
+              오늘의 주문 · {formatYmdKo(today)} · {list.length}건
+            </p>
+            <ul className="space-y-2">
+              {list.map((order) => (
+                <li key={order.id}>
+                  <OrderRow order={order} onOpen={onOpenOrder} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })()}
 
       {/* 이번 주 일정 + .ics */}
       {(() => {
@@ -148,8 +206,8 @@ export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
         <Legend color="bg-neutral-700" label="마감됨 🚫" />
       </div>
       <p className="text-[11px] text-neutral-400 text-center">
-        날짜를 눌러 여러 개 선택한 뒤 한 번에 마감/해제 — 주문이 있는 날도 마감할 수
-        있어요 (기존 주문 유지, 신규 신청만 차단)
+        날짜를 누르면 주문 정보를 확인할 수 있어요. 레이어에서 날짜를 선택한 뒤
+        여러 날짜를 한 번에 마감하거나 해제할 수 있습니다.
       </p>
 
       {selected.size > 0 && (
@@ -158,12 +216,14 @@ export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
             {selected.size}개 선택
           </span>
           <button
+            disabled={saving}
             onClick={() => applyBlock(true)}
             className="px-3 py-1.5 text-xs bg-neutral-700 text-white rounded-full"
           >
             마감 🚫
           </button>
           <button
+            disabled={saving}
             onClick={() => applyBlock(false)}
             className="px-3 py-1.5 text-xs bg-sage-600 text-white rounded-full"
           >
@@ -220,8 +280,9 @@ export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
                       <button
                         key={ymd}
                         type="button"
-                        onClick={() => toggleSelect(ymd)}
-                        title={title || "선택 후 마감"}
+                        onClick={() => { setBlockError(null); setDetailDate(ymd); }}
+                        aria-label={`${formatYmdKo(ymd)} 주문 정보${list.length > 0 ? `, ${list.length}건` : ""}`}
+                        title={title || "주문 없음"}
                         className={`relative aspect-square rounded-md text-[11px] flex items-center justify-center ${color} ${
                           isSelected
                             ? "ring-2 ring-delivery ring-offset-1 font-bold"
@@ -243,6 +304,138 @@ export default function CalendarTab({ api, setError, setNotice }: TabCtx) {
           </div>
         );
       })}
+
+      {detailDate && (() => {
+        const list = byDate[detailDate] ?? [];
+        const isBlocked = blocked.has(detailDate);
+        const isSelected = selected.has(detailDate);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <button
+              type="button"
+              aria-label="주문 정보 닫기"
+              onClick={() => setDetailDate(null)}
+              className="absolute inset-0 bg-black/35"
+            />
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="calendar-detail-title"
+              className="relative z-10 max-h-[80vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 id="calendar-detail-title" className="text-lg font-semibold text-[#203a32]">
+                    {formatYmdKo(detailDate)}
+                  </h2>
+                  <p className={`mt-1 text-xs ${isBlocked ? "text-red-600" : "text-sage-600"}`}>
+                    {isBlocked ? "신규 신청 마감됨" : "신규 신청 가능"} · 주문 {list.length}건
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="레이어 닫기"
+                  onClick={() => setDetailDate(null)}
+                  className="rounded-full p-2 text-neutral-500 hover:bg-neutral-100"
+                >
+                  <X size={18} aria-hidden="true" />
+                </button>
+              </div>
+
+              {list.length === 0 ? (
+                <p className="mt-5 rounded-xl bg-neutral-50 px-4 py-5 text-center text-sm text-neutral-500">
+                  이 날짜에는 주문이 없습니다.
+                </p>
+              ) : (
+                <ul className="mt-4 space-y-2">
+                  {list.map((order) => (
+                    <li key={order.id}>
+                      <OrderRow order={order} onOpen={onOpenOrder} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div className="mt-5 space-y-2 border-t border-neutral-100 pt-4">
+                <p className="text-xs text-neutral-500">마감하면 신규 신청만 차단되며 기존 주문은 유지됩니다.</p>
+                {blockError && <p role="alert" className="text-sm text-red-600">{blockError}</p>}
+                <button
+                  type="button"
+                  disabled={saving || loading}
+                  onClick={() => applyBlock(!isBlocked, [detailDate])}
+                  className="w-full rounded-xl bg-sage-700 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  {saving ? "저장 중…" : isBlocked ? "이 날짜 마감 해제" : "이 날짜 마감"}
+                </button>
+              </div>
+              <div className="mt-3 flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => toggleSelect(detailDate)}
+                  className={`rounded-full px-4 py-2 text-xs font-medium ${
+                    isSelected
+                      ? "border border-neutral-300 text-neutral-600"
+                      : "bg-neutral-700 text-white"
+                  }`}
+                >
+                  {isSelected ? "마감 작업 선택 해제" : "마감 작업에 선택"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDetailDate(null)}
+                  className="rounded-full bg-sage-600 px-4 py-2 text-xs font-medium text-white"
+                >
+                  확인
+                </button>
+              </div>
+            </section>
+          </div>
+        );
+      })()}
     </div>
+  );
+}
+
+/** 주문 한 줄 — 누르면 주문 상세로 (onOpen 이 없으면 그냥 표시만) */
+function OrderRow({
+  order,
+  onOpen,
+}: {
+  order: AdminDelivery;
+  onOpen?: (id: string) => void;
+}) {
+  const count = order.participants?.length ?? 0;
+  const body = (
+    <>
+      <div className="flex items-center justify-between gap-2">
+        <p className="font-medium text-neutral-800">
+          {ownerName(order)} {count > 1 ? `외 ${count - 1}명` : ""}
+        </p>
+        <span className="shrink-0 rounded-full bg-sage-50 px-2 py-1 text-[10px] font-medium text-sage-700">
+          {order.status}
+        </span>
+      </div>
+      <p className="mt-1 text-xs text-neutral-600">
+        {order.time_slot} · {count}명
+      </p>
+      <p className="mt-1 break-words text-xs leading-5 text-neutral-500">
+        {order.location || "장소 미정"}
+      </p>
+      {onOpen && (
+        <p className="mt-1 text-right text-[11px] font-medium text-sage-600">주문 상세 보기 →</p>
+      )}
+    </>
+  );
+  if (!onOpen)
+    return <div className="rounded-xl border border-neutral-200 p-3">{body}</div>;
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(order.id)}
+      aria-label={`${ownerName(order)} 주문 상세 보기`}
+      className="block w-full rounded-xl border border-neutral-200 p-3 text-left hover:border-sage-400 hover:bg-sage-50/40"
+    >
+      {body}
+    </button>
   );
 }

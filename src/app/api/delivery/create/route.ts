@@ -5,23 +5,29 @@ import { rateLimitAllow, clientIp } from "@/lib/rateLimit";
 import {
   json,
   parseName,
-  parsePhone,
   parseText,
-  parseUuid,
   parseManageTokenParam,
+  resolvePhone,
+  rosterPhone,
   resolveInvite,
-  linkGroupMember,
+  loadGroupBySlug,
+  loadGroupById,
   firstRow,
   rpcErrorCode,
 } from "@/lib/deliveryApi";
+import { resolveOrderKind } from "@/lib/orderKind";
 import { slotsForDate, TIME_SLOTS } from "@/lib/wedding";
 import type { TimeSlot } from "@/lib/wedding";
 
 /**
  * 새 직접배달 주문 생성 (공개) — P1-1: 브라우저 create_delivery_v3 직접 호출 대체.
- * 개인 초대 토큰(P1-2): 토큰이 있으면 group 은 서버가 토큰의 group 으로 강제하고
- * (클라이언트 groupId 와 불일치 시 403 invite_group_mismatch), 연락처는 RPC 가
- * 토큰 해시로 채운다. 생성된 참여자는 group_member 와 연결한다.
+ *
+ * 주문 종류(그룹/개인)는 **서버가 진입 경로로 판정한다** (`resolveOrderKind`).
+ * 폼은 자기가 어느 페이지에서 왔는지(`groupSlug`)만 알려주고, 종류를 계산해
+ * 보내지 않는다 — 규칙이 갈라지지 않게.
+ *
+ * 초대 토큰(P1-2)은 **신원**만 담당한다: 폼은 연락처를 바꿔도 토큰을 계속 보내고,
+ * 서버는 연락처만 분기한 뒤(`resolvePhone`) 참여자를 명단(group_member)과 연결한다.
  */
 const RIDERS = ["신랑", "신부", "신랑+신부"] as const;
 
@@ -41,18 +47,29 @@ export async function POST(req: Request) {
   const invite = inviteToken ? await resolveInvite(inviteToken) : null;
   if (inviteToken && !invite) return json({ error: "invite_invalid" }, 401);
 
-  const clientGroupId = parseUuid(b.groupId);
-  if (invite && clientGroupId && clientGroupId !== invite.groupId)
-    return json({ error: "invite_group_mismatch" }, 403);
-  // 초대가 있으면 group 은 항상 토큰의 group (클라이언트 값 불신)
-  const groupId = invite ? invite.groupId : clientGroupId;
+  // 진입 경로 → 그룹. 클라이언트가 보낸 값이 아니라 서버가 조회한 그룹만 쓴다.
+  // (groupId 는 구버전 폼 호환 경로 — loadGroupById 주석 참고)
+  const claimsGroup =
+    (typeof b.groupSlug === "string" && b.groupSlug.trim() !== "") ||
+    (typeof b.groupId === "string" && b.groupId !== "");
+  const group =
+    (await loadGroupBySlug(b.groupSlug)) ?? (await loadGroupById(b.groupId));
+  if (claimsGroup && !group) return json({ error: "group_invalid" }, 400);
+
+  const kind = resolveOrderKind({ group, invite });
+  if (!kind.ok) return json({ error: kind.error }, 403);
+  const groupId = kind.groupId;
 
   const name = parseName(b.name) ?? (invite ? parseName(invite.name) : null);
   if (!name) return json({ error: "name_invalid" }, 400);
 
-  // 연락처 — 초대 토큰이 있으면 RPC 가 서버측 값으로 채움. 없으면 형식 검증.
-  const phone = invite ? null : parsePhone(b.phone);
-  if (!invite && !phone) return json({ error: "phone_invalid" }, 400);
+  // 연락처 — ① 직접 입력한 번호 ② 명단에서 고른 이름의 번호(여기서 붙인다)
+  //          ③ 초대 토큰 (RPC 가 채운다)
+  const picked =
+    b.rosterName === true && !invite ? await rosterPhone(groupId, name) : null;
+  const ph = resolvePhone(b.phone, Boolean(invite) || Boolean(picked));
+  if (!ph.ok) return json({ error: "phone_invalid" }, 400);
+  const phone = ph.phone ?? picked;
 
   const location = parseText(b.location, 200);
   if (!location || location.length < 2) return json({ error: "location_invalid" }, 400);
@@ -93,10 +110,15 @@ export async function POST(req: Request) {
     manage_token: string | null;
   }>(data);
   if (!row?.participant_id) return json({ error: "server_error" }, 500);
-  if (invite) await linkGroupMember(row.participant_id, invite.memberId);
 
   // P1-4: 응답 후 아웃박스 드레인 (신규 + 재시도 도래분)
-  after(() => void drainNotifications(3).catch(() => {}));
+  // Return the promise: after must await BOTH sending and its durable sent checkpoint.
+  // 에러를 삼키지 않는다 — 여기서 조용히 죽으면 알림이 왜 안 갔는지 알 길이 없다
+  after(() =>
+    drainNotifications(3).catch((e) =>
+      console.error("[outbox] drain failed (after):", e)
+    )
+  );
 
   return json({ manage_token: row.manage_token, participant_id: row.participant_id });
 }

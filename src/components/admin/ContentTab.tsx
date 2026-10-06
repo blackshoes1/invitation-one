@@ -15,7 +15,6 @@ import GallerySection from "./content/GallerySection";
 import AlbumSection from "./content/AlbumSection";
 import VideoSection from "./content/VideoSection";
 import ConfirmSmsSection from "./content/ConfirmSmsSection";
-import ReviewSmsSection from "./content/ReviewSmsSection";
 
 /** 콘텐츠 탭 — 청첩장 사진(메인/갤러리/앨범)·영상 링크·문자 템플릿. 마운트 시 자체 로드. */
 export default function ContentTab({ api, setError, setNotice }: TabCtx) {
@@ -23,7 +22,6 @@ export default function ContentTab({ api, setError, setNotice }: TabCtx) {
   const [videoInput, setVideoInput] = useState("");
   const [heartVideoInput, setHeartVideoInput] = useState("");
   const [confirmSms, setConfirmSms] = useState("");
-  const [reviewSms, setReviewSms] = useState("");
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -39,7 +37,6 @@ export default function ContentTab({ api, setError, setNotice }: TabCtx) {
           setVideoInput(s.video_url ?? "");
           setHeartVideoInput(s.heart_video_url ?? "");
           setConfirmSms(s.confirm_sms ?? "");
-          setReviewSms(s.review_sms ?? "");
         }
       } catch {
         if (alive) setError("콘텐츠 설정을 불러오지 못했습니다.");
@@ -239,13 +236,6 @@ export default function ContentTab({ api, setError, setNotice }: TabCtx) {
       <ConfirmSmsSection
         confirmSms={confirmSms}
         setConfirmSms={setConfirmSms}
-        saveSetting={saveSetting}
-      />
-
-      {/* 리뷰요청 문자 (DL-3) */}
-      <ReviewSmsSection
-        reviewSms={reviewSms}
-        setReviewSms={setReviewSms}
         saveSetting={saveSetting}
       />
     </div>

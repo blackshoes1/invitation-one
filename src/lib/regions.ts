@@ -70,6 +70,37 @@ export function joinRegion(sido: string, sub: string): string {
   return `${sido} ${sub}`.trim();
 }
 
+/**
+ * 시/도 · 시/군/구 · 상세를 저장 형식으로 합친다 ("서울 강남구 강남역 2번 출구").
+ * 첫 낱말이 시/도로 남아야 배송경로 지도의 핀(`sidoOf`)이 붙는다.
+ */
+export function joinLocation(sido: string, sub: string, detail: string): string {
+  return [sido, sub, detail.trim()].filter(Boolean).join(" ").trim();
+}
+
+/**
+ * 저장된 장소 문자열 → 시/도 · 시/군/구 · 상세. `joinLocation` 의 역방향.
+ *
+ * 예전에는 장소가 자유 입력이라 "강남구 또는 암데나" 같은 값이 남아 있다.
+ * **못 알아본 값은 통째로 detail 에 담아 돌려준다 — 어떤 경우에도 글자를 버리지 않는다.**
+ * 고치려고 연 화면에서 원래 적혀 있던 장소가 사라지는 게 제일 큰 사고다.
+ */
+export function splitRegion(location: string | null | undefined): {
+  sido: string;
+  sub: string;
+  detail: string;
+} {
+  const raw = (location ?? "").trim();
+  if (!raw) return { sido: "", sub: "", detail: "" };
+  const [first, ...rest] = raw.split(/\s+/);
+  const subs = REGIONS[first];
+  if (!subs) return { sido: "", sub: "", detail: raw };
+  if (rest.length > 0 && subs.includes(rest[0]))
+    return { sido: first, sub: rest[0], detail: rest.slice(1).join(" ") };
+  // 시/도는 맞는데 그 뒤가 시/군/구가 아니면 시/도만 살리고 나머지는 상세로
+  return { sido: first, sub: "", detail: rest.join(" ") };
+}
+
 /** area 문자열("부산 해운대구", "서울 강남구") → 시/도 키. 매칭 실패 시 null */
 export function sidoOf(area: string | null | undefined): string | null {
   if (!area) return null;

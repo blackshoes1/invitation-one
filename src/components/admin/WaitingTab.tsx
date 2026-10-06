@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { WaitingEntry } from "@/lib/supabase";
 import type { TabCtx } from "@/app/admin/shared";
+import { describeSms, type SmsOutcome } from "@/lib/smsResult";
 
 /** 대기자 탭 — 목록·빈자리 안내 SMS·삭제. 데이터는 마운트 시 자체 로드. */
 export default function WaitingTab({ api, setError, setNotice }: TabCtx) {
@@ -52,11 +53,8 @@ export default function WaitingTab({ api, setError, setNotice }: TabCtx) {
       });
       const j = await res.json();
       if (!res.ok) return setError(j.error ?? "알림 발송 실패");
-      setNotice(
-        j.skipped
-          ? `${j.count}명 대상 — SMS는 솔라피 키 미설정으로 미발송(로그만).`
-          : `${j.sent}/${j.count}명에게 빈자리 안내 SMS 발송 완료.`
-      );
+      const r = describeSms(j as SmsOutcome, "빈자리 안내");
+      (r.ok ? setNotice : setError)(r.text);
     } catch {
       setError("알림 발송 요청이 실패했습니다. 네트워크를 확인해주세요.");
     }

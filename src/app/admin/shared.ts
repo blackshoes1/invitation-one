@@ -9,6 +9,19 @@ import { toYmd } from "@/lib/wedding";
 /** 참여 시스템: 주문 + 참여자 목록 */
 export type AdminDelivery = Delivery & { participants: Participant[] };
 
+/**
+ * 전체 신청 집계 (그룹 미지정 포함) — 전부 **기록 수**다 (docs/COUNTING.md).
+ * records = orders + hearts 이지 고유 인원도 식수도 아니다.
+ */
+export interface Totals {
+  /** 취소되지 않은 직접배달 신청 기록 수 */
+  orders: number;
+  /** 마음배송 기록 수 */
+  hearts: number;
+  /** 두 종류의 합 */
+  records: number;
+}
+
 /** 탭 컴포넌트가 부모(page)로부터 받는 공통 컨텍스트 */
 export type AdminApi = (path: string, init?: RequestInit) => Promise<Response>;
 export interface TabCtx {

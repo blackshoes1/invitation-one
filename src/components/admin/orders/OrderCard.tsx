@@ -1,16 +1,20 @@
 "use client";
 
-import type { Dispatch, SetStateAction } from "react";
+import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { DeliveryStatus, TrackingStage } from "@/lib/supabase";
 import { TRACKING_STAGES } from "@/lib/supabase";
 import { formatYmdKo } from "@/lib/wedding";
+import { splitRegion } from "@/lib/regions";
 import { type AdminDelivery, ownerName, NEXT_ACTION } from "@/app/admin/shared";
 import ScheduleEditor from "./ScheduleEditor";
+import AddOrderMember from "./AddOrderMember";
+import type { AdminApi } from "@/app/admin/shared";
+import type { Group } from "@/lib/supabase";
 import type { EditSched } from "./types";
 
 /** 주문 1건 카드 — 참여자 명단·추적 단계·일정 수정·합치기·상태 변경 버튼 */
 export default function OrderCard({
-  r,
+  r, api, groups, onMembersAdded,
   groupName,
   acting,
   mergeSource,
@@ -24,8 +28,12 @@ export default function OrderCard({
   notify,
   setNotify,
   onToggleHidden,
+  allowMerge = true,
 }: {
   r: AdminDelivery;
+  api: AdminApi;
+  groups: Group[];
+  onMembersAdded: () => Promise<void>;
   groupName: (id: string | null) => string;
   acting: string | null;
   mergeSource: string | null;
@@ -41,7 +49,32 @@ export default function OrderCard({
   setNotify: Dispatch<SetStateAction<boolean>>;
   /** 표시 숨김/복구 (DB 보존) */
   onToggleHidden: (id: string, hidden: boolean, active: boolean) => void;
+  /** 주문 상세(한 건만 보는 화면)에서는 합칠 대상을 고를 수 없으니 끈다 */
+  allowMerge?: boolean;
 }) {
+  const [removing, setRemoving] = useState<string | null>(null);
+  const removeLock = useRef(false);
+  const [memberError, setMemberError] = useState<string | null>(null);
+  const removeMember = async (id: string, name: string, owner: boolean) => {
+    if (removeLock.current) return;
+    const detail = r.participants.length === 1 && ["대기중", "확정"].includes(r.status)
+      ? "마지막 참여자를 삭제하면 주문은 취소됩니다."
+      : owner && r.participants.length > 1 ? "남은 참여자 중 먼저 등록된 분이 대표자가 됩니다." : "";
+    if (!confirm(`${name}님을 이 주문에서 삭제할까요? 그룹 원본 명단은 유지됩니다. ${detail}`)) return;
+    removeLock.current = true;
+    setRemoving(id);
+    setMemberError(null);
+    try {
+      const res = await api(`/api/admin/deliveries/${r.id}/members`, {
+        method: "DELETE", body: JSON.stringify({ participant_id: id }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setMemberError(json.error ?? "삭제하지 못했습니다."); return; }
+      await onMembersAdded();
+    } catch {
+      setMemberError("삭제 결과를 확인하지 못했습니다. 목록을 새로고침해주세요.");
+    } finally { removeLock.current = false; setRemoving(null); }
+  };
   const nextAction = NEXT_ACTION[r.status];
   const cancelable = r.status !== "취소" && r.status !== "완료";
   return (
@@ -60,7 +93,9 @@ export default function OrderCard({
             )}
           </p>
           <p className="text-xs text-neutral-500">
-            {formatYmdKo(r.date)} · {r.time_slot} · {r.location}
+            {formatYmdKo(r.date)} · {r.time_slot} ·{" "}
+            {/* 장소가 비어 있으면 빈칸이 아니라 '미정'이라고 말한다 — 채워 넣어야 할 건임을 알아야 한다 */}
+            {r.location ? r.location : <span className="text-red-400">장소 미정</span>}
             {r.rider === "신랑+신부" && (
               <span className="text-delivery font-bold"> · 💑 신랑+신부</span>
             )}
@@ -105,10 +140,19 @@ export default function OrderCard({
                   )}
                 </span>
               )}
+              <button type="button" disabled={removing !== null}
+                aria-label={`${p.name} 주문에서 삭제`}
+                onClick={() => removeMember(p.id, p.name, p.is_owner)}
+                className="ml-auto shrink-0 rounded border border-red-200 px-2 py-1 text-red-600 disabled:opacity-50">
+                {removing === p.id ? "삭제 중…" : "삭제"}
+              </button>
             </li>
           ))}
         </ul>
       )}
+
+      {memberError && <p role="alert" className="text-xs text-red-600">{memberError}</p>}
+      {cancelable && <AddOrderMember orderId={r.id} groupId={r.group_id} groups={groups} api={api} onAdded={onMembersAdded} />}
 
       {/* 배송 추적 단계 (재미 트래킹, 하객 화면 실시간 반영) */}
       {r.status !== "취소" && (
@@ -134,8 +178,8 @@ export default function OrderCard({
         </div>
       )}
 
-      {/* 일정 수정(취소 외 모든 주문 — 완료 후 정정 포함) + 합치기(활성 주문만) */}
-      {r.status !== "취소" && (
+      {/* 취소 상태에서도 일정 수정 가능. 합치기는 활성 주문만 허용. */}
+      {(
         <div className="flex justify-end gap-2 flex-wrap">
           <button
             onClick={() =>
@@ -146,7 +190,8 @@ export default function OrderCard({
                       id: r.id,
                       date: r.date,
                       time: r.time_slot,
-                      location: r.location ?? "",
+                      // 예전 자유 입력 값도 글자를 버리지 않고 상세로 넘어온다
+                      ...splitRegion(r.location),
                     }
               )
             }
@@ -156,9 +201,9 @@ export default function OrderCard({
                 : "border-neutral-300 text-neutral-500"
             }`}
           >
-            {editSched?.id === r.id ? "수정 닫기" : "📝 일정 수정"}
+            {editSched?.id === r.id ? "수정 닫기" : "📝 일정·장소 수정"}
           </button>
-          {r.status !== "완료" &&
+          {allowMerge && r.status !== "완료" && r.status !== "취소" &&
             (mergeSource === null ? (
               <button
                 onClick={() => setMergeSource(r.id)}
@@ -209,7 +254,7 @@ export default function OrderCard({
         </button>
       </div>
 
-      {/* 일정 수정 폼 — 그룹 담당자가 신청한 일자·시간·장소를 관리자가 조정 */}
+      {/* 일정·장소 수정 폼 — 그룹 담당자가 신청한 일자·시간·장소를 관리자가 조정 */}
       {editSched?.id === r.id && (
         <ScheduleEditor
           editSched={editSched}
@@ -217,18 +262,25 @@ export default function OrderCard({
           onSave={onSaveSchedule}
           notify={notify}
           setNotify={setNotify}
+          cancelled={r.status === "취소"}
         />
       )}
 
-      {(nextAction || cancelable) && (
+      {(nextAction || cancelable || r.status === "취소") && (
         <div className="flex justify-end gap-2">
+          {r.status === "취소" && (
+            <button onClick={() => onChangeStatus(r.id, "대기중")} disabled={acting !== null}
+              className="px-3 py-1.5 text-xs bg-sage-600 text-white disabled:opacity-40">
+              {acting === r.id ? "복구 중…" : "대기중으로 복구"}
+            </button>
+          )}
           {cancelable && (
             <button
               onClick={() => onChangeStatus(r.id, "취소")}
               disabled={acting !== null}
               className="px-3 py-1.5 text-xs border border-red-200 text-red-400 disabled:opacity-40"
             >
-              취소 (SMS)
+              취소
             </button>
           )}
           {nextAction && (

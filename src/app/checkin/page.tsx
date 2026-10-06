@@ -218,7 +218,7 @@ export default function CheckinPage() {
           <h1 className="font-serif text-2xl font-light tracking-widest text-sage-700">
             현장 체크인
           </h1>
-          <p className="text-sm text-neutral-400 pt-1">
+          <p className="text-sm text-neutral-500 pt-1">
             {groom.name} <span className="text-wedding-gold">♥</span> {bride.name}
           </p>
         </div>

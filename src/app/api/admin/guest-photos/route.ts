@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { adminGuard } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
+import { nasPhotoRequest, PATH_PATTERN } from "@/lib/nasPhoto";
+
 const BUCKET = "guest-photos";
 
 /** 하객 스냅 전체 조회 (미승인 포함) */
@@ -43,8 +45,16 @@ export async function DELETE(req: Request) {
     .select("path")
     .eq("id", id)
     .single();
+  if (row?.path?.startsWith("nas:")) {
+    const path = row.path.slice(4);
+    if (!PATH_PATTERN.test(path)) return NextResponse.json({ error: "잘못된 NAS 사진 경로입니다." }, { status: 500 });
+    try {
+      const removed = await nasPhotoRequest('DELETE', path);
+      if (!removed.ok) throw new Error('NAS delete failed');
+    } catch { return NextResponse.json({ error: "NAS 사진을 삭제하지 못했습니다. 연결을 확인하고 다시 시도해주세요." }, { status: 502 }); }
+  }
   const { error } = await supabaseAdmin!.from("guest_photos").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (row?.path) await supabaseAdmin!.storage.from(BUCKET).remove([row.path]);
+  if (row?.path && !row.path.startsWith("nas:")) await supabaseAdmin!.storage.from(BUCKET).remove([row.path]);
   return NextResponse.json({ done: true });
 }

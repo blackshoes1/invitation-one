@@ -10,11 +10,15 @@ import {
   type GroupOrder,
 } from "@/lib/supabase";
 import { groom, bride, DELIVERY_CAPACITY } from "@/lib/wedding";
-import type { InvitePrefill } from "@/lib/invite";
 import MenuSelect, { type DeliveryMode } from "@/components/delivery/MenuSelect";
 import BikeIcon from "@/components/delivery/BikeIcon";
 import IntroAnimation from "@/components/delivery/IntroAnimation";
 import DeliveryForm from "@/components/delivery/DeliveryForm";
+import InviteNotice from "@/components/delivery/InviteNotice";
+import GroupSpaceCard from "@/components/delivery/GroupSpaceCard";
+import RosterIntroCard from "@/components/delivery/RosterIntroCard";
+import { useInvite } from "@/components/delivery/useInvite";
+import { useRefreshOnReturn } from "@/components/delivery/useRefreshOnReturn";
 import JoinForm from "@/components/delivery/JoinForm";
 import OrderList from "@/components/delivery/OrderList";
 import HeartForm from "@/components/delivery/HeartForm";
@@ -23,6 +27,7 @@ import FindOrder from "@/components/delivery/FindOrder";
 import DeliveryClosed from "@/components/delivery/DeliveryClosed";
 import Faq from "@/components/delivery/Faq";
 import { OfferCard, AcceptOfferForm } from "@/components/delivery/GroupOffer";
+import type { PickedName } from "@/lib/roster";
 
 type View =
   | { kind: "menu" }
@@ -39,18 +44,9 @@ function GroupPageInner() {
   const convertId = search.get("convert");
   /** 개인 초대 링크 토큰 (?i=) — 이름·마스킹 번호 프리필, 제출 시 서버가 실제 번호 채움 */
   const inviteToken = search.get("i");
-  const [invite, setInvite] = useState<InvitePrefill | null>(null);
-  const [inviteReady, setInviteReady] = useState(!inviteToken);
-  useEffect(() => {
-    if (!inviteToken) return;
-    fetch(`/api/delivery/invite?i=${encodeURIComponent(inviteToken)}`, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j: { invite?: InvitePrefill } | null) => {
-        if (j?.invite && j.invite.groupSlug === slug) setInvite(j.invite);
-      })
-      .catch(() => {})
-      .finally(() => setInviteReady(true));
-  }, [inviteToken, slug]);
+  // 이 그룹의 토큰만 쓴다. 다른 그룹·만료 토큰은 버리되 조용히 버리지 않고 안내한다.
+  const inviteState = useInvite(inviteToken, slug);
+  const { prefill: invite, token: usableToken, ready: inviteReady } = inviteState;
 
   const [group, setGroup] = useState<Group | null | undefined>(undefined);
   const [orders, setOrders] = useState<GroupOrder[]>([]);
@@ -58,6 +54,12 @@ function GroupPageInner() {
   /** 신청 인원 — 아직 못 불러왔으면 null (숫자 튐 방지) */
   const [taken, setTaken] = useState<number | null>(null);
   const [view, setView] = useState<View>({ kind: "menu" });
+  /**
+   * 명단에서 고른 이름 — 아래 신청서들의 이름 기본값.
+   * 초대 토큰으로 확인된 신원이 **아니다.** 그래서 이름만 화면에 채우고,
+   * 연락처는 (명단에 있으면) 제출 시점에 서버가 붙인다 — 브라우저로 안 내려온다.
+   */
+  const [pickedName, setPickedName] = useState<PickedName | null>(null);
 
   const loadOrders = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) {
@@ -72,6 +74,8 @@ function GroupPageInner() {
     if (typeof countRes.data === "number") setTaken(countRes.data);
     setOrdersLoaded(true);
   }, [slug]);
+
+  useRefreshOnReturn(loadOrders);
 
   useEffect(() => {
     let alive = true;
@@ -101,7 +105,7 @@ function GroupPageInner() {
     return (
       <div>
         <IntroAnimation />
-        <div className="h-[60vh] flex items-center justify-center text-neutral-400 text-sm">
+        <div className="h-[60vh] flex items-center justify-center text-neutral-500 text-sm">
           불러오는 중…
         </div>
       </div>
@@ -115,7 +119,7 @@ function GroupPageInner() {
         <div className="h-[70vh] flex flex-col items-center justify-center text-center px-8 gap-3">
           <div className="text-5xl">🔍</div>
           <p className="font-bold text-neutral-700">그룹을 찾을 수 없어요</p>
-          <p className="text-xs text-neutral-400">링크를 다시 확인해 주세요.</p>
+          <p className="text-xs text-neutral-500">링크를 다시 확인해 주세요.</p>
           <Link
             href="/delivery"
             className="mt-3 px-5 py-2.5 rounded-full bg-delivery text-white text-sm font-bold"
@@ -153,6 +157,15 @@ function GroupPageInner() {
           )}
         </p>
       </section>
+
+      <InviteNotice key={inviteToken ?? "none"} state={inviteState} token={inviteToken} />
+      {invite?.groupSlug && usableToken && (
+        <GroupSpaceCard key={usableToken} token={usableToken} invite={invite} />
+      )}
+      {/* 초대 링크로 들어온 사람은 이미 서버가 누군지 안다 — 고를 필요가 없다 */}
+      {!invite && view.kind === "menu" && (
+        <RosterIntroCard slug={slug} picked={pickedName} onPick={setPickedName} />
+      )}
 
       {view.kind === "menu" && (
         <div className="px-6 pb-6 max-w-md mx-auto space-y-4">
@@ -199,7 +212,7 @@ function GroupPageInner() {
             <div className="max-w-md mx-auto px-5">
               <button
                 onClick={() => setView({ kind: "menu" })}
-                className="text-xs text-neutral-400 mb-1"
+                className="text-xs text-neutral-500 mb-1"
               >
                 ← 주문 현황으로 돌아가기
               </button>
@@ -212,7 +225,8 @@ function GroupPageInner() {
               slug={slug}
               convertId={convertId}
               invite={invite}
-              inviteToken={invite ? inviteToken : null}
+              inviteToken={usableToken}
+              picked={pickedName}
               onBack={() => setView({ kind: "menu" })}
               onJoined={loadOrders}
             />
@@ -223,25 +237,33 @@ function GroupPageInner() {
               groupSlug={slug}
               convertId={convertId}
               invite={invite}
-              inviteToken={invite ? inviteToken : null}
+              inviteToken={usableToken}
+              picked={pickedName}
               onBack={() => setView({ kind: "menu" })}
               onJoined={loadOrders}
             />
           )}
           {view.kind === "new" && (
             <DeliveryForm
+              key={`${slug}:${usableToken ?? "none"}:${convertId ?? "none"}`}
               group={{ id: group.id, name: group.name }}
               groupSlug={slug}
               convertId={convertId}
               invite={invite}
-              inviteToken={invite ? inviteToken : null}
+              inviteToken={usableToken}
+              picked={pickedName}
               onSubmitted={loadOrders}
             />
           )}
           {view.kind === "heart" && (
             <HeartForm
+              key={`${slug}:${usableToken ?? "none"}`}
               group={{ id: group.id, name: group.name }}
               inviteName={invite?.name ?? null}
+              groupSlug={slug}
+              picked={pickedName}
+              inviteToken={usableToken}
+              invitePhoneMasked={invite?.phoneMasked ?? null}
               onSwitchToDelivery={() => setView({ kind: "new" })}
             />
           )}
@@ -250,7 +272,7 @@ function GroupPageInner() {
 
       <Faq />
 
-      <footer className="text-center text-[11px] text-neutral-400 pb-8">
+      <footer className="text-center text-[11px] text-neutral-500 pb-8">
         청첩장배달 🛵 · {groom.name} ♥ {bride.name}
       </footer>
     </div>
@@ -261,7 +283,7 @@ export default function GroupPage() {
   return (
     <Suspense
       fallback={
-        <div className="h-[60vh] flex items-center justify-center text-neutral-400 text-sm">
+        <div className="h-[60vh] flex items-center justify-center text-neutral-500 text-sm">
           불러오는 중…
         </div>
       }

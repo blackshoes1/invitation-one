@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useId, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { accounts, type Account as Acct } from "@/lib/wedding";
 import FadeIn from "@/components/FadeIn";
@@ -39,17 +38,9 @@ function AccountRow({ acc }: { acc: Acct }) {
   };
 
   const handleCopy = async () => {
-    if (await copyText(`${acc.bank} ${acc.number} ${acc.name}`)) flash("복사됐어요!");
-  };
-
-  const handlePay = async (kind: "kakao" | "toss") => {
-    const url = kind === "kakao" ? acc.kakaoPayUrl : acc.tossUrl;
-    if (url) {
-      window.location.href = url;
-      return;
-    }
-    if (await copyText(acc.number))
-      flash(`복사됐어요! ${kind === "kakao" ? "카카오페이" : "토스"}에서 붙여넣어 주세요`);
+    flash(await copyText(acc.number)
+      ? "계좌번호를 복사했어요. 은행 앱에서 이체해주세요."
+      : "복사하지 못했어요. 위 계좌번호를 직접 입력해주세요.");
   };
 
   return (
@@ -77,47 +68,27 @@ function AccountRow({ acc }: { acc: Acct }) {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => handlePay("kakao")}
-          className="py-2 text-[11px] bg-[#FEE500] text-[#3C1E1E] font-medium tracking-wide rounded-sm"
-        >
-          카카오페이로 보내기
-        </button>
-        <button
-          type="button"
-          onClick={() => handlePay("toss")}
-          className="py-2 text-[11px] bg-[#3182F6] text-white font-medium tracking-wide rounded-sm"
-        >
-          토스로 보내기
-        </button>
-      </div>
+      <p className="text-xs text-neutral-600 leading-relaxed">복사한 계좌번호로 은행 앱에서 카카오뱅크 계좌에 이체해주세요.</p>
 
-      <AnimatePresence>
-        {toast && (
-          <motion.p
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="text-[11px] text-sage-600 text-center"
-          >
-            {toast}
-          </motion.p>
-        )}
-      </AnimatePresence>
+      {/* 복사 완료 등 짧은 안내 — 스크린리더에도 전달되도록 라이브 영역으로 둔다 */}
+      <p className="text-[11px] text-sage-600 text-center" role="status">
+        {toast && <span className="fade-in-soft inline-block">{toast}</span>}
+      </p>
     </div>
   );
 }
 
 function AccountAccordion({ title, accounts }: { title: string; accounts: Acct[] }) {
   const [open, setOpen] = useState(false);
+  // 펼친 영역과 버튼을 aria-controls 로 이어 준다 (스크린리더가 관계를 읽도록)
+  const panelId = useId();
   return (
     <div className="bg-white border border-wedding-gold/15">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
+        aria-controls={panelId}
         className="w-full px-6 py-4 flex justify-between items-center hover:bg-sage-50 transition-colors text-sm text-sage-700 font-light tracking-widest"
       >
         <span>{title}</span>
@@ -128,23 +99,22 @@ function AccountAccordion({ title, accounts }: { title: string; accounts: Acct[]
           }`}
         />
       </button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="border-t border-wedding-gold/10 bg-sage-50/40 overflow-hidden"
-          >
-            <div className="px-6 py-5 space-y-4 divide-y divide-wedding-gold/10">
-              {accounts.map((acc, i) => (
-                <AccountRow key={i} acc={acc} />
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* grid-template-rows 0fr→1fr 로 높이를 CSS 만으로 부드럽게 펼친다.
+          닫힌 동안에는 hidden 으로 스크린리더·탭 이동에서도 빠진다. */}
+      <div
+        id={panelId}
+        className={`collapsible border-t border-wedding-gold/10 bg-sage-50/40 ${
+          open ? "" : "collapsible-closed"
+        }`}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="px-6 py-5 space-y-4 divide-y divide-wedding-gold/10">
+            {accounts.map((acc, i) => (
+              <AccountRow key={i} acc={acc} />
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -166,12 +136,12 @@ export default function Account() {
                 현장 축의대를 운영하지 않습니다.
               </span>
             </p>
-            <p className="text-[11px] text-neutral-400 pt-1 tracking-wider">
+            <p className="text-[11px] text-neutral-500 pt-1 tracking-wider">
               마음을 전하고자 하시는 분들을 위해
               <br />
               아래에 계좌를 안내드립니다. 너른 양해 부탁드립니다.
             </p>
-            <p className="text-[11px] text-neutral-400 tracking-wider">
+            <p className="text-[11px] text-neutral-500 tracking-wider">
               🌸 화환은 둘 곳이 없는 관계로 정중히 사양합니다!
               <br />
               마음만 감사히 받겠습니다.
