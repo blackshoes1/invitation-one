@@ -140,7 +140,7 @@ function drawTag(
   const h = Math.round(t.fp * 1.4);
   const w = Math.ceil(ctx.measureText(text).width) + padX * 2;
   const anchor = tagX ?? cx;
-  const left = align === "right" ? anchor * t.s - w : align === "left" ? anchor * t.s : cx * t.s - w / 2;
+  const left = align === "right" ? anchor * t.s - w : align === "left" ? anchor * t.s : anchor * t.s - w / 2;
   const x = Math.round(Math.min(WORLD_W * t.s - w - 2, Math.max(2, left)));
   const y = Math.round(Math.min(WORLD_H * t.s - h - 2, (footY + 1) * t.s));
   ctx.fillStyle = color;
@@ -322,9 +322,10 @@ export default function PixelVillage({
 
     /** 말풍선이 없을 때 메시지가 있는 하객 한 명을 무작위로 골라 띄운다 */
     const showAutoBubble = (now: number) => {
-      const candidates = [...infoRef.current.entries()].filter(
-        ([id, info]) => !info.npc && info.text && walkersRef.current.has(id)
-      );
+      const candidates = [...infoRef.current.entries()].filter(([id, info]) => {
+        const w = walkersRef.current.get(id);
+        return !info.npc && !!info.text && !!w && !w.entering;
+      });
       if (candidates.length === 0) return;
       const [id] = candidates[Math.floor(rng() * candidates.length)];
       bubbleRef.current = { id, until: now + BUBBLE_MS };
@@ -470,7 +471,7 @@ export default function PixelVillage({
         height={WORLD_H * 2}
         role="img"
         aria-label={`축하해 주신 ${items.length}명의 도트 마을. 신랑·신부와 하객 캐릭터를 누르면 말풍선이 보여요.`}
-        className={failed ? "hidden" : "block w-full h-auto rounded-sm border border-wedding-gold/20"}
+        className={failed ? "hidden" : "block w-full h-auto rounded-sm border border-wedding-gold/20 touch-manipulation"}
         style={{ imageRendering: "pixelated" }}
       />
       {!failed && (
