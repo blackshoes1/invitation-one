@@ -56,6 +56,10 @@ interface Info {
   npc?: boolean;
   /** 이름표 색(없으면 하객 기본색, 내 캐릭터는 금색) */
   tagColor?: string;
+  /** 이름표를 붙일 기준 x(논리 좌표) — 없으면 캐릭터 x. 나란히 선 신랑·신부 이름표가 겹치지 않게 벌릴 때 쓴다 */
+  tagX?: number;
+  /** 기준 x 에 이름표의 어느 쪽을 맞출지 — 기본 center */
+  tagAlign?: "left" | "right" | "center";
 }
 
 /** 단상 위 신랑·신부 — 발 위치는 아치 아래 */
@@ -65,14 +69,14 @@ const NPCS: ReadonlyArray<{ id: string; x: number; y: number; look: Look; info: 
     x: 86,
     y: 56,
     look: GROOM_LOOK,
-    info: { name: groom.name, text: COUPLE_TEXT, npc: true, tagColor: "#b89b6e" },
+    info: { name: groom.name, text: COUPLE_TEXT, npc: true, tagColor: "#b89b6e", tagX: 95, tagAlign: "right" },
   },
   {
     id: "npc-bride",
     x: 106,
     y: 56,
     look: BRIDE_LOOK,
-    info: { name: bride.name, text: COUPLE_TEXT, npc: true, tagColor: "#d98fb0" },
+    info: { name: bride.name, text: COUPLE_TEXT, npc: true, tagColor: "#d98fb0", tagX: 97, tagAlign: "left" },
   },
 ];
 
@@ -125,7 +129,9 @@ function drawTag(
   text: string,
   cx: number,
   footY: number,
-  color: string
+  color: string,
+  tagX?: number,
+  align: "left" | "right" | "center" = "center"
 ): void {
   ctx.font = `${t.fp}px sans-serif`;
   ctx.textAlign = "center";
@@ -133,7 +139,9 @@ function drawTag(
   const padX = Math.round(t.fp * 0.45);
   const h = Math.round(t.fp * 1.4);
   const w = Math.ceil(ctx.measureText(text).width) + padX * 2;
-  const x = Math.round(Math.min(WORLD_W * t.s - w - 2, Math.max(2, cx * t.s - w / 2)));
+  const anchor = tagX ?? cx;
+  const left = align === "right" ? anchor * t.s - w : align === "left" ? anchor * t.s : cx * t.s - w / 2;
+  const x = Math.round(Math.min(WORLD_W * t.s - w - 2, Math.max(2, left)));
   const y = Math.round(Math.min(WORLD_H * t.s - h - 2, (footY + 1) * t.s));
   ctx.fillStyle = color;
   ctx.fillRect(x, y, w, h);
@@ -284,7 +292,7 @@ export default function PixelVillage({
         const info = infoRef.current.get(w.id);
         if (!info || w.y > WORLD_H) continue; // 아직 화면 아래 바깥에서 올라오는 중이면 이름표도 숨긴다
         const color = info.tagColor ?? (w.id === mineRef.current ? "#b89b6e" : "rgba(43,33,24,0.62)");
-        drawTag(ctx, t, clipName(info.name), w.x, w.y, color);
+        drawTag(ctx, t, clipName(info.name), w.x, w.y, color, info.tagX, info.tagAlign);
       }
       const b = bubbleRef.current;
       if (b) {
