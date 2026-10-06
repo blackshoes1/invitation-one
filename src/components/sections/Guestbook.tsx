@@ -8,8 +8,9 @@ import FadeIn from "@/components/FadeIn";
 import MessageFeed, { buildFeed } from "@/components/sections/MessageFeed";
 import JourneyMap from "@/components/sections/JourneyMap";
 import VerifyBadge from "@/components/sections/VerifyBadge";
+import PixelVillage from "@/components/sections/PixelVillage";
 
-type ViewMode = "map" | "messages";
+type ViewMode = "map" | "messages" | "village";
 
 // 예식지(서울 용산) 기준 위치 — '가장 먼 곳' 계산용
 const SEOUL = SIDO_POS["서울"];
@@ -185,11 +186,19 @@ export default function Guestbook({ qrEntry = false }: { qrEntry?: boolean }) {
                 >
                   💬 메시지
                 </ToggleBtn>
+                <ToggleBtn
+                  active={mode === "village"}
+                  onClick={() => setMode("village")}
+                >
+                  🏘️ 마을
+                </ToggleBtn>
               </div>
             </FadeIn>
 
             <FadeIn>
-              {mode === "map" ? (
+              {mode === "village" ? (
+                <PixelVillage items={feed} highlightId={mineId} />
+              ) : mode === "map" ? (
                 <>
                   {(() => {
                     const st = regionStats(celebrations);
