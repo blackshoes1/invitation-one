@@ -4,6 +4,7 @@ import {
   HALF_W,
   JUMP_VY,
   PLATFORMS,
+  WALK_SPEED,
   WORLD_W,
   frameFor,
   makeRng,
@@ -154,13 +155,33 @@ describe("stepWalker", () => {
           w.x < HALF_W - 1e-6 ||
           w.x > WORLD_W - HALF_W + 1e-6 ||
           w.y > GROUND + 1e-6 ||
-          (w.plat >= 0 && w.y !== PLATFORMS[w.plat].y);
+          (w.plat >= 0 && w.y !== PLATFORMS[w.plat].y) ||
+          (w.plat >= 0 && (w.x < PLATFORMS[w.plat].x0 - 1e-6 || w.x > PLATFORMS[w.plat].x1 + 1e-6));
         if (bad && violations.length < 5) violations.push(`t=${t} ${JSON.stringify(w)}`);
       }
     }
     expect(violations).toEqual([]);
     // 2분 뒤에는 하늘에서 시작한 하객도 모두 화면 안으로 내려와 있다
     expect(ws.every((w) => w.y > -BOX_H)).toBe(true);
+  });
+});
+
+describe("stepWalker — 위층 발판 끝", () => {
+  const edge = () =>
+    base({ x: PLATFORMS[1].x1 - 0.1, y: PLATFORMS[1].y, plat: 1, mode: "walk", facing: 1, timer: 99 });
+
+  it("rng 가 낮으면 발판 밖으로 걸어 나가 떨어지고, 높으면 돌아선다", () => {
+    const off = stepWalker(edge(), 1, () => 0);
+    expect(off.plat).toBe(-1);
+    expect(off.mode).toBe("fall");
+    expect(off.vx).toBe(WALK_SPEED);
+    expect(off.vy).toBe(0);
+
+    const back = stepWalker(edge(), 1, () => 0.9);
+    expect(back.facing).toBe(-1);
+    expect(back.plat).toBe(1);
+    expect(back.x).toBeLessThanOrEqual(PLATFORMS[1].x1);
+    expect(back.y).toBe(PLATFORMS[1].y);
   });
 });
 

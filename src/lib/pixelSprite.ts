@@ -115,7 +115,7 @@ export interface Look {
 /** 모자 조각: [줄, 칸, 글자] — 머리 줄(0~10)에만 덮어쓴다 */
 const HAT_PATCHES: Record<Exclude<Hat, 0>, Array<[number, number, string]>> = {
   1: [
-    ...[3, 4, 5, 6, 7, 8, 9, 10, 11].map((c): [number, number, string] => [2, c, "a"]),
+    ...[4, 5, 6, 7, 8, 9, 10, 11].map((c): [number, number, string] => [2, c, "a"]),
     ...[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((c): [number, number, string] => [3, c, "a"]),
     ...[3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map((c): [number, number, string] => [4, c, "a"]),
   ],

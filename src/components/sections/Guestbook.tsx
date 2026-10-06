@@ -266,7 +266,7 @@ function ToggleBtn({
     <button
       type="button"
       onClick={onClick}
-      className={`px-5 py-2 text-sm rounded-full transition-colors ${
+      className={`px-4 whitespace-nowrap py-2 text-sm rounded-full transition-colors ${
         active ? "bg-sage-600 text-white font-bold" : "text-neutral-500"
       }`}
     >

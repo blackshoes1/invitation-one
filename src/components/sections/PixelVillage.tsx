@@ -143,7 +143,7 @@ function wrapText(
   const rest = (cur + chars.slice(i + 1).join("")).trim();
   if (!rest) return lines;
   let last = lines[maxLines - 1];
-  while (last && ctx.measureText(last + "…").width > maxW) last = last.slice(0, -1);
+  while (last && ctx.measureText(last + "…").width > maxW) last = Array.from(last).slice(0, -1).join("");
   lines[maxLines - 1] = last + "…";
   return lines;
 }
@@ -157,7 +157,9 @@ function drawBubble(ctx: CanvasRenderingContext2D, w: Walker, info: Info): void 
   const lineH = 9;
   const title = clipName(info.name);
   const lines = wrapText(ctx, info.text, BUBBLE_MAX_W, BUBBLE_MAX_LINES);
+  ctx.font = `bold ${FONT}`;
   let textW = ctx.measureText(title).width;
+  ctx.font = FONT;
   for (const l of lines) textW = Math.max(textW, ctx.measureText(l).width);
   const bw = Math.ceil(textW) + padX * 2;
   const bh = (lines.length + 1) * lineH + padY * 2 - 1;
@@ -284,6 +286,7 @@ export default function PixelVillage({
     };
 
     const onPointer = (e: PointerEvent) => {
+      if (e.button !== 0) return;
       const r = canvas.getBoundingClientRect();
       const px = ((e.clientX - r.left) / r.width) * WORLD_W;
       const py = ((e.clientY - r.top) / r.height) * WORLD_H;
@@ -305,7 +308,9 @@ export default function PixelVillage({
     const ro = new ResizeObserver(resize);
     ro.observe(wrap);
     const io = new IntersectionObserver(
-      ([entry]) => {
+      (entries) => {
+        const entry = entries[entries.length - 1];
+        if (!entry) return;
         visible = entry.isIntersecting;
         sync();
       },
