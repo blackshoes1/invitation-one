@@ -225,6 +225,7 @@ export default function PixelVillage({
     let raf = 0;
     let last = 0;
     let visible = true;
+    let bubbleTimer: ReturnType<typeof setTimeout> | undefined;
 
     const draw = () => {
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
@@ -287,7 +288,17 @@ export default function PixelVillage({
       const px = ((e.clientX - r.left) / r.width) * WORLD_W;
       const py = ((e.clientY - r.top) / r.height) * WORLD_H;
       const hit = pickWalkerAt(walkersRef.current.values(), px, py);
-      bubbleRef.current = hit ? { id: hit.id, until: performance.now() + BUBBLE_MS } : null;
+      const bubble: Bubble | null = hit ? { id: hit.id, until: performance.now() + BUBBLE_MS } : null;
+      bubbleRef.current = bubble;
+      // 루프가 멈춘 상태(모션 줄이기)에서도 말풍선이 닫히도록 별도 타이머를 둔다
+      clearTimeout(bubbleTimer);
+      if (bubble) {
+        bubbleTimer = setTimeout(() => {
+          if (bubbleRef.current !== bubble) return;
+          bubbleRef.current = null;
+          draw();
+        }, BUBBLE_MS);
+      }
       draw();
     };
 
@@ -308,6 +319,7 @@ export default function PixelVillage({
 
     return () => {
       if (raf) cancelAnimationFrame(raf);
+      clearTimeout(bubbleTimer);
       ro.disconnect();
       io.disconnect();
       document.removeEventListener("visibilitychange", sync);
@@ -323,14 +335,21 @@ export default function PixelVillage({
     const prev = walkersRef.current;
     const next = new Map<string, Walker>();
     const ids = new Set<string>();
-    for (const it of items) {
-      ids.add(it.id);
-      infoRef.current.set(it.id, {
-        name: it.name,
-        text: ((it.kind === "직접배달" ? it.review : it.message) ?? "").trim(),
-      });
-      if (!spritesRef.current.has(it.id)) spritesRef.current.set(it.id, bakeSprites(lookFromId(it.id)));
-      next.set(it.id, prev.get(it.id) ?? spawnWalker(it.id, rng, dropFromSky));
+    try {
+      for (const it of items) {
+        ids.add(it.id);
+        infoRef.current.set(it.id, {
+          name: it.name,
+          text: ((it.kind === "직접배달" ? it.review : it.message) ?? "").trim(),
+        });
+        if (!spritesRef.current.has(it.id)) spritesRef.current.set(it.id, bakeSprites(lookFromId(it.id)));
+        next.set(it.id, prev.get(it.id) ?? spawnWalker(it.id, rng, dropFromSky));
+      }
+    } catch {
+      // 캔버스 컨텍스트를 못 얻으면 스프라이트를 못 굽는다 — 마을만 폴백 문구로 바꾸고 예외는 밖으로 내보내지 않는다
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFailed(true);
+      return;
     }
     for (const id of [...infoRef.current.keys()]) {
       if (ids.has(id)) continue;
