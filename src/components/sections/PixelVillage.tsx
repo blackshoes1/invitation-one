@@ -2,38 +2,44 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Celebration } from "@/lib/supabase";
+import { bride, groom } from "@/lib/wedding";
 import {
+  BRIDE_LOOK,
+  GROOM_LOOK,
   SPRITE_H,
   SPRITE_W,
   bakeSprites,
   lookFromId,
   type FrameName,
+  type Look,
 } from "@/lib/pixelSprite";
 import {
-  PLATFORMS,
   WORLD_H,
   WORLD_W,
-  frameFor,
   makeRng,
   pickWalkerAt,
+  spawnNpc,
   spawnWalker,
+  spriteFor,
   stepWalker,
   type Rng,
   type Walker,
 } from "@/lib/villageSim";
 
 const BUBBLE_MS = 4000;
+/** 아무도 말풍선을 보고 있지 않은 채로 이만큼 지나면 하객 한 명의 말풍선이 저절로 뜬다(초) */
+const AUTO_BUBBLE_S = 6;
 /** 탭 복귀 직후 순간이동을 막는 프레임 시간 상한(초) */
 const MAX_DT = 0.05;
 const TAG_MAX_CHARS = 7;
-const BUBBLE_MAX_W = 104;
+/** 이름표·말풍선 글씨는 도트 배율이 아니라 화면 해상도로 그린다 — 기준 크기(css px) */
+const FONT_CSS = 11;
+const BUBBLE_MAX_CSS_W = 150;
 const BUBBLE_MAX_LINES = 3;
-const FONT = "7px sans-serif";
-const CLOUDS: ReadonlyArray<readonly [number, number, number]> = [
-  [18, 14, 24],
-  [104, 26, 30],
-  [150, 10, 20],
-];
+/** 아치 아래 신랑·신부를 누르면 뜨는 안내 */
+const COUPLE_TEXT = "저를 누르면 사진들 볼 수 있어요!";
+/** 정원 예식장 배경 — 192×176, 걷는 영역은 villageSim.ts 의 AREA */
+const BG_SRC = "/pic/village-bg.png";
 
 type Sprites = Record<FrameName, HTMLCanvasElement>;
 
@@ -46,7 +52,29 @@ interface Bubble {
 interface Info {
   name: string;
   text: string;
+  /** 신랑·신부 — 하객 수·자동 말풍선과 무관하고 두 번 누르면 갤러리로 간다 */
+  npc?: boolean;
+  /** 이름표 색(없으면 하객 기본색, 내 캐릭터는 금색) */
+  tagColor?: string;
 }
+
+/** 단상 위 신랑·신부 — 발 위치는 아치 아래 */
+const NPCS: ReadonlyArray<{ id: string; x: number; y: number; look: Look; info: Info }> = [
+  {
+    id: "npc-groom",
+    x: 86,
+    y: 56,
+    look: GROOM_LOOK,
+    info: { name: groom.name, text: COUPLE_TEXT, npc: true, tagColor: "#b89b6e" },
+  },
+  {
+    id: "npc-bride",
+    x: 106,
+    y: 56,
+    look: BRIDE_LOOK,
+    info: { name: bride.name, text: COUPLE_TEXT, npc: true, tagColor: "#d98fb0" },
+  },
+];
 
 function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -57,36 +85,22 @@ function clipName(name: string): string {
   return chars.length > TAG_MAX_CHARS ? chars.slice(0, TAG_MAX_CHARS).join("") + "…" : name;
 }
 
-function drawScene(ctx: CanvasRenderingContext2D): void {
-  ctx.fillStyle = "#cfe9f5";
-  ctx.fillRect(0, 0, WORLD_W, Math.round(WORLD_H * 0.55));
-  ctx.fillStyle = "#e3f2ef";
-  ctx.fillRect(0, Math.round(WORLD_H * 0.55), WORLD_W, WORLD_H);
-
-  ctx.fillStyle = "#ffffff";
-  for (const [x, y, w] of CLOUDS) {
-    ctx.fillRect(x, y, w, 4);
-    ctx.fillRect(x + 4, y - 3, w - 8, 4);
+/** 배경 이미지를 못 불러왔거나 아직 로드 전이면 단색 잔디로 대신 그린다 */
+function drawBackground(ctx: CanvasRenderingContext2D, bg: HTMLImageElement | null): void {
+  if (bg && bg.naturalWidth > 0) {
+    ctx.drawImage(bg, 0, 0, WORLD_W, WORLD_H);
+    return;
   }
-
-  PLATFORMS.forEach((p, i) => {
-    // 바닥은 화면 폭 전체, 위쪽 발판은 캐릭터 반폭만큼 양옆으로 넓게 그린다
-    const x0 = i === 0 ? 0 : p.x0 - 6;
-    const x1 = i === 0 ? WORLD_W : p.x1 + 6;
-    const bottom = i === 0 ? WORLD_H : p.y + 5;
-    ctx.fillStyle = "#a9855a";
-    ctx.fillRect(x0, p.y, x1 - x0, bottom - p.y);
-    ctx.fillStyle = "#788c63";
-    ctx.fillRect(x0, p.y, x1 - x0, 3);
-    ctx.fillStyle = "#94a67f";
-    ctx.fillRect(x0, p.y, x1 - x0, 1);
-  });
+  ctx.fillStyle = "#88ae65";
+  ctx.fillRect(0, 0, WORLD_W, WORLD_H);
 }
 
-function drawWalker(ctx: CanvasRenderingContext2D, w: Walker, sprite: HTMLCanvasElement): void {
+function drawWalker(ctx: CanvasRenderingContext2D, w: Walker, sprites: Sprites): void {
+  const { frame, flip } = spriteFor(w);
+  const sprite = sprites[frame];
   const dx = Math.round(w.x - SPRITE_W / 2);
   const dy = Math.round(w.y - SPRITE_H);
-  if (w.facing === 1) {
+  if (!flip) {
     ctx.drawImage(sprite, dx, dy);
     return;
   }
@@ -97,22 +111,34 @@ function drawWalker(ctx: CanvasRenderingContext2D, w: Walker, sprite: HTMLCanvas
   ctx.restore();
 }
 
+/** 화면 해상도(캔버스 픽셀) 좌표계에서 그리는 글씨 설정 — s: 도트 배율, fp: 글자 크기(px) */
+interface TextMetrics {
+  s: number;
+  fp: number;
+  /** 캔버스 픽셀 / css 픽셀 */
+  ratio: number;
+}
+
 function drawTag(
   ctx: CanvasRenderingContext2D,
+  t: TextMetrics,
   text: string,
   cx: number,
-  y: number,
-  mine: boolean
+  footY: number,
+  color: string
 ): void {
-  ctx.font = FONT;
+  ctx.font = `${t.fp}px sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  const w = Math.ceil(ctx.measureText(text).width) + 4;
-  const x = Math.round(Math.min(WORLD_W - w - 1, Math.max(1, cx - w / 2)));
-  ctx.fillStyle = mine ? "#b89b6e" : "rgba(43,33,24,0.62)";
-  ctx.fillRect(x, y, w, 8);
+  const padX = Math.round(t.fp * 0.45);
+  const h = Math.round(t.fp * 1.4);
+  const w = Math.ceil(ctx.measureText(text).width) + padX * 2;
+  const x = Math.round(Math.min(WORLD_W * t.s - w - 2, Math.max(2, cx * t.s - w / 2)));
+  const y = Math.round(Math.min(WORLD_H * t.s - h - 2, (footY + 1) * t.s));
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y, w, h);
   ctx.fillStyle = "#ffffff";
-  ctx.fillText(text, x + w / 2, y + 4.4);
+  ctx.fillText(text, x + w / 2, y + h / 2 + 1);
 }
 
 /** 글자 단위 줄바꿈(한글 대응). maxLines 를 넘으면 마지막 줄을 말줄임표로 끝낸다. */
@@ -148,48 +174,57 @@ function wrapText(
   return lines;
 }
 
-function drawBubble(ctx: CanvasRenderingContext2D, w: Walker, info: Info): void {
-  ctx.font = FONT;
+function drawBubble(ctx: CanvasRenderingContext2D, t: TextMetrics, w: Walker, info: Info): void {
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
-  const padX = 4;
-  const padY = 3;
-  const lineH = 9;
+  const padX = Math.round(t.fp * 0.7);
+  const padY = Math.round(t.fp * 0.5);
+  const lineH = Math.round(t.fp * 1.45);
   const title = clipName(info.name);
-  const lines = wrapText(ctx, info.text, BUBBLE_MAX_W, BUBBLE_MAX_LINES);
-  ctx.font = `bold ${FONT}`;
+  ctx.font = `${t.fp}px sans-serif`;
+  const lines = wrapText(ctx, info.text, BUBBLE_MAX_CSS_W * t.ratio, BUBBLE_MAX_LINES);
+  ctx.font = `bold ${t.fp}px sans-serif`;
   let textW = ctx.measureText(title).width;
-  ctx.font = FONT;
+  ctx.font = `${t.fp}px sans-serif`;
   for (const l of lines) textW = Math.max(textW, ctx.measureText(l).width);
   const bw = Math.ceil(textW) + padX * 2;
-  const bh = (lines.length + 1) * lineH + padY * 2 - 1;
-  const x = Math.round(Math.min(WORLD_W - bw - 2, Math.max(2, w.x - bw / 2)));
-  const y = Math.max(2, Math.round(w.y - SPRITE_H - 5 - bh));
-  const tailX = Math.round(Math.min(x + bw - 6, Math.max(x + 6, w.x)));
+  const bh = (lines.length + 1) * lineH + padY * 2;
+  const cw = WORLD_W * t.s;
+  const x = Math.round(Math.min(cw - bw - 3, Math.max(3, w.x * t.s - bw / 2)));
+  const y = Math.max(3, Math.round((w.y - SPRITE_H - 4) * t.s - bh - t.fp * 0.6));
+  const tailX = Math.round(Math.min(x + bw - t.fp, Math.max(x + t.fp, w.x * t.s)));
+  const tail = Math.round(t.fp * 0.6);
+  const border = Math.max(1, Math.round(t.ratio));
 
   ctx.fillStyle = "#b89b6e";
-  ctx.fillRect(x - 1, y - 1, bw + 2, bh + 2);
+  ctx.fillRect(x - border, y - border, bw + border * 2, bh + border * 2);
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(x, y, bw, bh);
   ctx.beginPath();
-  ctx.moveTo(tailX - 3, y + bh);
-  ctx.lineTo(tailX + 3, y + bh);
-  ctx.lineTo(tailX, y + bh + 4);
+  ctx.moveTo(tailX - tail, y + bh);
+  ctx.lineTo(tailX + tail, y + bh);
+  ctx.lineTo(tailX, y + bh + tail);
   ctx.closePath();
   ctx.fill();
 
   ctx.fillStyle = "#b89b6e";
-  ctx.font = `bold ${FONT}`;
+  ctx.font = `bold ${t.fp}px sans-serif`;
   ctx.fillText(title, x + padX, y + padY);
-  ctx.font = FONT;
+  ctx.font = `${t.fp}px sans-serif`;
   ctx.fillStyle = "#444444";
   lines.forEach((l, i) => ctx.fillText(l, x + padX, y + padY + lineH * (i + 1)));
 }
 
+/** 신랑·신부를 두 번째 눌렀을 때 — 갤러리 섹션으로 스크롤(없으면 아무 일도 하지 않는다) */
+function scrollToGallery(reduced: boolean): void {
+  document.getElementById("gallery")?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+}
+
 /**
- * 🏘️ 도트 마을 — 글을 남긴 하객 1명 = 도트 캐릭터 1명.
- * 캔버스 한 장에 모든 캐릭터를 그리고, 캐릭터를 누르면 그 하객의 메시지가 말풍선으로 뜬다.
- * 화면 밖·백그라운드 탭에서는 루프를 멈추고, 모션 줄이기 설정이면 정지 화면만 그린다.
+ * 🏘️ 도트 마당 — 글을 남긴 하객 1명 = 도트 캐릭터 1명이 위에서 내려다본 정원 예식장을 앞뒤좌우로 걷는다(바람의 나라식).
+ * 단상 위에는 신랑·신부가 서 있고(누르면 안내 → 한 번 더 누르면 갤러리), 하객은 누르면 메시지 말풍선이 뜨며
+ * 아무도 안 눌러도 약 6초마다 한 명의 말풍선이 저절로 뜬다.
+ * 캔버스 한 장에 모두 그리고, 화면 밖·백그라운드 탭에서는 루프를 멈추며, 모션 줄이기 설정이면 정지 화면만 그린다.
  */
 export default function PixelVillage({
   items,
@@ -208,7 +243,7 @@ export default function PixelVillage({
   const bubbleRef = useRef<Bubble | null>(null);
   const rngRef = useRef<Rng | null>(null);
   const drawRef = useRef<() => void>(() => {});
-  /** 첫 목록을 받은 뒤부터 새로 들어온 하객은 하늘에서 떨어지며 등장한다 */
+  /** 첫 목록을 받은 뒤부터 새로 들어온 하객은 화면 아래에서 걸어 들어오며 등장한다 */
   const seededRef = useRef(false);
   const [failed, setFailed] = useState(false);
 
@@ -224,32 +259,48 @@ export default function PixelVillage({
     const rng = (rngRef.current ??= makeRng(Date.now()));
     const reduced = prefersReducedMotion();
     let scale = 3;
+    let ratio = 3;
     let raf = 0;
     let last = 0;
     let visible = true;
+    let autoClock = 0;
     let bubbleTimer: ReturnType<typeof setTimeout> | undefined;
+    let bg: HTMLImageElement | null = null;
 
     const draw = () => {
+      // 1) 도트 세계 — 배경과 캐릭터(아래쪽 캐릭터가 위쪽을 가린다)
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
       ctx.imageSmoothingEnabled = false;
-      drawScene(ctx);
+      drawBackground(ctx, bg);
       const list = [...walkersRef.current.values()].sort((a, b) => a.y - b.y);
       for (const w of list) {
         const sp = spritesRef.current.get(w.id);
-        if (sp) drawWalker(ctx, w, sp[frameFor(w)]);
+        if (sp) drawWalker(ctx, w, sp);
       }
+      // 2) 글씨 — 화면 해상도로 그려 또렷하게
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const t: TextMetrics = { s: scale, fp: Math.round(FONT_CSS * ratio), ratio };
       for (const w of list) {
         const info = infoRef.current.get(w.id);
-        if (info) drawTag(ctx, clipName(info.name), w.x, Math.round(w.y) + 1, w.id === mineRef.current);
+        if (!info || w.y > WORLD_H) continue; // 아직 화면 아래 바깥에서 올라오는 중이면 이름표도 숨긴다
+        const color = info.tagColor ?? (w.id === mineRef.current ? "#b89b6e" : "rgba(43,33,24,0.62)");
+        drawTag(ctx, t, clipName(info.name), w.x, w.y, color);
       }
       const b = bubbleRef.current;
       if (b) {
         const w = walkersRef.current.get(b.id);
         const info = infoRef.current.get(b.id);
-        if (w && info) drawBubble(ctx, w, info);
+        if (w && info) drawBubble(ctx, t, w, info);
       }
     };
     drawRef.current = draw;
+
+    const img = new Image();
+    img.onload = () => {
+      bg = img;
+      draw();
+    };
+    img.src = BG_SRC;
 
     const resize = () => {
       const dpr = window.devicePixelRatio || 1;
@@ -257,7 +308,18 @@ export default function PixelVillage({
       scale = Math.max(2, Math.ceil((cssW * dpr) / WORLD_W));
       canvas.width = WORLD_W * scale;
       canvas.height = WORLD_H * scale;
+      ratio = canvas.width / cssW;
       draw();
+    };
+
+    /** 말풍선이 없을 때 메시지가 있는 하객 한 명을 무작위로 골라 띄운다 */
+    const showAutoBubble = (now: number) => {
+      const candidates = [...infoRef.current.entries()].filter(
+        ([id, info]) => !info.npc && info.text && walkersRef.current.has(id)
+      );
+      if (candidates.length === 0) return;
+      const [id] = candidates[Math.floor(rng() * candidates.length)];
+      bubbleRef.current = { id, until: now + BUBBLE_MS };
     };
 
     const tick = (t: number) => {
@@ -265,6 +327,13 @@ export default function PixelVillage({
       const dt = Math.min(Math.max(0, (t - last) / 1000), MAX_DT);
       last = t;
       if (bubbleRef.current && t > bubbleRef.current.until) bubbleRef.current = null;
+      if (!bubbleRef.current) {
+        autoClock += dt;
+        if (autoClock >= AUTO_BUBBLE_S) {
+          autoClock = 0;
+          showAutoBubble(t);
+        }
+      }
       const frozenId = bubbleRef.current?.id;
       const next = new Map<string, Walker>();
       for (const [id, w] of walkersRef.current) {
@@ -291,6 +360,16 @@ export default function PixelVillage({
       const px = ((e.clientX - r.left) / r.width) * WORLD_W;
       const py = ((e.clientY - r.top) / r.height) * WORLD_H;
       const hit = pickWalkerAt(walkersRef.current.values(), px, py);
+      const current = bubbleRef.current;
+      // 신랑·신부의 안내 말풍선이 떠 있을 때 다시 누르면 갤러리로 간다
+      if (hit && current && current.id === hit.id && infoRef.current.get(hit.id)?.npc) {
+        clearTimeout(bubbleTimer);
+        bubbleRef.current = null;
+        draw();
+        scrollToGallery(reduced);
+        return;
+      }
+      autoClock = 0;
       const bubble: Bubble | null = hit ? { id: hit.id, until: performance.now() + BUBBLE_MS } : null;
       bubbleRef.current = bubble;
       // 루프가 멈춘 상태(모션 줄이기)에서도 말풍선이 닫히도록 별도 타이머를 둔다
@@ -325,6 +404,7 @@ export default function PixelVillage({
     return () => {
       if (raf) cancelAnimationFrame(raf);
       clearTimeout(bubbleTimer);
+      img.onload = null;
       ro.disconnect();
       io.disconnect();
       document.removeEventListener("visibilitychange", sync);
@@ -333,14 +413,19 @@ export default function PixelVillage({
     };
   }, []);
 
-  // 하객 목록 동기화 — 기존 캐릭터는 그대로 두고 새 하객만 추가, 사라진 하객은 제거
+  // 하객 목록 동기화 — 기존 캐릭터는 그대로 두고 새 하객만 추가, 사라진 하객은 제거. 신랑·신부는 항상 단상에 둔다.
   useEffect(() => {
     const rng = (rngRef.current ??= makeRng(Date.now()));
-    const dropFromSky = seededRef.current && !prefersReducedMotion();
+    const entering = seededRef.current && !prefersReducedMotion();
     const prev = walkersRef.current;
     const next = new Map<string, Walker>();
-    const ids = new Set<string>();
+    const ids = new Set<string>(NPCS.map((n) => n.id));
     try {
+      for (const n of NPCS) {
+        infoRef.current.set(n.id, n.info);
+        if (!spritesRef.current.has(n.id)) spritesRef.current.set(n.id, bakeSprites(n.look));
+        next.set(n.id, prev.get(n.id) ?? spawnNpc(n.id, n.x, n.y));
+      }
       for (const it of items) {
         ids.add(it.id);
         infoRef.current.set(it.id, {
@@ -348,7 +433,7 @@ export default function PixelVillage({
           text: ((it.kind === "직접배달" ? it.review : it.message) ?? "").trim(),
         });
         if (!spritesRef.current.has(it.id)) spritesRef.current.set(it.id, bakeSprites(lookFromId(it.id)));
-        next.set(it.id, prev.get(it.id) ?? spawnWalker(it.id, rng, dropFromSky));
+        next.set(it.id, prev.get(it.id) ?? spawnWalker(it.id, rng, entering));
       }
     } catch {
       // 캔버스 컨텍스트를 못 얻으면 스프라이트를 못 굽는다 — 마을만 폴백 문구로 바꾸고 예외는 밖으로 내보내지 않는다
@@ -376,15 +461,15 @@ export default function PixelVillage({
         width={WORLD_W * 2}
         height={WORLD_H * 2}
         role="img"
-        aria-label={`축하해 주신 ${items.length}명의 도트 마을. 캐릭터를 누르면 축하 메시지가 보여요.`}
+        aria-label={`축하해 주신 ${items.length}명의 도트 마을. 신랑·신부와 하객 캐릭터를 누르면 말풍선이 보여요.`}
         className={failed ? "hidden" : "block w-full h-auto rounded-sm border border-wedding-gold/20"}
         style={{ imageRendering: "pixelated" }}
       />
       {!failed && (
         <p className="text-[11px] text-neutral-400">
           {items.length === 0
-            ? "아직 마을에 놀러 온 친구가 없어요 🛵"
-            : "캐릭터를 눌러 축하 메시지를 읽어보세요 👆"}
+            ? "아직 마당에 놀러 온 하객이 없어요 🛵"
+            : "하객을 눌러 축하 메시지를 읽어보세요 👆 신랑·신부를 두 번 누르면 사진으로 가요"}
         </p>
       )}
     </div>
