@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Noto_Serif_KR } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import { groom, bride, formatFullDate, formatTime, venue } from "@/lib/wedding";
 
@@ -18,6 +19,18 @@ const description = `${formatFullDate()} ${formatTime()}, 서울 ${venue.name}. 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://kkachi.vercel.app";
 const ogImageAlt = `${groom.name} ♥ ${bride.name} 웨딩`;
+
+/**
+ * Vercel Web Analytics — 청첩장 방문 수·기기·유입 경로를 Vercel 대시보드에서 본다.
+ *
+ * `@vercel/analytics` 패키지 대신 Vercel 이 안내하는 스크립트 태그 방식을 쓴다.
+ * 패키지는 선택적 peer(@sveltejs/kit → vite 8)가 기존 vite 7 과 충돌해 설치가 안 된다.
+ * 스크립트는 같은 출처(`/_vercel/insights/*`)라 CSP 를 바꿀 필요가 없다.
+ *
+ * **운영 배포에서만** 붙인다 — 그 경로는 Vercel 에만 있어서 로컬·CI·프리뷰에선 404 가
+ * 나고, 대시보드도 운영 방문만 센다. 주소 이동(pushState)은 스크립트가 알아서 센다.
+ */
+const ANALYTICS = process.env.VERCEL_ENV === "production";
 
 export const metadata: Metadata = {
   // metadataBase 가 있어야 상대경로 OG 이미지가 절대 URL 로 변환됨 (카톡 썸네일 정상화)
@@ -64,6 +77,14 @@ export default function RootLayout({
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
         />
         {children}
+        {ANALYTICS && (
+          <>
+            <Script id="vercel-analytics-queue" strategy="afterInteractive">
+              {"window.va=window.va||function(){(window.vaq=window.vaq||[]).push(arguments)};"}
+            </Script>
+            <Script src="/_vercel/insights/script.js" strategy="afterInteractive" />
+          </>
+        )}
       </body>
     </html>
   );
