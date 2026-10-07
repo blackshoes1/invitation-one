@@ -2,21 +2,21 @@ import type { FrameName } from "@/lib/pixelSprite";
 
 /**
  * 도트 마당 이동 로직 — 렌더·DOM 과 무관한 순수 함수 모음. (바람의 나라식 탑뷰, 정원 예식장)
- * 좌표는 논리 해상도(192×176) 기준이고 (x, y) 는 캐릭터의 '발 밑 중앙'이다.
+ * 좌표는 논리 해상도(384×352) 기준이고 (x, y) 는 캐릭터의 '발 밑 중앙'이다.
  * 캐릭터는 상·하·좌·우 한 방향씩만 걷는다(대각선 없음). 장애물·캐릭터끼리의 충돌은 없다.
  * 신랑·신부처럼 `fixed` 인 캐릭터는 단상 위에 서서 움직이지 않는다.
  */
 
-export const WORLD_W = 192;
-export const WORLD_H = 176;
+export const WORLD_W = 384;
+export const WORLD_H = 352;
 /** 캐릭터 가로 반폭 */
-export const HALF_W = 8;
-export const BOX_H = 24;
+export const HALF_W = 16;
+export const BOX_H = 48;
 
 /** 걸을 수 있는 영역 — 발 위치 기준. 단상·화단(위) 아래의 잔디밭 전체 */
-export const AREA = { x0: HALF_W, x1: WORLD_W - HALF_W, y0: 72, y1: WORLD_H } as const;
+export const AREA = { x0: HALF_W, x1: WORLD_W - HALF_W, y0: 144, y1: WORLD_H } as const;
 
-export const WALK_SPEED = 24; // px/s
+export const WALK_SPEED = 48; // px/s
 /** 새 하객이 걸어 들어오기 시작하는 발 위치 — 화면 아래 바깥(몸이 막 가려지는 높이) */
 const ENTER_Y = WORLD_H + BOX_H;
 
@@ -154,7 +154,7 @@ export function pickWalkerAt(
   walkers: Iterable<Walker>,
   px: number,
   py: number,
-  pad = 3
+  pad = 6
 ): Walker | null {
   let hit: Walker | null = null;
   for (const w of walkers) {

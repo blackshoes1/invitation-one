@@ -4,14 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import type { Celebration } from "@/lib/supabase";
 import { bride, groom } from "@/lib/wedding";
 import {
-  BRIDE_LOOK,
-  GROOM_LOOK,
+  BRIDE_ROW,
+  GROOM_ROW,
+  SHEET_SRC,
   SPRITE_H,
   SPRITE_W,
-  bakeSprites,
-  lookFromId,
-  type FrameName,
-  type Look,
+  frameRect,
+  lookRowFromId,
 } from "@/lib/pixelSprite";
 import {
   WORLD_H,
@@ -38,10 +37,8 @@ const BUBBLE_MAX_CSS_W = 150;
 const BUBBLE_MAX_LINES = 3;
 /** 아치 아래 신랑·신부를 누르면 뜨는 안내 */
 const COUPLE_TEXT = "저를 누르면 사진들 볼 수 있어요!";
-/** 정원 예식장 배경 — 192×176, 걷는 영역은 villageSim.ts 의 AREA */
+/** 정원 예식장 배경 — 384×352, 걷는 영역은 villageSim.ts 의 AREA */
 const BG_SRC = "/pic/village-bg.png";
-
-type Sprites = Record<FrameName, HTMLCanvasElement>;
 
 interface Bubble {
   id: string;
@@ -63,20 +60,20 @@ interface Info {
 }
 
 /** 단상 위 신랑·신부 — 발 위치는 아치 아래 */
-const NPCS: ReadonlyArray<{ id: string; x: number; y: number; look: Look; info: Info }> = [
+const NPCS: ReadonlyArray<{ id: string; x: number; y: number; row: number; info: Info }> = [
   {
     id: "npc-groom",
-    x: 86,
-    y: 56,
-    look: GROOM_LOOK,
-    info: { name: groom.name, text: COUPLE_TEXT, npc: true, tagColor: "#b89b6e", tagX: 95, tagAlign: "right" },
+    x: 172,
+    y: 112,
+    row: GROOM_ROW,
+    info: { name: groom.name, text: COUPLE_TEXT, npc: true, tagColor: "#b89b6e", tagX: 190, tagAlign: "right" },
   },
   {
     id: "npc-bride",
-    x: 106,
-    y: 56,
-    look: BRIDE_LOOK,
-    info: { name: bride.name, text: COUPLE_TEXT, npc: true, tagColor: "#d98fb0", tagX: 97, tagAlign: "left" },
+    x: 212,
+    y: 112,
+    row: BRIDE_ROW,
+    info: { name: bride.name, text: COUPLE_TEXT, npc: true, tagColor: "#d98fb0", tagX: 194, tagAlign: "left" },
   },
 ];
 
@@ -99,19 +96,20 @@ function drawBackground(ctx: CanvasRenderingContext2D, bg: HTMLImageElement | nu
   ctx.fillRect(0, 0, WORLD_W, WORLD_H);
 }
 
-function drawWalker(ctx: CanvasRenderingContext2D, w: Walker, sprites: Sprites): void {
+/** 캐릭터 시트에서 (줄, 프레임)을 잘라 그린다. 왼쪽은 옆모습을 좌우 반전 */
+function drawWalker(ctx: CanvasRenderingContext2D, w: Walker, sheet: HTMLImageElement, row: number): void {
   const { frame, flip } = spriteFor(w);
-  const sprite = sprites[frame];
+  const { sx, sy, sw, sh } = frameRect(row, frame);
   const dx = Math.round(w.x - SPRITE_W / 2);
   const dy = Math.round(w.y - SPRITE_H);
   if (!flip) {
-    ctx.drawImage(sprite, dx, dy);
+    ctx.drawImage(sheet, sx, sy, sw, sh, dx, dy, sw, sh);
     return;
   }
   ctx.save();
   ctx.translate(dx + SPRITE_W, dy);
   ctx.scale(-1, 1);
-  ctx.drawImage(sprite, 0, 0);
+  ctx.drawImage(sheet, sx, sy, sw, sh, 0, 0, sw, sh);
   ctx.restore();
 }
 
@@ -142,7 +140,7 @@ function drawTag(
   const anchor = tagX ?? cx;
   const left = align === "right" ? anchor * t.s - w : align === "left" ? anchor * t.s : anchor * t.s - w / 2;
   const x = Math.round(Math.min(WORLD_W * t.s - w - 2, Math.max(2, left)));
-  const y = Math.round(Math.min(WORLD_H * t.s - h - 2, (footY + 1) * t.s));
+  const y = Math.round(Math.min(WORLD_H * t.s - h - 2, (footY + 2) * t.s));
   ctx.fillStyle = color;
   ctx.fillRect(x, y, w, h);
   ctx.fillStyle = "#ffffff";
@@ -199,7 +197,7 @@ function drawBubble(ctx: CanvasRenderingContext2D, t: TextMetrics, w: Walker, in
   const bh = (lines.length + 1) * lineH + padY * 2;
   const cw = WORLD_W * t.s;
   const x = Math.round(Math.min(cw - bw - 3, Math.max(3, w.x * t.s - bw / 2)));
-  const y = Math.max(3, Math.round((w.y - SPRITE_H - 4) * t.s - bh - t.fp * 0.6));
+  const y = Math.max(3, Math.round((w.y - SPRITE_H - 8) * t.s - bh - t.fp * 0.6));
   const tailX = Math.round(Math.min(x + bw - t.fp, Math.max(x + t.fp, w.x * t.s)));
   const tail = Math.round(t.fp * 0.6);
   const border = Math.max(1, Math.round(t.ratio));
@@ -230,6 +228,7 @@ function scrollToGallery(reduced: boolean): void {
 
 /**
  * 🏘️ 도트 마당 — 글을 남긴 하객 1명 = 도트 캐릭터 1명이 위에서 내려다본 정원 예식장을 앞뒤좌우로 걷는다(바람의 나라식).
+ * 그림은 PNG 두 장(배경 village-bg.png, 캐릭터 시트 village-sprites.png)이고, 하객은 id 해시로 시트의 한 줄을 고른다.
  * 단상 위에는 신랑·신부가 서 있고(누르면 안내 → 한 번 더 누르면 갤러리), 하객은 누르면 메시지 말풍선이 뜨며
  * 아무도 안 눌러도 약 6초마다 한 명의 말풍선이 저절로 뜬다.
  * 캔버스 한 장에 모두 그리고, 화면 밖·백그라운드 탭에서는 루프를 멈추며, 모션 줄이기 설정이면 정지 화면만 그린다.
@@ -245,7 +244,8 @@ export default function PixelVillage({
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const walkersRef = useRef<Map<string, Walker>>(new Map());
-  const spritesRef = useRef<Map<string, Sprites>>(new Map());
+  /** 하객·신랑·신부 id → 캐릭터 시트의 줄 */
+  const rowsRef = useRef<Map<string, number>>(new Map());
   const infoRef = useRef<Map<string, Info>>(new Map());
   const mineRef = useRef<string | null>(null);
   const bubbleRef = useRef<Bubble | null>(null);
@@ -274,6 +274,7 @@ export default function PixelVillage({
     let autoClock = 0;
     let bubbleTimer: ReturnType<typeof setTimeout> | undefined;
     let bg: HTMLImageElement | null = null;
+    let sheet: HTMLImageElement | null = null;
 
     const draw = () => {
       // 1) 도트 세계 — 배경과 캐릭터(아래쪽 캐릭터가 위쪽을 가린다)
@@ -281,9 +282,10 @@ export default function PixelVillage({
       ctx.imageSmoothingEnabled = false;
       drawBackground(ctx, bg);
       const list = [...walkersRef.current.values()].sort((a, b) => a.y - b.y);
+      if (!sheet) return; // 시트가 오기 전에는 이름표만 허공에 뜨지 않게 글씨도 그리지 않는다
       for (const w of list) {
-        const sp = spritesRef.current.get(w.id);
-        if (sp) drawWalker(ctx, w, sp);
+        const row = rowsRef.current.get(w.id);
+        if (row !== undefined) drawWalker(ctx, w, sheet, row);
       }
       // 2) 글씨 — 화면 해상도로 그려 또렷하게
       ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -309,11 +311,19 @@ export default function PixelVillage({
       draw();
     };
     img.src = BG_SRC;
+    const sheetImg = new Image();
+    sheetImg.onload = () => {
+      sheet = sheetImg;
+      draw();
+    };
+    // 캐릭터 시트가 없으면 마을이 의미가 없다 — 폴백 문구를 보여 준다(배경만 없을 때는 단색 잔디로 계속 그린다)
+    sheetImg.onerror = () => setFailed(true);
+    sheetImg.src = SHEET_SRC;
 
     const resize = () => {
       const dpr = window.devicePixelRatio || 1;
       const cssW = wrap.clientWidth || WORLD_W;
-      scale = Math.max(2, Math.ceil((cssW * dpr) / WORLD_W));
+      scale = Math.max(1, Math.ceil((cssW * dpr) / WORLD_W));
       canvas.width = WORLD_W * scale;
       canvas.height = WORLD_H * scale;
       ratio = canvas.width / cssW;
@@ -414,6 +424,8 @@ export default function PixelVillage({
       if (raf) cancelAnimationFrame(raf);
       clearTimeout(bubbleTimer);
       img.onload = null;
+      sheetImg.onload = null;
+      sheetImg.onerror = null;
       ro.disconnect();
       io.disconnect();
       document.removeEventListener("visibilitychange", sync);
@@ -429,31 +441,24 @@ export default function PixelVillage({
     const prev = walkersRef.current;
     const next = new Map<string, Walker>();
     const ids = new Set<string>(NPCS.map((n) => n.id));
-    try {
-      for (const n of NPCS) {
-        infoRef.current.set(n.id, n.info);
-        if (!spritesRef.current.has(n.id)) spritesRef.current.set(n.id, bakeSprites(n.look));
-        next.set(n.id, prev.get(n.id) ?? spawnNpc(n.id, n.x, n.y));
-      }
-      for (const it of items) {
-        ids.add(it.id);
-        infoRef.current.set(it.id, {
-          name: it.name,
-          text: ((it.kind === "직접배달" ? it.review : it.message) ?? "").trim(),
-        });
-        if (!spritesRef.current.has(it.id)) spritesRef.current.set(it.id, bakeSprites(lookFromId(it.id)));
-        next.set(it.id, prev.get(it.id) ?? spawnWalker(it.id, rng, entering));
-      }
-    } catch {
-      // 캔버스 컨텍스트를 못 얻으면 스프라이트를 못 굽는다 — 마을만 폴백 문구로 바꾸고 예외는 밖으로 내보내지 않는다
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setFailed(true);
-      return;
+    for (const n of NPCS) {
+      infoRef.current.set(n.id, n.info);
+      rowsRef.current.set(n.id, n.row);
+      next.set(n.id, prev.get(n.id) ?? spawnNpc(n.id, n.x, n.y));
+    }
+    for (const it of items) {
+      ids.add(it.id);
+      infoRef.current.set(it.id, {
+        name: it.name,
+        text: ((it.kind === "직접배달" ? it.review : it.message) ?? "").trim(),
+      });
+      rowsRef.current.set(it.id, lookRowFromId(it.id));
+      next.set(it.id, prev.get(it.id) ?? spawnWalker(it.id, rng, entering));
     }
     for (const id of [...infoRef.current.keys()]) {
       if (ids.has(id)) continue;
       infoRef.current.delete(id);
-      spritesRef.current.delete(id);
+      rowsRef.current.delete(id);
       if (bubbleRef.current?.id === id) bubbleRef.current = null;
     }
     walkersRef.current = next;
@@ -465,6 +470,7 @@ export default function PixelVillage({
   return (
     <div ref={wrapRef} className="space-y-2">
       {failed && <p className="text-sm text-neutral-400 py-8">마을을 불러오지 못했어요</p>}
+      {/* 384px 그림을 줄여 보이므로 image-rendering: pixelated 를 쓰지 않는다 — 줄일 때 도트가 불규칙하게 빠져 들쭉날쭉해진다 */}
       <canvas
         ref={canvasRef}
         width={WORLD_W * 2}
@@ -472,7 +478,6 @@ export default function PixelVillage({
         role="img"
         aria-label={`축하해 주신 ${items.length}명의 도트 마을. 신랑·신부와 하객 캐릭터를 누르면 말풍선이 보여요.`}
         className={failed ? "hidden" : "block w-full h-auto rounded-sm border border-wedding-gold/20 touch-manipulation"}
-        style={{ imageRendering: "pixelated" }}
       />
       {!failed && (
         <p className="text-[11px] text-neutral-400">

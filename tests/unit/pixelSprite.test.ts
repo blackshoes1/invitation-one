@@ -1,161 +1,94 @@
 import { describe, it, expect } from "vitest";
+import { COLUMNS, FRAME_H, FRAME_W, GUEST_LOOKS as ART_GUEST_LOOKS, allLooks } from "../../scripts/village-art/chargen.mjs";
 import {
-  BRIDE_LOOK,
+  BRIDE_ROW,
   FRAME_NAMES,
-  GROOM_LOOK,
-  FRAME_ROWS,
-  SPRITE_DIRS,
+  GROOM_ROW,
+  GUEST_LOOKS,
+  SHEET_ROWS,
   SPRITE_H,
   SPRITE_W,
-  buildFrameGrid,
+  frameRect,
   hashId,
-  hatPatches,
-  lookFromId,
+  lookRowFromId,
 } from "@/lib/pixelSprite";
 
-describe("도트 스프라이트 데이터", () => {
-  it("앞·뒤·옆 × 정지·걷기 2 = 9 프레임이다", () => {
-    expect(FRAME_NAMES).toHaveLength(9);
-    expect(new Set(FRAME_NAMES).size).toBe(9);
+describe("캐릭터 시트 규격", () => {
+  it("프레임은 32×48 이다", () => {
+    expect(SPRITE_W).toBe(32);
+    expect(SPRITE_H).toBe(48);
   });
 
-  it("모든 프레임이 16×24 이고 허용된 글자만 쓴다", () => {
-    for (const f of FRAME_NAMES) {
-      const rows = FRAME_ROWS[f];
-      expect(rows).toHaveLength(SPRITE_H);
-      for (const r of rows) {
-        expect(r).toHaveLength(SPRITE_W);
-        expect(r).toMatch(/^[.osehcpb]+$/); // 모자(a)·꽃(f)은 덮어쓰기 조각으로만 들어간다
-      }
-    }
+  it("열은 앞→뒤→옆, 각각 정지→걷기1→걷기2 순서의 9프레임이다", () => {
+    expect(FRAME_NAMES).toEqual([
+      "down_idle", "down_walk1", "down_walk2",
+      "up_idle", "up_walk1", "up_walk2",
+      "side_idle", "side_walk1", "side_walk2",
+    ]);
   });
 
-  it("방향마다 모양이 달라 앞·뒤·옆이 구분된다", () => {
-    const joined = (f: (typeof FRAME_NAMES)[number]) => FRAME_ROWS[f].join("");
-    expect(joined("down_idle")).not.toBe(joined("up_idle"));
-    expect(joined("down_idle")).not.toBe(joined("side_idle"));
-    expect(joined("up_idle")).not.toBe(joined("side_idle"));
-  });
-
-  it("방향마다 걷기 프레임이 정지·서로와 달라 애니메이션이 된다", () => {
-    const joined = (f: (typeof FRAME_NAMES)[number]) => FRAME_ROWS[f].join("");
-    for (const d of SPRITE_DIRS) {
-      expect(joined(`${d}_idle`)).not.toBe(joined(`${d}_walk1`));
-      expect(joined(`${d}_idle`)).not.toBe(joined(`${d}_walk2`));
-      expect(joined(`${d}_walk1`)).not.toBe(joined(`${d}_walk2`));
-    }
-  });
-
-  it("앞모습만 눈 두 개, 뒷모습은 눈이 없고, 옆모습은 눈 하나다", () => {
-    const eyes = (f: (typeof FRAME_NAMES)[number]) => (FRAME_ROWS[f].join("").match(/e/g) ?? []).length;
-    expect(eyes("down_idle")).toBe(2);
-    expect(eyes("up_idle")).toBe(0);
-    expect(eyes("side_idle")).toBe(1);
+  it("줄은 하객 64종 → 신랑 → 신부 = 66줄이다", () => {
+    expect(GUEST_LOOKS).toBe(64);
+    expect(GROOM_ROW).toBe(64);
+    expect(BRIDE_ROW).toBe(65);
+    expect(SHEET_ROWS).toBe(66);
   });
 });
 
-describe("hatPatches — 모자 조각", () => {
-  it("모자 없음은 조각이 없다", () => {
-    for (const d of SPRITE_DIRS) expect(hatPatches(d, 0)).toEqual([]);
-  });
-
-  it("조각은 머리 줄(0~10)·화면 안에서 머리카락·외곽선·빈칸만 덮는다 (얼굴·눈은 가리지 않는다)", () => {
-    for (const d of SPRITE_DIRS) {
-      for (const hat of [1, 2] as const) {
-        for (const [r, c] of hatPatches(d, hat)) {
-          expect(r).toBeGreaterThanOrEqual(0);
-          expect(r).toBeLessThanOrEqual(10);
-          expect(c).toBeGreaterThanOrEqual(0);
-          expect(c).toBeLessThan(SPRITE_W);
-          expect("ho.").toContain(FRAME_ROWS[`${d}_idle`][r][c]);
-        }
-      }
-    }
-  });
-
-  it("야구모자 챙: 옆에서는 오른쪽으로 튀어나오고, 뒤에서는 보이지 않는다", () => {
-    const maxCol = (d: (typeof SPRITE_DIRS)[number]) => Math.max(...hatPatches(d, 1).map(([, c]) => c));
-    expect(maxCol("side")).toBeGreaterThan(maxCol("down"));
-    expect(maxCol("up")).toBe(maxCol("down"));
+describe("앱 쪽 시트 규격과 그림 생성 스크립트 규격이 같다", () => {
+  it("프레임 크기·열 순서·줄 수가 scripts/village-art/chargen.mjs 와 일치한다", () => {
+    expect(FRAME_W).toBe(SPRITE_W);
+    expect(FRAME_H).toBe(SPRITE_H);
+    expect(COLUMNS.map(([dir, anim]: string[]) => `${dir}_${anim}`)).toEqual([...FRAME_NAMES]);
+    expect(ART_GUEST_LOOKS).toBe(GUEST_LOOKS);
+    expect(allLooks()).toHaveLength(SHEET_ROWS);
   });
 });
 
-describe("lookFromId — 하객 id → 외형", () => {
-  it("같은 id 는 항상 같은 외형이다", () => {
-    expect(lookFromId("guest-1")).toEqual(lookFromId("guest-1"));
+describe("hashId / lookRowFromId — 하객 id → 시트 줄", () => {
+  it("같은 id 는 항상 같은 값·같은 줄이다", () => {
     expect(hashId("guest-1")).toBe(hashId("guest-1"));
+    expect(lookRowFromId("guest-1")).toBe(lookRowFromId("guest-1"));
   });
 
-  it("id 가 다르면 외형이 다양하게 나온다 (머리·옷·모자 종류)", () => {
-    const looks = Array.from({ length: 200 }, (_, i) => lookFromId(`id-${i}`));
-    expect(new Set(looks.map((l) => l.hair)).size).toBeGreaterThan(3);
-    expect(new Set(looks.map((l) => l.cloth)).size).toBeGreaterThan(3);
-    expect(new Set(looks.map((l) => l.hat))).toEqual(new Set([0, 1, 2]));
+  it("줄은 항상 하객 줄(0~63)의 정수이고 신랑·신부 줄은 나오지 않는다", () => {
+    for (let i = 0; i < 2000; i++) {
+      const row = lookRowFromId(`id-${i}`);
+      expect(Number.isInteger(row)).toBe(true);
+      expect(row).toBeGreaterThanOrEqual(0);
+      expect(row).toBeLessThan(GUEST_LOOKS);
+      expect(row).not.toBe(GROOM_ROW);
+      expect(row).not.toBe(BRIDE_ROW);
+    }
+  });
+
+  it("id 가 다르면 줄이 골고루 나온다 (500명이면 64줄 중 55줄 이상 쓰인다)", () => {
+    const rows = new Set(Array.from({ length: 500 }, (_, i) => lookRowFromId(`id-${i}`)));
+    expect(rows.size).toBeGreaterThanOrEqual(55);
   });
 });
 
-describe("바지 색 지정(pants)과 신랑·신부 외형", () => {
-  const look = { hair: "#112233", cloth: "#445566", hat: 0 as const, hatColor: "#778899" };
-  const countOf = (grid: (string | null)[][], color: string) => grid.flat().filter((c) => c === color).length;
-
-  it("pants 를 지정하면 바지 칸이 그 색이고, 지정하지 않으면 기존 남색이다", () => {
-    const withPants = buildFrameGrid("down_idle", { ...look, pants: "#abcdef" });
-    const without = buildFrameGrid("down_idle", look);
-    expect(countOf(withPants, "#abcdef")).toBeGreaterThan(0);
-    expect(countOf(withPants, "#3d4a63")).toBe(0);
-    expect(countOf(without, "#3d4a63")).toBe(countOf(withPants, "#abcdef"));
-    expect(countOf(without, "#abcdef")).toBe(0);
+describe("frameRect — 시트에서 잘라 낼 사각형", () => {
+  it("첫 줄 첫 열은 (0, 0) 에서 32×48", () => {
+    expect(frameRect(0, "down_idle")).toEqual({ sx: 0, sy: 0, sw: 32, sh: 48 });
   });
 
-  it("신랑은 짙은 정장, 신부는 흰 옷에 머리 꽃을 단다", () => {
-    expect(GROOM_LOOK.cloth).toBe("#2f3340");
-    expect(GROOM_LOOK.pants).toBe("#1e1f26");
-    expect(BRIDE_LOOK.cloth).toBe("#f6f3ee");
-    expect(BRIDE_LOOK.pants).toBe("#f6f3ee");
-    expect(BRIDE_LOOK.hat).toBe(2); // 머리 꽃
-    expect(GROOM_LOOK.hat).toBe(0);
+  it("열은 프레임 순서 × 32, 줄은 줄 번호 × 48", () => {
+    expect(frameRect(3, "up_walk1")).toEqual({ sx: 4 * 32, sy: 3 * 48, sw: 32, sh: 48 });
+    expect(frameRect(BRIDE_ROW, "side_walk2")).toEqual({ sx: 8 * 32, sy: 65 * 48, sw: 32, sh: 48 });
   });
 
-  it("신랑·신부는 모든 프레임이 정상적으로 칠해지고 서로 다르게 보인다", () => {
-    for (const f of FRAME_NAMES) {
-      for (const l of [GROOM_LOOK, BRIDE_LOOK]) {
-        const cells = buildFrameGrid(f, l).flat();
-        expect(cells.every((c) => c === null || /^#[0-9a-f]{6}$/i.test(c))).toBe(true);
+  it("모든 줄·프레임의 사각형이 시트(288×3168) 안에 있고 서로 겹치지 않는다", () => {
+    const seen = new Set<string>();
+    for (let row = 0; row < SHEET_ROWS; row++) {
+      for (const f of FRAME_NAMES) {
+        const r = frameRect(row, f);
+        expect(r.sx).toBeGreaterThanOrEqual(0);
+        expect(r.sx + r.sw).toBeLessThanOrEqual(288);
+        expect(r.sy + r.sh).toBeLessThanOrEqual(3168);
+        seen.add(`${r.sx},${r.sy}`);
       }
     }
-    expect(JSON.stringify(buildFrameGrid("down_idle", GROOM_LOOK))).not.toBe(
-      JSON.stringify(buildFrameGrid("down_idle", BRIDE_LOOK))
-    );
-    expect(buildFrameGrid("down_idle", BRIDE_LOOK).flat()).toContain("#f08aa5"); // 머리 꽃색
-  });
-});
-
-describe("buildFrameGrid — 색 입히기", () => {
-  const look = { hair: "#112233", cloth: "#445566", hat: 0 as const, hatColor: "#778899" };
-
-  it("투명은 null, 머리·옷 칸에는 외형 색이 들어간다", () => {
-    const g = buildFrameGrid("down_idle", look);
-    expect(g).toHaveLength(SPRITE_H);
-    expect(g[0][0]).toBeNull();
-    const flat = g.flat();
-    expect(flat).toContain("#112233");
-    expect(flat).toContain("#445566");
-    expect(flat).not.toContain("#778899"); // 모자 없음
-  });
-
-  it("야구모자(1)는 모자색을, 꽃(2)은 꽃색을 모든 방향에서 칠한다", () => {
-    for (const d of SPRITE_DIRS) {
-      expect(buildFrameGrid(`${d}_idle`, { ...look, hat: 1 }).flat()).toContain("#778899");
-      expect(buildFrameGrid(`${d}_idle`, { ...look, hat: 2 }).flat()).toContain("#f08aa5");
-    }
-  });
-
-  it("모든 프레임·모자 조합에서 칠한 칸은 16진 색이다 (undefined 없음)", () => {
-    for (const f of FRAME_NAMES) {
-      for (const hat of [0, 1, 2] as const) {
-        const cells = buildFrameGrid(f, { ...look, hat }).flat();
-        expect(cells.every((c) => c === null || /^#[0-9a-f]{6}$/i.test(c))).toBe(true);
-      }
-    }
+    expect(seen.size).toBe(SHEET_ROWS * FRAME_NAMES.length);
   });
 });
