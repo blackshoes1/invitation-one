@@ -1,6 +1,9 @@
 # 도트 마당 '꽃길 + 보통 체형 하객 + 북적임' 설계
 
 작성일: 2026-10-07 · 상태: 사용자 승인(진행 방향) → 구현 계획 작성 중
+
+> 캐릭터 그림(코드 생성)과 배경(코드 생성) 부분은 2026-10-07-guestbook-village-ai-assets-design.md 가 대체했다(캐릭터는 AI 시트로, 배경은 사용자 제공 이미지가 오면 교체).
+
 선행 문서: `2026-10-07-guestbook-village-hd-design.md`(2배 해상도), `…garden-design.md`(정원 예식장), `…topdown-design.md`, `…pixel-village-design.md`
 
 ## 이 문서의 위치

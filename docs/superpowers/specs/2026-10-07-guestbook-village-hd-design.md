@@ -1,6 +1,9 @@
 # 도트 마당 '2배 해상도(HD)' 설계
 
 작성일: 2026-10-07 · 상태: 사용자 승인(시안·진행 방향) → 문서 검토 대기
+
+> 일부 항목(캐릭터 규격·그리기 방식·하객 종수·이름표·말풍선)은 2026-10-07-guestbook-village-crowd-design.md 와 2026-10-07-guestbook-village-ai-assets-design.md 가 대체한다.
+
 선행 문서: `2026-10-06-guestbook-village-garden-design.md`(정원 예식장), `…topdown-design.md`(4방향 탑뷰), `…pixel-village-design.md`(옆면)
 
 ## 이 문서의 위치
