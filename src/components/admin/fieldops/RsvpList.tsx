@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { SIDE_LABEL, SOURCE_LABEL, type CheckinRow, type Filter, type RsvpRow } from "./types";
 import { ActionBtn } from "./ui";
+import { formatCompanions } from "@/lib/groupCompanions";
 
 /** RSVP 목록 + 현장 등록·레거시 체크인 목록 (필터/검색 적용, §6) */
 export default function RsvpList({
@@ -75,7 +76,8 @@ export default function RsvpList({
                 <div className="min-w-0">
                   <p className="text-sm text-sage-700 truncate">
                     <b>{r.name}</b>
-                    {r.expected_party_size > 1 && ` 외 ${r.expected_party_size - 1}명`}
+                    {r.expected_party_size > 1 &&
+                      ` ${formatCompanions(r.expected_party_size - 1, r.companion_names ?? [])}`}
                     <span className="text-neutral-400 font-normal">
                       {" "}· {r.side ? SIDE_LABEL[r.side] : "-"}
                       {r.table_id && ` · ${tableName(r.table_id)}`}

@@ -15,6 +15,8 @@ import SoloInvites from "@/components/admin/SoloInvites";
 import { orderNotice } from "@/lib/adminOrderNotice";
 import LocationPicker from "@/components/admin/orders/LocationPicker";
 import { joinLocation, splitRegion } from "@/lib/regions";
+import AttendForm from "@/components/admin/AttendForm";
+import { formatCompanions } from "@/lib/groupCompanions";
 
 /**
  * 그룹 탭 — 그룹 생성·제안 일정·명단(roster) 관리.
@@ -80,6 +82,27 @@ export default function GroupsTab({
     requestKey: string;
   } | null>(null);
   const [creatingOrder, setCreatingOrder] = useState(false);
+  /** 참석 등록 입력 영역이 열려 있는 명단 사람 id (한 번에 한 명) */
+  const [attendFor, setAttendFor] = useState<string | null>(null);
+
+  /** 참석 등록 직후 명단을 다시 읽어 참석자 배지·동반자 표시를 채운다 */
+  const onAttended = async (gid: string, result: "created" | "linked") => {
+    setAttendFor(null);
+    setNotice(
+      result === "created"
+        ? "참석자로 등록했어요 ✓ 현장운영 탭에서 볼 수 있어요."
+        : "같은 이름·연락처의 RSVP 가 이미 있어 연결만 했어요 (기존 응답은 그대로예요)."
+    );
+    try {
+      const res = await api(`/api/admin/groups/${gid}/members`);
+      if (res.ok) {
+        const j = await res.json();
+        setMembers((m) => ({ ...m, [gid]: j.members ?? [] }));
+      }
+    } catch {
+      setError("명단을 다시 불러오지 못했어요. 새로고침해 주세요.");
+    }
+  };
 
   const createOrder = async () => {
     if (!newOrder || creatingOrder) return;
@@ -447,8 +470,10 @@ export default function GroupsTab({
     }
   };
 
-  const removeMember = async (gid: string, memberId: string) => {
-    if (!confirm("명단에서 삭제할까요?")) return;
+  const removeMember = async (gid: string, mem: GroupMemberRow) => {
+    const memberId = mem.id;
+    const note = mem.rsvp_id ? "\n(참석자 기록은 그대로 남고, 이 명단에서만 삭제돼요)" : "";
+    if (!confirm(`${mem.name} 님을 명단에서 삭제할까요?${note}`)) return;
     try {
       const res = await api(
         `/api/admin/groups/${gid}/members?member_id=${memberId}`,
@@ -962,6 +987,16 @@ export default function GroupsTab({
                     >
                       <span className="w-full min-w-0 break-words sm:w-40">
                         {mem.name}
+                        {mem.rsvp && (
+                          <span className="block text-[11px] font-medium text-sage-700">
+                            {mem.rsvp.attending ? "참석자 ✓" : "RSVP 불참"}
+                            {mem.rsvp.attending && mem.rsvp.side
+                              ? ` · ${mem.rsvp.side === "bride" ? "신부측" : "신랑측"}`
+                              : ""}
+                            {formatCompanions(mem.rsvp.companion_count, mem.rsvp.companion_names ?? []) &&
+                              ` · ${formatCompanions(mem.rsvp.companion_count, mem.rsvp.companion_names ?? [])}`}
+                          </span>
+                        )}
                         <span className="block text-[10px] text-neutral-500">
                           예식: {mem.attendance === "yes" ? "참석" : mem.attendance === "maybe" ? "미정" : mem.attendance === "no" ? "불참" : "응답 전"}
                           {mem.attendance && (mem.attendance_shared ? " · 그룹 공유" : " · 관리자만")}
@@ -1024,6 +1059,18 @@ export default function GroupsTab({
                           마음
                         </span>
                       )}
+                      {!mem.rsvp_id && (
+                        <button
+                          onClick={() => setAttendFor(attendFor === mem.id ? null : mem.id)}
+                          aria-expanded={attendFor === mem.id}
+                          className={`text-xs whitespace-nowrap ${
+                            attendFor === mem.id ? "font-bold text-sage-700" : "text-sage-700 underline underline-offset-2"
+                          }`}
+                          title="이 사람을 참석자(RSVP)로 등록 — 현장운영 탭에 나타나요"
+                        >
+                          참석 등록
+                        </button>
+                      )}
                       <button
                         disabled={inviteBusy}
                         onClick={() => issueInvite(g.id, mem, "personal")}
@@ -1045,12 +1092,23 @@ export default function GroupsTab({
                         className="text-xs text-red-500">링크 재발급</button>}
                       <button
                         disabled={inviteBusy}
-                        onClick={() => removeMember(g.id, mem.id)}
+                        onClick={() => removeMember(g.id, mem)}
                         className="text-xs text-red-400"
                       >
                         삭제
                       </button>
                       </div>
+                      {attendFor === mem.id && !mem.rsvp_id && (
+                        <AttendForm
+                          api={api}
+                          setError={setError}
+                          groupId={g.id}
+                          member={mem}
+                          defaultPhone={draft ?? mem.phone ?? ""}
+                          onDone={(result) => void onAttended(g.id, result)}
+                          onCancel={() => setAttendFor(null)}
+                        />
+                      )}
                     </li>
                   );
                   })}
