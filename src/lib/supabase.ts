@@ -269,10 +269,17 @@ export interface GroupMemberRow {
   attendance?: "yes" | "maybe" | "no" | null;
   attendance_shared?: boolean;
   created_at: string;
-  /** RSVP 참석자에서 불러온 명단이면 해당 rsvp id (직접 추가한 명단은 null) */
+  /** 관리자가 참석자(RSVP)로 등록했거나 기존 RSVP 에 연결한 경우 그 rsvp id */
   rsvp_id?: string | null;
-  /** 동반자 이름 (빈 문자열 = 이름 미입력 칸, 배열 길이 = 동반 인원). 관리자만 조회 */
-  companions?: string[];
+  /** 연결된 RSVP 의 현재 상태 (현장운영 탭에서 바뀐 값 포함). 연결이 없으면 null */
+  rsvp?: {
+    id: string;
+    attending: boolean;
+    side: string | null;
+    companion_count: number;
+    /** 빈 문자열 = 이름 미입력 칸. 하객이 직접 낸 RSVP 는 비어 있을 수 있다 */
+    companion_names: string[];
+  } | null;
 }
 
 export interface WaitingEntry {

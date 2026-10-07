@@ -29,6 +29,8 @@ export interface RsvpRow {
   side: string | null;
   attending: boolean;
   expected_party_size: number;
+  /** 동반자 이름 (빈 문자열 = 미입력). 하객이 직접 낸 RSVP 는 비어 있을 수 있다 */
+  companion_names?: string[];
   eating: string | null;
   kids_meal: boolean;
   table_id: string | null;

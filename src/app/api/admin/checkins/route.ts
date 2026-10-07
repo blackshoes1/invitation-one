@@ -18,7 +18,7 @@ export async function GET(req: Request) {
     supabaseAdmin!
       .from("rsvp")
       .select(
-        "id, name, phone, side, attending, companion_count, children, kids_meal, eating, memo, table_id, checkin_token_active, qr_issued_at, created_at, updated_at"
+        "id, name, phone, side, attending, companion_count, companion_names, children, kids_meal, eating, memo, table_id, checkin_token_active, qr_issued_at, created_at, updated_at"
       )
       .order("created_at", { ascending: true }),
     supabaseAdmin!

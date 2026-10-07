@@ -1,21 +1,27 @@
 import { describe, it, expect } from "vitest";
 import {
   MAX_COMPANIONS,
-  companionSlots,
-  formatRosterLabel,
+  clampCompanionCount,
+  formatCompanions,
   normalizeCompanions,
+  resizeCompanions,
 } from "@/lib/groupCompanions";
 
-describe("companionSlots", () => {
-  it("인원 - 1 (본인 제외)", () => {
-    expect(companionSlots(1)).toBe(0);
-    expect(companionSlots(3)).toBe(2);
+describe("clampCompanionCount", () => {
+  it("정수는 그대로, 소수·문자열 숫자는 정수로", () => {
+    expect(clampCompanionCount(3)).toBe(3);
+    expect(clampCompanionCount(2.9)).toBe(2);
+    expect(clampCompanionCount("4")).toBe(4);
   });
-  it("0·음수·NaN 은 0, 상한은 MAX_COMPANIONS", () => {
-    expect(companionSlots(0)).toBe(0);
-    expect(companionSlots(-4)).toBe(0);
-    expect(companionSlots(Number.NaN)).toBe(0);
-    expect(companionSlots(99)).toBe(MAX_COMPANIONS);
+  it("음수·NaN·숫자가 아닌 값은 0", () => {
+    expect(clampCompanionCount(-2)).toBe(0);
+    expect(clampCompanionCount(Number.NaN)).toBe(0);
+    expect(clampCompanionCount("abc")).toBe(0);
+    expect(clampCompanionCount(undefined)).toBe(0);
+    expect(clampCompanionCount(null)).toBe(0);
+  });
+  it("상한은 MAX_COMPANIONS (본인 포함 20명)", () => {
+    expect(clampCompanionCount(99)).toBe(MAX_COMPANIONS);
   });
 });
 
@@ -36,15 +42,35 @@ describe("normalizeCompanions", () => {
   });
 });
 
-describe("formatRosterLabel", () => {
-  it("동반자 없음 → 이름만", () => {
-    expect(formatRosterLabel("홍길동", [])).toBe("홍길동");
+describe("resizeCompanions", () => {
+  it("늘리면 빈 칸을 뒤에 붙이고 기존 이름은 유지", () => {
+    expect(resizeCompanions(["김철수"], 3)).toEqual(["김철수", "", ""]);
   });
-  it("이름 있는 동반자는 괄호로, 인원은 전체 칸 수 기준", () => {
-    expect(formatRosterLabel("홍길동", ["김철수", "이영희"])).toBe("홍길동 외 2명 (김철수, 이영희)");
+  it("줄이면 뒤에서부터 자름", () => {
+    expect(resizeCompanions(["김철수", "이영희", "박민수"], 1)).toEqual(["김철수"]);
   });
-  it("이름이 비어 있으면 인원만 표시", () => {
-    expect(formatRosterLabel("홍길동", ["", ""])).toBe("홍길동 외 2명");
-    expect(formatRosterLabel("홍길동", ["김철수", ""])).toBe("홍길동 외 2명 (김철수)");
+  it("0 이면 빈 배열, 범위를 벗어난 값은 보정", () => {
+    expect(resizeCompanions(["김철수"], 0)).toEqual([]);
+    expect(resizeCompanions([], -3)).toEqual([]);
+    expect(resizeCompanions([], 99)).toHaveLength(MAX_COMPANIONS);
+  });
+  it("입력 배열을 바꾸지 않는다", () => {
+    const src = ["김철수"];
+    resizeCompanions(src, 3);
+    expect(src).toEqual(["김철수"]);
+  });
+});
+
+describe("formatCompanions", () => {
+  it("동반자 없음 → 빈 문자열", () => {
+    expect(formatCompanions(0, [])).toBe("");
+  });
+  it("이름이 없으면 인원만", () => {
+    expect(formatCompanions(2, [])).toBe("외 2명");
+    expect(formatCompanions(2, ["", ""])).toBe("외 2명");
+  });
+  it("이름이 있으면 괄호로 — 인원은 count 기준 (이름이 일부만 있어도)", () => {
+    expect(formatCompanions(2, ["김철수", "이영희"])).toBe("외 2명 (김철수, 이영희)");
+    expect(formatCompanions(2, ["김철수", ""])).toBe("외 2명 (김철수)");
   });
 });

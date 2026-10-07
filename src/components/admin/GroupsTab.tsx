@@ -15,9 +15,8 @@ import SoloInvites from "@/components/admin/SoloInvites";
 import { orderNotice } from "@/lib/adminOrderNotice";
 import LocationPicker from "@/components/admin/orders/LocationPicker";
 import { joinLocation, splitRegion } from "@/lib/regions";
-import type { RsvpRow } from "@/components/admin/fieldops/types";
-import { formatRosterLabel } from "@/lib/groupCompanions";
-import AttendeePicker from "@/components/admin/AttendeePicker";
+import AttendForm from "@/components/admin/AttendForm";
+import { formatCompanions } from "@/lib/groupCompanions";
 
 /**
  * 그룹 탭 — 그룹 생성·제안 일정·명단(roster) 관리.
@@ -83,52 +82,25 @@ export default function GroupsTab({
     requestKey: string;
   } | null>(null);
   const [creatingOrder, setCreatingOrder] = useState(false);
-  /** 참석자 불러오기 패널 — 열려 있는 그룹 id 와 참석(attending) RSVP 목록 */
-  const [picker, setPicker] = useState<{ gid: string; rsvps: RsvpRow[] } | null>(null);
+  /** 참석 등록 입력 영역이 열려 있는 명단 사람 id (한 번에 한 명) */
+  const [attendFor, setAttendFor] = useState<string | null>(null);
 
-  const openPicker = async (gid: string) => {
-    if (picker?.gid === gid) return setPicker(null);
+  /** 참석 등록 직후 명단을 다시 읽어 참석자 배지·동반자 표시를 채운다 */
+  const onAttended = async (gid: string, result: "created" | "linked") => {
+    setAttendFor(null);
+    setNotice(
+      result === "created"
+        ? "참석자로 등록했어요 ✓ 현장운영 탭에서 볼 수 있어요."
+        : "같은 이름·연락처의 RSVP 가 이미 있어 연결만 했어요 (기존 응답은 그대로예요)."
+    );
     try {
-      const res = await api("/api/admin/checkins");
-      if (!res.ok) {
-        if (res.status !== 401) setError("참석자 목록을 불러오지 못했습니다.");
-        return;
+      const res = await api(`/api/admin/groups/${gid}/members`);
+      if (res.ok) {
+        const j = await res.json();
+        setMembers((m) => ({ ...m, [gid]: j.members ?? [] }));
       }
-      const j = (await res.json()) as { rsvps?: RsvpRow[] };
-      setPicker({ gid, rsvps: (j.rsvps ?? []).filter((r) => r.attending) });
     } catch {
-      setError("참석자 목록 요청이 실패했습니다. 네트워크를 확인해주세요.");
-    }
-  };
-
-  const onPicked = (gid: string, added: GroupMemberRow[]) => {
-    setMembers((m) => ({ ...m, [gid]: [...(m[gid] ?? []), ...added] }));
-    bumpRoster(gid, added.length);
-    setPicker(null);
-  };
-
-  /** 동반자 이름 저장 (blur 시) — 해당 칸만 바꾼 배열 전체를 보낸다 */
-  const saveCompanion = async (gid: string, mem: GroupMemberRow, index: number, value: string) => {
-    const cur = mem.companions ?? [];
-    const next = cur.map((c, i) => (i === index ? value.trim() : c));
-    if (next[index] === cur[index]) return;
-    try {
-      const res = await api(`/api/admin/groups/${gid}/members`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ member_id: mem.id, companions: next }),
-      });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        if (res.status !== 401) setError(j.error ?? "동반자 저장에 실패했습니다.");
-        return;
-      }
-      setMembers((m) => ({
-        ...m,
-        [gid]: (m[gid] ?? []).map((x) => (x.id === mem.id ? { ...x, ...j.member } : x)),
-      }));
-    } catch {
-      setError("동반자 저장 요청이 실패했습니다. 네트워크를 확인해주세요.");
+      setError("명단을 다시 불러오지 못했어요. 새로고침해 주세요.");
     }
   };
 
@@ -500,7 +472,8 @@ export default function GroupsTab({
 
   const removeMember = async (gid: string, mem: GroupMemberRow) => {
     const memberId = mem.id;
-    if (!confirm(`${formatRosterLabel(mem.name, mem.companions ?? [])}\n명단에서 삭제할까요?`)) return;
+    const note = mem.rsvp_id ? "\n(참석자 기록은 그대로 남고, 이 명단에서만 삭제돼요)" : "";
+    if (!confirm(`${mem.name} 님을 명단에서 삭제할까요?${note}`)) return;
     try {
       const res = await api(
         `/api/admin/groups/${gid}/members?member_id=${memberId}`,
@@ -981,35 +954,7 @@ export default function GroupsTab({
                   >
                     추가
                   </button>
-                  <button
-                    onClick={() => openPicker(g.id)}
-                    className={`px-3 text-xs border whitespace-nowrap ${
-                      picker?.gid === g.id
-                        ? "border-sage-600 text-sage-700 bg-sage-50"
-                        : "border-sage-300 text-sage-600"
-                    }`}
-                  >
-                    참석자 불러오기
-                  </button>
                 </div>
-                {picker?.gid === g.id && (
-                  <AttendeePicker
-                    api={api}
-                    setError={setError}
-                    setNotice={setNotice}
-                    groupId={g.id}
-                    rsvps={picker.rsvps}
-                    addedRsvpIds={
-                      new Set(
-                        (members[g.id] ?? [])
-                          .map((x) => x.rsvp_id)
-                          .filter((x): x is string => !!x)
-                      )
-                    }
-                    onAdded={(added) => onPicked(g.id, added)}
-                    onClose={() => setPicker(null)}
-                  />
-                )}
                 {(members[g.id] ?? []).length > 0 && (
                   <div className="flex flex-col items-start gap-2 text-[11px] text-neutral-500 px-1">
                     <span>
@@ -1042,8 +987,15 @@ export default function GroupsTab({
                     >
                       <span className="w-full min-w-0 break-words sm:w-40">
                         {mem.name}
-                        {(mem.companions?.length ?? 0) > 0 && (
-                          <span className="text-[11px] text-neutral-400"> 외 {mem.companions!.length}명</span>
+                        {mem.rsvp && (
+                          <span className="block text-[11px] font-medium text-sage-700">
+                            {mem.rsvp.attending ? "참석자 ✓" : "RSVP 불참"}
+                            {mem.rsvp.attending && mem.rsvp.side
+                              ? ` · ${mem.rsvp.side === "bride" ? "신부측" : "신랑측"}`
+                              : ""}
+                            {formatCompanions(mem.rsvp.companion_count, mem.rsvp.companion_names ?? []) &&
+                              ` · ${formatCompanions(mem.rsvp.companion_count, mem.rsvp.companion_names ?? [])}`}
+                          </span>
                         )}
                         <span className="block text-[10px] text-neutral-500">
                           예식: {mem.attendance === "yes" ? "참석" : mem.attendance === "maybe" ? "미정" : mem.attendance === "no" ? "불참" : "응답 전"}
@@ -1107,6 +1059,18 @@ export default function GroupsTab({
                           마음
                         </span>
                       )}
+                      {!mem.rsvp_id && (
+                        <button
+                          onClick={() => setAttendFor(attendFor === mem.id ? null : mem.id)}
+                          aria-expanded={attendFor === mem.id}
+                          className={`text-xs whitespace-nowrap ${
+                            attendFor === mem.id ? "font-bold text-sage-700" : "text-sage-700 underline underline-offset-2"
+                          }`}
+                          title="이 사람을 참석자(RSVP)로 등록 — 현장운영 탭에 나타나요"
+                        >
+                          참석 등록
+                        </button>
+                      )}
                       <button
                         disabled={inviteBusy}
                         onClick={() => issueInvite(g.id, mem, "personal")}
@@ -1134,20 +1098,16 @@ export default function GroupsTab({
                         삭제
                       </button>
                       </div>
-                      {(mem.companions?.length ?? 0) > 0 && (
-                        <div className="flex w-full flex-wrap gap-1">
-                          {mem.companions!.map((c, i) => (
-                            <input
-                              key={`${mem.id}-${i}-${c}`}
-                              aria-label={`${mem.name} 동반자 ${i + 1}`}
-                              defaultValue={c}
-                              maxLength={40}
-                              placeholder={`동반자 ${i + 1}`}
-                              onBlur={(e) => saveCompanion(g.id, mem, i, e.target.value)}
-                              className="w-28 min-w-0 border border-neutral-200 px-2 py-2 text-sm"
-                            />
-                          ))}
-                        </div>
+                      {attendFor === mem.id && !mem.rsvp_id && (
+                        <AttendForm
+                          api={api}
+                          setError={setError}
+                          groupId={g.id}
+                          member={mem}
+                          defaultPhone={draft ?? mem.phone ?? ""}
+                          onDone={(result) => void onAttended(g.id, result)}
+                          onCancel={() => setAttendFor(null)}
+                        />
                       )}
                     </li>
                   );
