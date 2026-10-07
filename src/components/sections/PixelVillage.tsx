@@ -24,6 +24,7 @@ import {
   type Rng,
   type Walker,
 } from "@/lib/villageSim";
+import { layoutTags, type TagBox } from "@/lib/villageTags";
 
 const BUBBLE_MS = 4000;
 /** 아무도 말풍선을 보고 있지 않은 채로 이만큼 지나면 하객 한 명의 말풍선이 저절로 뜬다(초) */
@@ -66,14 +67,14 @@ const NPCS: ReadonlyArray<{ id: string; x: number; y: number; row: number; info:
     x: 172,
     y: 112,
     row: GROOM_ROW,
-    info: { name: groom.name, text: COUPLE_TEXT, npc: true, tagColor: "#b89b6e", tagX: 190, tagAlign: "right" },
+    info: { name: groom.name, text: COUPLE_TEXT, npc: true, tagColor: "#a8864e", tagX: 190, tagAlign: "right" },
   },
   {
     id: "npc-bride",
     x: 212,
     y: 112,
     row: BRIDE_ROW,
-    info: { name: bride.name, text: COUPLE_TEXT, npc: true, tagColor: "#d98fb0", tagX: 194, tagAlign: "left" },
+    info: { name: bride.name, text: COUPLE_TEXT, npc: true, tagColor: "#cf7aa3", tagX: 194, tagAlign: "left" },
   },
 ];
 
@@ -113,30 +114,57 @@ interface TextMetrics {
   ratio: number;
 }
 
-function drawTag(
+interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** 이름표 사각형(캔버스 픽셀) — 겹침 판정과 그리기가 같은 위치를 쓰도록 계산만 따로 한다 */
+function tagRect(
   ctx: CanvasRenderingContext2D,
   t: TextMetrics,
   text: string,
   cx: number,
   footY: number,
-  color: string,
   tagX?: number,
   align: "left" | "right" | "center" = "center"
-): void {
+): Rect {
   ctx.font = `${t.fp}px sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  const padX = Math.round(t.fp * 0.45);
-  const h = Math.round(t.fp * 1.4);
+  const padX = Math.round(t.fp * 0.25);
+  const h = Math.round(t.fp * 1.25);
   const w = Math.ceil(ctx.measureText(text).width) + padX * 2;
   const anchor = tagX ?? cx;
   const left = align === "right" ? anchor * t.s - w : align === "left" ? anchor * t.s : anchor * t.s - w / 2;
   const x = Math.round(Math.min(WORLD_W * t.s - w - 2, Math.max(2, left)));
   const y = Math.round(Math.min(WORLD_H * t.s - h - 2, (footY + 2) * t.s));
+  return { x, y, w, h };
+}
+
+/** 이름표 — 상자 없이 글씨에 흰 테두리를 둘러 어떤 배경에서도 읽히게 한다 */
+function drawTag(ctx: CanvasRenderingContext2D, t: TextMetrics, text: string, r: Rect, color: string): void {
+  ctx.font = `${t.fp}px sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = Math.max(2, Math.round(t.fp * 0.3));
+  ctx.strokeStyle = "rgba(255,255,255,0.95)";
+  ctx.strokeText(text, r.x + r.w / 2, r.y + r.h / 2 + 1);
   ctx.fillStyle = color;
-  ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = "#ffffff";
-  ctx.fillText(text, x + w / 2, y + h / 2 + 1);
+  ctx.fillText(text, r.x + r.w / 2, r.y + r.h / 2 + 1);
+}
+
+/** 둥근 사각형 경로 — ctx.roundRect 를 쓰지 않는다(구형 Safari) */
+function roundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
 }
 
 /** 글자 단위 줄바꿈(한글 대응). maxLines 를 넘으면 마지막 줄을 말줄임표로 끝낸다. */
@@ -194,16 +222,27 @@ function drawBubble(ctx: CanvasRenderingContext2D, t: TextMetrics, w: Walker, in
   const tail = Math.round(t.fp * 0.6);
   const border = Math.max(1, Math.round(t.ratio));
 
-  ctx.fillStyle = "#b89b6e";
-  ctx.fillRect(x - border, y - border, bw + border * 2, bh + border * 2);
+  const radius = Math.round(t.fp * 0.9);
+  ctx.save();
+  ctx.shadowColor = "rgba(40,30,20,0.28)";
+  ctx.shadowBlur = Math.round(t.fp * 0.6);
+  ctx.shadowOffsetY = Math.round(t.fp * 0.15);
   ctx.fillStyle = "#ffffff";
-  ctx.fillRect(x, y, bw, bh);
+  roundedRectPath(ctx, x, y, bw, bh, radius);
+  ctx.fill();
+  ctx.restore();
+  // 꼬리 — 상자와 같은 흰색으로 이어 붙인다
+  ctx.fillStyle = "#ffffff";
   ctx.beginPath();
-  ctx.moveTo(tailX - tail, y + bh);
-  ctx.lineTo(tailX + tail, y + bh);
+  ctx.moveTo(tailX - tail, y + bh - 1);
+  ctx.lineTo(tailX + tail, y + bh - 1);
   ctx.lineTo(tailX, y + bh + tail);
   ctx.closePath();
   ctx.fill();
+  ctx.strokeStyle = "rgba(184,155,110,0.55)";
+  ctx.lineWidth = border;
+  roundedRectPath(ctx, x, y, bw, bh, radius);
+  ctx.stroke();
 
   ctx.fillStyle = "#b89b6e";
   ctx.font = `bold ${t.fp}px sans-serif`;
@@ -286,11 +325,24 @@ export default function PixelVillage({
       // 2) 글씨 — 화면 해상도로 그려 또렷하게
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       const t: TextMetrics = { s: scale, fp: Math.round(FONT_CSS * ratio), ratio };
+      // 앞사람에 가려지는 뒷사람 이름표는 숨긴다(눌러서 말풍선 제목으로 볼 수 있다)
+      const boxes: TagBox[] = [];
+      const meta = new Map<string, { text: string; color: string; rect: Rect }>();
       for (const w of list) {
         const info = infoRef.current.get(w.id);
         if (!info || w.y > WORLD_H) continue; // 아직 화면 아래 바깥에서 올라오는 중이면 이름표도 숨긴다
-        const color = info.tagColor ?? (w.id === mineRef.current ? "#b89b6e" : "rgba(43,33,24,0.62)");
-        drawTag(ctx, t, clipName(info.name), w.x, w.y, color, info.tagX, info.tagAlign);
+        const text = clipName(info.name);
+        const color = info.tagColor ?? (w.id === mineRef.current ? "#a8864e" : "#3b2d22");
+        const rect = tagRect(ctx, t, text, w.x, w.y, info.tagX, info.tagAlign);
+        const priority = info.npc ? 1e9 : w.id === mineRef.current ? 1e8 : w.y;
+        boxes.push({ id: w.id, ...rect, priority });
+        meta.set(w.id, { text, color, rect });
+      }
+      // 붙어 있으면 흰 테두리가 맞닿아 뭉쳐 보이므로 1css px 만 띄운다
+      const shown = layoutTags(boxes, Math.round(ratio));
+      for (const w of list) {
+        const m = meta.get(w.id);
+        if (m && shown.has(w.id)) drawTag(ctx, t, m.text, m.rect, m.color);
       }
       const b = bubbleRef.current;
       if (b) {
