@@ -3,6 +3,7 @@ import { adminGuard } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { orderKindOf } from "@/lib/orderKind";
 import { formatPhone, isValidPhone } from "@/lib/wedding";
+import { rsvpStatesById } from "@/lib/rsvpState";
 
 export async function GET(
   req: Request,
@@ -20,19 +21,12 @@ export async function GET(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // 참석자(RSVP)로 등록된 사람의 현재 상태 — 현장운영 탭에서 바뀐 값도 그대로 보이도록 RSVP 에서 읽는다
-  const rsvpIds = (data ?? []).map((m) => m.rsvp_id).filter((v): v is string => !!v);
-  const rsvpById = new Map<
-    string,
-    { id: string; attending: boolean; side: string | null; companion_count: number; companion_names: string[] }
-  >();
-  if (rsvpIds.length > 0) {
-    const { data: rs, error: rErr } = await supabaseAdmin!
-      .from("rsvp")
-      .select("id, attending, side, companion_count, companion_names")
-      .in("id", rsvpIds);
-    if (rErr) return NextResponse.json({ error: rErr.message }, { status: 500 });
-    for (const r of rs ?? []) rsvpById.set(r.id, r);
-  }
+  const rsvpStates = await rsvpStatesById(
+    (data ?? []).map((m) => m.rsvp_id).filter((v): v is string => !!v)
+  );
+  if ("error" in rsvpStates)
+    return NextResponse.json({ error: rsvpStates.error }, { status: 500 });
+  const rsvpById = rsvpStates.map;
 
   const { data: attendanceRows, error: attendanceError } = await supabaseAdmin!
     .from("group_attendance").select("member_id, attendance, share_with_group").eq("group_id", id);

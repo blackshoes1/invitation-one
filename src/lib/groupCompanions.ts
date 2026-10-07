@@ -32,3 +32,20 @@ export function formatCompanions(count: number, names: string[]): string {
   const base = `외 ${count}명`;
   return named.length > 0 ? `${base} (${named.join(", ")})` : base;
 }
+
+/** 명단 행의 참석 배지 — "참석자 ✓ · 신랑측 · 외 2명 (김철수)". 불참 RSVP 는 "RSVP 불참" 만 */
+export function formatRsvpBadge(r: {
+  attending: boolean;
+  side: string | null;
+  companion_count: number;
+  companion_names?: string[];
+}): string {
+  if (!r.attending) return "RSVP 불참";
+  return [
+    "참석자 ✓",
+    r.side === "bride" ? "신부측" : r.side === "groom" ? "신랑측" : "",
+    formatCompanions(r.companion_count, r.companion_names ?? []),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}

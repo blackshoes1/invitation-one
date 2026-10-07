@@ -15,8 +15,8 @@ import SoloInvites from "@/components/admin/SoloInvites";
 import { orderNotice } from "@/lib/adminOrderNotice";
 import LocationPicker from "@/components/admin/orders/LocationPicker";
 import { joinLocation, splitRegion } from "@/lib/regions";
-import AttendForm from "@/components/admin/AttendForm";
-import { formatCompanions } from "@/lib/groupCompanions";
+import AttendForm, { attendNotice, type AttendResult } from "@/components/admin/AttendForm";
+import { formatRsvpBadge } from "@/lib/groupCompanions";
 
 /**
  * 그룹 탭 — 그룹 생성·제안 일정·명단(roster) 관리.
@@ -82,17 +82,13 @@ export default function GroupsTab({
     requestKey: string;
   } | null>(null);
   const [creatingOrder, setCreatingOrder] = useState(false);
-  /** 참석 등록 입력 영역이 열려 있는 명단 사람 id (한 번에 한 명) */
+  /** 참석 등록/수정 입력 영역이 열려 있는 명단 사람 id (한 번에 한 명 — 등록 여부로 모드가 정해진다) */
   const [attendFor, setAttendFor] = useState<string | null>(null);
 
-  /** 참석 등록 직후 명단을 다시 읽어 참석자 배지·동반자 표시를 채운다 */
-  const onAttended = async (gid: string, result: "created" | "linked") => {
+  /** 참석 등록·수정 직후 명단을 다시 읽어 참석자 배지·동반자 표시를 채운다 */
+  const onAttended = async (gid: string, result: AttendResult) => {
     setAttendFor(null);
-    setNotice(
-      result === "created"
-        ? "참석자로 등록했어요 ✓ 현장운영 탭에서 볼 수 있어요."
-        : "같은 이름·연락처의 RSVP 가 이미 있어 연결만 했어요 (기존 응답은 그대로예요)."
-    );
+    setNotice(attendNotice(result));
     try {
       const res = await api(`/api/admin/groups/${gid}/members`);
       if (res.ok) {
@@ -989,12 +985,7 @@ export default function GroupsTab({
                         {mem.name}
                         {mem.rsvp && (
                           <span className="block text-[11px] font-medium text-sage-700">
-                            {mem.rsvp.attending ? "참석자 ✓" : "RSVP 불참"}
-                            {mem.rsvp.attending && mem.rsvp.side
-                              ? ` · ${mem.rsvp.side === "bride" ? "신부측" : "신랑측"}`
-                              : ""}
-                            {formatCompanions(mem.rsvp.companion_count, mem.rsvp.companion_names ?? []) &&
-                              ` · ${formatCompanions(mem.rsvp.companion_count, mem.rsvp.companion_names ?? [])}`}
+                            {formatRsvpBadge(mem.rsvp)}
                           </span>
                         )}
                         <span className="block text-[10px] text-neutral-500">
@@ -1059,16 +1050,20 @@ export default function GroupsTab({
                           마음
                         </span>
                       )}
-                      {!mem.rsvp_id && (
+                      {(!mem.rsvp_id || mem.rsvp?.attending) && (
                         <button
                           onClick={() => setAttendFor(attendFor === mem.id ? null : mem.id)}
                           aria-expanded={attendFor === mem.id}
                           className={`text-xs whitespace-nowrap ${
                             attendFor === mem.id ? "font-bold text-sage-700" : "text-sage-700 underline underline-offset-2"
                           }`}
-                          title="이 사람을 참석자(RSVP)로 등록 — 현장운영 탭에 나타나요"
+                          title={
+                            mem.rsvp_id
+                              ? "참석자의 측·동반 인원·동반자 이름 수정"
+                              : "이 사람을 참석자(RSVP)로 등록 — 현장운영 탭에 나타나요"
+                          }
                         >
-                          참석 등록
+                          {mem.rsvp_id ? "인원 수정" : "참석 등록"}
                         </button>
                       )}
                       <button
@@ -1098,11 +1093,13 @@ export default function GroupsTab({
                         삭제
                       </button>
                       </div>
-                      {attendFor === mem.id && !mem.rsvp_id && (
+                      {attendFor === mem.id && (!mem.rsvp_id || mem.rsvp?.attending) && (
                         <AttendForm
+                          key={`${mem.id}-${mem.rsvp_id ?? "new"}`}
                           api={api}
                           setError={setError}
-                          groupId={g.id}
+                          endpoint={`/api/admin/groups/${g.id}/members/${mem.id}/attend`}
+                          mode={mem.rsvp_id ? "update" : "create"}
                           member={mem}
                           defaultPhone={draft ?? mem.phone ?? ""}
                           onDone={(result) => void onAttended(g.id, result)}

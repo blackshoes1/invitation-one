@@ -6,31 +6,52 @@ import { formatPhone } from "@/lib/wedding";
 import { MAX_COMPANIONS, clampCompanionCount, resizeCompanions } from "@/lib/groupCompanions";
 import type { TabCtx } from "@/app/admin/shared";
 
+export type AttendResult = "created" | "linked" | "updated";
+
+/** 등록·수정 직후 안내 문구 — 그룹 명단과 개별 초대가 같이 쓴다 */
+export function attendNotice(result: AttendResult): string {
+  if (result === "created") return "참석자로 등록했어요 ✓ 현장운영 탭에서 볼 수 있어요.";
+  if (result === "updated") return "참석 정보를 수정했어요.";
+  return "같은 이름·연락처의 RSVP 가 이미 있어 연결만 했어요 (기존 응답은 그대로예요).";
+}
+
 /**
- * 그룹 명단 사람을 참석자(RSVP)로 수동 등록하는 입력 영역.
- * 측(필수) · 연락처(선택) · 동반 인원수 + 동반자 이름(선택). 동반 인원수가 이름 칸 수를 정한다.
+ * 명단 사람의 참석 등록(create) / 수정(update) 입력 영역.
+ * 측(필수) · 연락처(등록 때만, 선택) · 동반 인원수 + 동반자 이름(선택). 동반 인원수가 이름 칸 수를 정한다.
+ * 수정은 연락처를 바꾸지 않는다 — 이름+연락처가 RSVP 식별 키라 바꾸면 하객 재제출과 중복될 수 있다.
  */
 export default function AttendForm({
   api,
   setError,
-  groupId,
+  endpoint,
   member,
-  defaultPhone,
+  mode = "create",
+  defaultPhone = "",
   onDone,
   onCancel,
 }: Pick<TabCtx, "api" | "setError"> & {
-  groupId: string;
+  /** POST(등록)/PATCH(수정) 주소 — 그룹 명단과 개별 초대가 다르다 */
+  endpoint: string;
   member: GroupMemberRow;
-  /** 행에 이미 적혀 있는 연락처 (저장 전 초안 포함) */
-  defaultPhone: string;
-  onDone: (result: "created" | "linked") => void;
+  mode?: "create" | "update";
+  /** 등록: 행에 이미 적혀 있는 연락처 (저장 전 초안 포함) */
+  defaultPhone?: string;
+  onDone: (result: AttendResult) => void;
   onCancel: () => void;
 }) {
-  const [side, setSide] = useState<"" | "groom" | "bride">("");
+  const editing = mode === "update";
+  const current = editing ? member.rsvp : null;
+  const initialCount = clampCompanionCount(current?.companion_count ?? 0);
+
+  const [side, setSide] = useState<"" | "groom" | "bride">(
+    current?.side === "groom" || current?.side === "bride" ? current.side : ""
+  );
   const [phone, setPhone] = useState(defaultPhone);
   /** 입력 중에는 빈 칸도 허용해야 지우고 다시 쓸 수 있다 — 실제 인원은 clamp 한 값 */
-  const [countText, setCountText] = useState("0");
-  const [names, setNames] = useState<string[]>([]);
+  const [countText, setCountText] = useState(String(initialCount));
+  const [names, setNames] = useState<string[]>(() =>
+    resizeCompanions(current?.companion_names ?? [], initialCount)
+  );
   const [saving, setSaving] = useState(false);
 
   const count = clampCompanionCount(countText);
@@ -53,27 +74,28 @@ export default function AttendForm({
     setError(null);
     setSaving(true);
     try {
-      const res = await api(`/api/admin/groups/${groupId}/members/${member.id}/attend`, {
-        method: "POST",
+      const res = await api(endpoint, {
+        method: editing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           side,
-          phone,
+          ...(editing ? {} : { phone }),
           companionCount: count,
           companionNames: names,
         }),
       });
       const j = (await res.json().catch(() => ({}))) as {
-        result?: "created" | "linked";
+        result?: AttendResult;
         error?: string;
       };
       if (!res.ok || !j.result) {
-        if (res.status !== 401) setError(j.error ?? "참석 등록에 실패했습니다.");
+        if (res.status !== 401)
+          setError(j.error ?? (editing ? "참석 정보 수정에 실패했습니다." : "참석 등록에 실패했습니다."));
         return;
       }
       onDone(j.result);
     } catch {
-      setError("참석 등록 요청이 실패했습니다. 네트워크를 확인해주세요.");
+      setError("요청이 실패했습니다. 네트워크를 확인해주세요.");
     } finally {
       setSaving(false);
     }
@@ -97,7 +119,8 @@ export default function AttendForm({
   return (
     <div className="w-full space-y-2 border border-sage-300 bg-sage-50/40 p-3">
       <p className="text-xs font-medium text-sage-700">
-        참석 등록 <span className="font-normal text-neutral-500">· {member.name}</span>
+        {editing ? "참석 인원 수정" : "참석 등록"}{" "}
+        <span className="font-normal text-neutral-500">· {member.name}</span>
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -106,18 +129,20 @@ export default function AttendForm({
         {sideBtn("bride", "신부측")}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] text-neutral-500">연락처</span>
-        <input
-          type="tel"
-          inputMode="tel"
-          aria-label={`${member.name} 참석 연락처`}
-          value={phone}
-          onChange={(e) => setPhone(formatPhone(e.target.value))}
-          placeholder="010-0000-0000 (선택)"
-          className="min-w-[140px] flex-1 border border-neutral-200 bg-white px-2 py-2 text-sm"
-        />
-      </div>
+      {!editing && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] text-neutral-500">연락처</span>
+          <input
+            type="tel"
+            inputMode="tel"
+            aria-label={`${member.name} 참석 연락처`}
+            value={phone}
+            onChange={(e) => setPhone(formatPhone(e.target.value))}
+            placeholder="010-0000-0000 (선택)"
+            className="min-w-[140px] flex-1 border border-neutral-200 bg-white px-2 py-2 text-sm"
+          />
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[11px] text-neutral-500">동반 인원</span>
@@ -171,7 +196,9 @@ export default function AttendForm({
 
       <div className="flex items-center justify-between gap-2">
         <p className="text-[11px] text-neutral-400">
-          총 {count + 1}명 · 식사는 &lsquo;먹음&rsquo;으로 등록돼요
+          {editing
+            ? `총 ${count + 1}명 · 이미 체크인한 인원은 바뀌지 않아요 (현장운영 탭의 '인원'에서 수정)`
+            : <>총 {count + 1}명 · 식사는 &lsquo;먹음&rsquo;으로 등록돼요</>}
         </p>
         <div className="flex gap-2">
           <button
@@ -185,9 +212,9 @@ export default function AttendForm({
             type="button"
             onClick={submit}
             disabled={saving}
-            className="bg-sage-600 px-3 py-2 text-xs text-white disabled:opacity-50"
+            className="bg-sage-600 px-3 py-2 text-xs text-white disabled:opacity-50 whitespace-nowrap"
           >
-            {saving ? "등록 중…" : "참석자로 등록"}
+            {saving ? (editing ? "저장 중…" : "등록 중…") : editing ? "저장" : "참석자로 등록"}
           </button>
         </div>
       </div>

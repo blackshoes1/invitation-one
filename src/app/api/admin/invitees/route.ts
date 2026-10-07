@@ -3,6 +3,7 @@ import { adminGuard } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { orderKindOf } from "@/lib/orderKind";
 import { formatPhone, isValidPhone } from "@/lib/wedding";
+import { rsvpStatesById } from "@/lib/rsvpState";
 
 /**
  * 개별 초대 — **그룹에 속하지 않은** 사람들 (`group_members.group_id is null`).
@@ -16,7 +17,7 @@ import { formatPhone, isValidPhone } from "@/lib/wedding";
  * (그룹 명단은 `/api/admin/groups/[id]/members`).
  * 이 사람들의 주문은 항상 개인 주문이다 — 그룹 페이지를 거치지 않으므로.
  */
-const COLS = "id, group_id, name, phone, invited_at, created_at";
+const COLS = "id, group_id, name, phone, invited_at, created_at, rsvp_id";
 
 export async function GET(req: Request) {
   const bad = await adminGuard(req);
@@ -51,10 +52,18 @@ export async function GET(req: Request) {
       );
     }
   }
+  // 참석자(RSVP)로 등록된 사람의 현재 상태 (그룹 명단과 같은 방식)
+  const rsvpStates = await rsvpStatesById(
+    (data ?? []).map((m) => m.rsvp_id).filter((v): v is string => !!v)
+  );
+  if ("error" in rsvpStates)
+    return NextResponse.json({ error: rsvpStates.error }, { status: 500 });
+
   const members = (data ?? []).map((m) => ({
     ...m,
     applied: hasGroupOrder.has(m.id),
     personal: hasGroupOrder.get(m.id) === false,
+    rsvp: (m.rsvp_id && rsvpStates.map.get(m.rsvp_id)) || null,
   }));
   return NextResponse.json({ members });
 }

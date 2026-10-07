@@ -3,6 +3,7 @@ import {
   MAX_COMPANIONS,
   clampCompanionCount,
   formatCompanions,
+  formatRsvpBadge,
   normalizeCompanions,
   resizeCompanions,
 } from "@/lib/groupCompanions";
@@ -72,5 +73,26 @@ describe("formatCompanions", () => {
   it("이름이 있으면 괄호로 — 인원은 count 기준 (이름이 일부만 있어도)", () => {
     expect(formatCompanions(2, ["김철수", "이영희"])).toBe("외 2명 (김철수, 이영희)");
     expect(formatCompanions(2, ["김철수", ""])).toBe("외 2명 (김철수)");
+  });
+});
+
+describe("formatRsvpBadge", () => {
+  it("참석 · 측 · 동반자 순으로 이어 붙인다", () => {
+    expect(
+      formatRsvpBadge({ attending: true, side: "groom", companion_count: 2, companion_names: ["김철수", "이영희"] })
+    ).toBe("참석자 ✓ · 신랑측 · 외 2명 (김철수, 이영희)");
+  });
+  it("동반자가 없으면 그 부분을 뺀다", () => {
+    expect(formatRsvpBadge({ attending: true, side: "bride", companion_count: 0, companion_names: [] })).toBe(
+      "참석자 ✓ · 신부측"
+    );
+  });
+  it("측이 없거나 이름이 비어 있어도 깨지지 않는다 (하객이 직접 낸 RSVP)", () => {
+    expect(formatRsvpBadge({ attending: true, side: null, companion_count: 1 })).toBe("참석자 ✓ · 외 1명");
+  });
+  it("불참 RSVP 는 불참만 — 측·동반자를 붙이지 않는다", () => {
+    expect(
+      formatRsvpBadge({ attending: false, side: "groom", companion_count: 3, companion_names: ["a"] })
+    ).toBe("RSVP 불참");
   });
 });

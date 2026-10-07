@@ -5,6 +5,8 @@ import type { Group, GroupMemberRow } from "@/lib/supabase";
 import { formatPhone } from "@/lib/wedding";
 import type { TabCtx } from "@/app/admin/shared";
 import SoloOrderForm from "./SoloOrderForm";
+import AttendForm, { attendNotice, type AttendResult } from "./AttendForm";
+import { formatRsvpBadge } from "@/lib/groupCompanions";
 
 /**
  * 개별 초대 — 모임에 속하지 않은 사람에게 이름·연락처가 자동 입력되는 링크를 준다.
@@ -23,6 +25,8 @@ export default function SoloInvites({ api, setError, setNotice, groups, onGroupe
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [orderMember, setOrderMember] = useState<GroupMemberRow | null>(null);
+  /** 참석 등록/수정 입력 영역이 열려 있는 사람 id (한 번에 한 명 — 등록 여부로 모드가 정해진다) */
+  const [attendFor, setAttendFor] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [grouping, setGrouping] = useState(false);
   const [target, setTarget] = useState("new");
@@ -40,6 +44,13 @@ export default function SoloInvites({ api, setError, setNotice, groups, onGroupe
     if (!res.ok) return;
     const j = (await res.json()) as { members?: GroupMemberRow[] };
     setRows(j.members ?? []);
+  };
+
+  /** 참석 등록·수정 직후 목록을 다시 읽어 참석자 배지·동반자 표시를 채운다 */
+  const onAttended = async (result: AttendResult) => {
+    setAttendFor(null);
+    setNotice(attendNotice(result));
+    await load();
   };
 
   /** 펼칠 때 처음 한 번만 조회 — 효과(effect) 대신 사용자 동작에 붙인다 */
@@ -346,6 +357,22 @@ export default function SoloInvites({ api, setError, setNotice, groups, onGroupe
                 {m.applied && (
                   <span className="text-[10px] whitespace-nowrap text-sage-700">신청</span>
                 )}
+                {m.rsvp && (
+                  <span className="w-full text-[11px] font-medium text-sage-700">
+                    {formatRsvpBadge(m.rsvp)}
+                  </span>
+                )}
+                {(!m.rsvp_id || m.rsvp?.attending) && (
+                  <button type="button" disabled={busy}
+                    aria-expanded={attendFor === m.id}
+                    onClick={() => setAttendFor(attendFor === m.id ? null : m.id)}
+                    title={m.rsvp_id
+                      ? "참석자의 측·동반 인원·동반자 이름 수정"
+                      : "이 사람을 참석자(RSVP)로 등록 — 현장운영 탭에 나타나요"}
+                    className="text-xs text-sage-700 whitespace-nowrap disabled:opacity-40">
+                    {m.rsvp_id ? "인원 수정" : "참석 등록"}
+                  </button>
+                )}
                 <button type="button" disabled={busy || Boolean(m.applied)}
                   aria-label={`${m.name} 주문 생성`}
                   onClick={async () => {
@@ -366,6 +393,19 @@ export default function SoloInvites({ api, setError, setNotice, groups, onGroupe
                 <button onClick={() => remove(m)} disabled={busy} className="text-xs text-red-600 disabled:opacity-50">
                   삭제
                 </button>
+                {attendFor === m.id && (!m.rsvp_id || m.rsvp?.attending) && (
+                  <AttendForm
+                    key={`${m.id}-${m.rsvp_id ?? "new"}`}
+                    api={api}
+                    setError={setError}
+                    endpoint={`/api/admin/invitees/${m.id}/attend`}
+                    mode={m.rsvp_id ? "update" : "create"}
+                    member={m}
+                    defaultPhone={phoneValues[m.id] ?? m.phone ?? ""}
+                    onDone={(result) => void onAttended(result)}
+                    onCancel={() => setAttendFor(null)}
+                  />
+                )}
               </li>
             ))}
             {rows !== null && rows.length === 0 && (
