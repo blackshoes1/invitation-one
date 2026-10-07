@@ -15,6 +15,9 @@ import SoloInvites from "@/components/admin/SoloInvites";
 import { orderNotice } from "@/lib/adminOrderNotice";
 import LocationPicker from "@/components/admin/orders/LocationPicker";
 import { joinLocation, splitRegion } from "@/lib/regions";
+import type { RsvpRow } from "@/components/admin/fieldops/types";
+import { formatRosterLabel } from "@/lib/groupCompanions";
+import AttendeePicker from "@/components/admin/AttendeePicker";
 
 /**
  * 그룹 탭 — 그룹 생성·제안 일정·명단(roster) 관리.
@@ -80,6 +83,54 @@ export default function GroupsTab({
     requestKey: string;
   } | null>(null);
   const [creatingOrder, setCreatingOrder] = useState(false);
+  /** 참석자 불러오기 패널 — 열려 있는 그룹 id 와 참석(attending) RSVP 목록 */
+  const [picker, setPicker] = useState<{ gid: string; rsvps: RsvpRow[] } | null>(null);
+
+  const openPicker = async (gid: string) => {
+    if (picker?.gid === gid) return setPicker(null);
+    try {
+      const res = await api("/api/admin/checkins");
+      if (!res.ok) {
+        if (res.status !== 401) setError("참석자 목록을 불러오지 못했습니다.");
+        return;
+      }
+      const j = (await res.json()) as { rsvps?: RsvpRow[] };
+      setPicker({ gid, rsvps: (j.rsvps ?? []).filter((r) => r.attending) });
+    } catch {
+      setError("참석자 목록 요청이 실패했습니다. 네트워크를 확인해주세요.");
+    }
+  };
+
+  const onPicked = (gid: string, added: GroupMemberRow[]) => {
+    setMembers((m) => ({ ...m, [gid]: [...(m[gid] ?? []), ...added] }));
+    bumpRoster(gid, added.length);
+    setPicker(null);
+  };
+
+  /** 동반자 이름 저장 (blur 시) — 해당 칸만 바꾼 배열 전체를 보낸다 */
+  const saveCompanion = async (gid: string, mem: GroupMemberRow, index: number, value: string) => {
+    const cur = mem.companions ?? [];
+    const next = cur.map((c, i) => (i === index ? value.trim() : c));
+    if (next[index] === cur[index]) return;
+    try {
+      const res = await api(`/api/admin/groups/${gid}/members`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ member_id: mem.id, companions: next }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status !== 401) setError(j.error ?? "동반자 저장에 실패했습니다.");
+        return;
+      }
+      setMembers((m) => ({
+        ...m,
+        [gid]: (m[gid] ?? []).map((x) => (x.id === mem.id ? { ...x, ...j.member } : x)),
+      }));
+    } catch {
+      setError("동반자 저장 요청이 실패했습니다. 네트워크를 확인해주세요.");
+    }
+  };
 
   const createOrder = async () => {
     if (!newOrder || creatingOrder) return;
@@ -447,8 +498,9 @@ export default function GroupsTab({
     }
   };
 
-  const removeMember = async (gid: string, memberId: string) => {
-    if (!confirm("명단에서 삭제할까요?")) return;
+  const removeMember = async (gid: string, mem: GroupMemberRow) => {
+    const memberId = mem.id;
+    if (!confirm(`${formatRosterLabel(mem.name, mem.companions ?? [])}\n명단에서 삭제할까요?`)) return;
     try {
       const res = await api(
         `/api/admin/groups/${gid}/members?member_id=${memberId}`,
@@ -929,7 +981,35 @@ export default function GroupsTab({
                   >
                     추가
                   </button>
+                  <button
+                    onClick={() => openPicker(g.id)}
+                    className={`px-3 text-xs border whitespace-nowrap ${
+                      picker?.gid === g.id
+                        ? "border-sage-600 text-sage-700 bg-sage-50"
+                        : "border-sage-300 text-sage-600"
+                    }`}
+                  >
+                    참석자 불러오기
+                  </button>
                 </div>
+                {picker?.gid === g.id && (
+                  <AttendeePicker
+                    api={api}
+                    setError={setError}
+                    setNotice={setNotice}
+                    groupId={g.id}
+                    rsvps={picker.rsvps}
+                    addedRsvpIds={
+                      new Set(
+                        (members[g.id] ?? [])
+                          .map((x) => x.rsvp_id)
+                          .filter((x): x is string => !!x)
+                      )
+                    }
+                    onAdded={(added) => onPicked(g.id, added)}
+                    onClose={() => setPicker(null)}
+                  />
+                )}
                 {(members[g.id] ?? []).length > 0 && (
                   <div className="flex flex-col items-start gap-2 text-[11px] text-neutral-500 px-1">
                     <span>
@@ -962,6 +1042,9 @@ export default function GroupsTab({
                     >
                       <span className="w-full min-w-0 break-words sm:w-40">
                         {mem.name}
+                        {(mem.companions?.length ?? 0) > 0 && (
+                          <span className="text-[11px] text-neutral-400"> 외 {mem.companions!.length}명</span>
+                        )}
                         <span className="block text-[10px] text-neutral-500">
                           예식: {mem.attendance === "yes" ? "참석" : mem.attendance === "maybe" ? "미정" : mem.attendance === "no" ? "불참" : "응답 전"}
                           {mem.attendance && (mem.attendance_shared ? " · 그룹 공유" : " · 관리자만")}
@@ -1045,12 +1128,27 @@ export default function GroupsTab({
                         className="text-xs text-red-500">링크 재발급</button>}
                       <button
                         disabled={inviteBusy}
-                        onClick={() => removeMember(g.id, mem.id)}
+                        onClick={() => removeMember(g.id, mem)}
                         className="text-xs text-red-400"
                       >
                         삭제
                       </button>
                       </div>
+                      {(mem.companions?.length ?? 0) > 0 && (
+                        <div className="flex w-full flex-wrap gap-1">
+                          {mem.companions!.map((c, i) => (
+                            <input
+                              key={`${mem.id}-${i}-${c}`}
+                              aria-label={`${mem.name} 동반자 ${i + 1}`}
+                              defaultValue={c}
+                              maxLength={40}
+                              placeholder={`동반자 ${i + 1}`}
+                              onBlur={(e) => saveCompanion(g.id, mem, i, e.target.value)}
+                              className="w-28 min-w-0 border border-neutral-200 px-2 py-2 text-sm"
+                            />
+                          ))}
+                        </div>
+                      )}
                     </li>
                   );
                   })}

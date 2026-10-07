@@ -3,6 +3,13 @@ import { adminGuard } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { orderKindOf } from "@/lib/orderKind";
 import { formatPhone, isValidPhone } from "@/lib/wedding";
+import { isUuid } from "@/lib/checkinServer";
+import { companionSlots, normalizeCompanions } from "@/lib/groupCompanions";
+
+const MEMBER_COLS =
+  "id, group_id, name, phone, invited_at, created_at, rsvp_id, companions";
+/** 참석자 불러오기 1회 상한 (요청 폭주 방지) */
+const MAX_ATTENDEES = 200;
 
 export async function GET(
   req: Request,
@@ -14,7 +21,7 @@ export async function GET(
 
   const { data, error } = await supabaseAdmin!
     .from("group_members")
-    .select("id, group_id, name, phone, invited_at, created_at")
+    .select(MEMBER_COLS)
     .eq("group_id", id)
     .order("created_at", { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -78,6 +85,12 @@ export async function GET(
   return NextResponse.json({ members });
 }
 
+/**
+ * POST — 명단 추가
+ *  - { name }                         : 직접 이름 추가
+ *  - { attendees: [{rsvp_id, companions?}] } : RSVP 참석자 불러오기 (이름은 서버가 RSVP 에서 읽음,
+ *    참석(attending)이 아니거나 이미 이 그룹에 있는 사람은 건너뜀)
+ */
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -86,7 +99,68 @@ export async function POST(
   if (bad) return bad;
   const { id } = await params;
 
-  const { name } = (await req.json()) as { name?: string };
+  const body = (await req.json().catch(() => ({}))) as {
+    name?: string;
+    attendees?: { rsvp_id?: string; companions?: unknown }[];
+  };
+
+  if (Array.isArray(body.attendees)) {
+    const picked = new Map<string, unknown>();
+    for (const a of body.attendees.slice(0, MAX_ATTENDEES)) {
+      if (a?.rsvp_id && isUuid(a.rsvp_id)) picked.set(a.rsvp_id, a.companions);
+    }
+    if (picked.size === 0)
+      return NextResponse.json({ error: "추가할 참석자를 선택해주세요." }, { status: 400 });
+    const ids = [...picked.keys()];
+
+    const [rsvpRes, existRes] = await Promise.all([
+      supabaseAdmin!
+        .from("rsvp")
+        .select("id, name, attending, companion_count")
+        .in("id", ids)
+        .eq("attending", true),
+      supabaseAdmin!
+        .from("group_members")
+        .select("rsvp_id")
+        .eq("group_id", id)
+        .in("rsvp_id", ids),
+    ]);
+    const err = rsvpRes.error ?? existRes.error;
+    if (err) return NextResponse.json({ error: err.message }, { status: 500 });
+
+    const already = new Set((existRes.data ?? []).map((m) => m.rsvp_id as string));
+    const rows = (rsvpRes.data ?? [])
+      .filter((r) => !already.has(r.id))
+      .map((r) => {
+        const given = picked.get(r.id);
+        return {
+          group_id: id,
+          rsvp_id: r.id,
+          name: r.name,
+          companions: Array.isArray(given)
+            ? normalizeCompanions(given)
+            : Array<string>(companionSlots(1 + (r.companion_count ?? 0))).fill(""),
+        };
+      });
+    if (rows.length === 0)
+      return NextResponse.json({ members: [], skipped: ids.length });
+
+    const { data, error } = await supabaseAdmin!
+      .from("group_members")
+      .insert(rows)
+      .select(MEMBER_COLS);
+    if (error) {
+      // 동시 요청으로 같은 참석자가 이미 들어간 경우 (unique 위반)
+      const status = error.code === "23505" ? 409 : 500;
+      return NextResponse.json({ error: error.message }, { status });
+    }
+    return NextResponse.json({
+      members: data ?? [],
+      skipped: ids.length - (data?.length ?? 0),
+    });
+  }
+
+  const { name } = body;
   if (!name?.trim())
     return NextResponse.json({ error: "이름을 입력해주세요." }, { status: 400 });
 
@@ -119,7 +193,11 @@ export async function DELETE(
   return NextResponse.json({ ok: true });
 }
 
-/** 명단 연락처 수정 (개인 초대 링크용). 빈 값이면 삭제 */
+/**
+ * 명단 수정 — 보낸 필드만 반영한다.
+ *  - phone      : 개인 초대 링크용 연락처. 빈 값이면 삭제
+ *  - companions : 동반자 이름 배열 (빈 문자열 = 이름 미입력 칸)
+ */
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -127,22 +205,37 @@ export async function PATCH(
   const bad = await adminGuard(req);
   if (bad) return bad;
   const { id } = await params;
-  const { member_id, phone } = (await req.json().catch(() => ({}))) as {
+  const body = (await req.json().catch(() => ({}))) as {
     member_id?: string;
     phone?: string | null;
+    companions?: unknown;
   };
+  const { member_id } = body;
   if (!member_id)
     return NextResponse.json({ error: "member_id 가 필요합니다." }, { status: 400 });
-  const raw = String(phone ?? "").trim();
-  const norm = raw ? formatPhone(raw) : null;
-  if (norm && !isValidPhone(norm))
-    return NextResponse.json({ error: "연락처 형식을 확인해주세요 (010-0000-0000)." }, { status: 400 });
+
+  const patch: { phone?: string | null; companions?: string[] } = {};
+  if ("phone" in body) {
+    const raw = String(body.phone ?? "").trim();
+    const norm = raw ? formatPhone(raw) : null;
+    if (norm && !isValidPhone(norm))
+      return NextResponse.json({ error: "연락처 형식을 확인해주세요 (010-0000-0000)." }, { status: 400 });
+    patch.phone = norm;
+  }
+  if ("companions" in body) {
+    if (!Array.isArray(body.companions))
+      return NextResponse.json({ error: "companions 는 배열이어야 합니다." }, { status: 400 });
+    patch.companions = normalizeCompanions(body.companions);
+  }
+  if (Object.keys(patch).length === 0)
+    return NextResponse.json({ error: "수정할 항목이 없습니다." }, { status: 400 });
+
   const { data, error } = await supabaseAdmin!
     .from("group_members")
-    .update({ phone: norm })
+    .update(patch)
     .eq("id", member_id)
     .eq("group_id", id)
-    .select("id, group_id, name, phone, invited_at, created_at")
+    .select(MEMBER_COLS)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "not found" }, { status: 404 });

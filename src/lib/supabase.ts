@@ -269,6 +269,10 @@ export interface GroupMemberRow {
   attendance?: "yes" | "maybe" | "no" | null;
   attendance_shared?: boolean;
   created_at: string;
+  /** RSVP 참석자에서 불러온 명단이면 해당 rsvp id (직접 추가한 명단은 null) */
+  rsvp_id?: string | null;
+  /** 동반자 이름 (빈 문자열 = 이름 미입력 칸, 배열 길이 = 동반 인원). 관리자만 조회 */
+  companions?: string[];
 }
 
 export interface WaitingEntry {
