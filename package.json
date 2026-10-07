@@ -10,6 +10,7 @@
     "backup": "node scripts/backup-db.mjs",
     "restore": "node scripts/restore-db.mjs",
     "village:art": "node scripts/village-art/build.mjs",
+    "village:ingest": "node scripts/village-art/ingest.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test"
   },
