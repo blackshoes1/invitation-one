@@ -1,5 +1,6 @@
 // ChatGPT 가 그린 캐릭터 시트(village-src/dot_img*.png)를 12열 @2x 시트(public/pic/village-sprites.webp)로 바꾼다.
 // 원본은 저장소에 넣지 않는다(village-src/ 는 .gitignore). sharp 는 Next 가 깔아 둔 것을 쓴다.
+// 배경 그림은 따로 만든다: npm run village:bg (ingest-bg.mjs)
 //
 // 다시 만들 때 (순서대로):
 //  (a) 원본은 village-src/dot_imgN.png 로 둔다. 모두 1536×1024, 가로 12열 × 8블록(4줄 × 2) 규격 — sliceSource 가 이 배치를 박아 두고 있다.

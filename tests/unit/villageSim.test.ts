@@ -22,7 +22,7 @@ function base(over: Partial<Walker> = {}): Walker {
   return {
     id: "t",
     x: 192,
-    y: 200,
+    y: 300,
     dir: "right",
     mode: "idle",
     timer: 99,
@@ -70,30 +70,39 @@ describe("spawnWalker", () => {
 });
 
 describe("세계 크기와 걷는 영역", () => {
-  it("세계는 384×352 이고 걷는 영역은 단상·화단 아래 잔디밭(y 144~352)이다", () => {
+  it("세계는 배경 그림(768×914)의 절반인 384×457 이다", () => {
     expect(WORLD_W).toBe(384);
-    expect(WORLD_H).toBe(352);
-    expect(AREA).toEqual({ x0: HALF_W, x1: WORLD_W - HALF_W, y0: 144, y1: WORLD_H });
+    expect(WORLD_H).toBe(457);
+  });
+
+  it("걷는 영역은 단상 계단 아래 잔디·길이고 아래 키 큰 풀 띠 위에서 끝난다", () => {
+    expect(AREA).toEqual({ x0: 72, x1: 304, y0: 258, y1: 388 });
+    expect(AREA.x0).toBeLessThan(AREA.x1);
+    expect(AREA.y0).toBeLessThan(AREA.y1);
+    expect(AREA.y0).toBeGreaterThanOrEqual(230); // 단상·계단(논리 y 약 241 까지)에 올라서지 않는다
+    expect(AREA.y1).toBeLessThanOrEqual(WORLD_H);
+    expect(AREA.x0).toBeGreaterThanOrEqual(HALF_W);
+    expect(AREA.x1).toBeLessThanOrEqual(WORLD_W - HALF_W);
   });
 });
 
 describe("spawnNpc / fixed — 신랑·신부", () => {
   it("고정 캐릭터는 주어진 자리에 앞모습으로 선다", () => {
-    const w = spawnNpc("npc-groom", 172, 112);
-    expect(w).toMatchObject({ id: "npc-groom", x: 172, y: 112, dir: "down", mode: "idle", entering: false, fixed: true });
+    const w = spawnNpc("npc-groom", 162, 222);
+    expect(w).toMatchObject({ id: "npc-groom", x: 162, y: 222, dir: "down", mode: "idle", entering: false, fixed: true });
   });
 
   it("고정 캐릭터는 시간이 흘러도(timer 가 0 이하여도) 위치·방향·상태가 변하지 않는다", () => {
     const rng = makeRng(21);
-    let w = spawnNpc("npc-bride", 212, 112);
+    let w = spawnNpc("npc-bride", 202, 222);
     w = { ...w, timer: -5 }; // 일반 캐릭터라면 곧바로 걷기를 시작했을 상황
     for (let i = 0; i < 600; i++) w = stepWalker(w, DT, rng); // frozen 없이 20초
-    expect(w).toMatchObject({ x: 212, y: 112, dir: "down", mode: "idle", fixed: true });
+    expect(w).toMatchObject({ x: 202, y: 222, dir: "down", mode: "idle", fixed: true });
   });
 
   it("같은 조건의 일반 캐릭터는 걷는다 — 위 테스트가 공허하지 않다는 대조군", () => {
     const rng = makeRng(21);
-    let w = base({ x: 212, y: 200, dir: "down", mode: "idle", timer: -5 });
+    let w = base({ x: 202, y: 300, dir: "down", mode: "idle", timer: -5 });
     let moved = false;
     for (let i = 0; i < 600; i++) {
       const next = stepWalker(w, DT, rng);
@@ -105,9 +114,9 @@ describe("spawnNpc / fixed — 신랑·신부", () => {
 
   it("frozen 이어도 고정 캐릭터의 상태는 그대로다", () => {
     const rng = makeRng(23);
-    const w0 = spawnNpc("npc-groom", 172, 112);
+    const w0 = spawnNpc("npc-groom", 162, 222);
     const w1 = stepWalker(w0, 1, rng, true);
-    expect(w1).toMatchObject({ x: 172, y: 112, dir: "down", mode: "idle", fixed: true });
+    expect(w1).toMatchObject({ x: 162, y: 222, dir: "down", mode: "idle", fixed: true });
   });
 
   it("고정 캐릭터가 있어도 하객은 그대로 걷고, 일반 스폰은 fixed 가 아니다", () => {
@@ -119,8 +128,8 @@ describe("spawnNpc / fixed — 신랑·신부", () => {
   });
 
   it("고정 캐릭터도 터치로 집을 수 있다", () => {
-    const npc = spawnNpc("npc-groom", 172, 112);
-    expect(pickWalkerAt([npc], 172, 112 - BOX_H / 2)?.id).toBe("npc-groom");
+    const npc = spawnNpc("npc-groom", 162, 222);
+    expect(pickWalkerAt([npc], 162, 222 - BOX_H / 2)?.id).toBe("npc-groom");
   });
 });
 
@@ -174,7 +183,7 @@ describe("stepWalker — 걷기", () => {
   it("네 모서리·가장자리에서 모두 영역 안에 머물고 막힌 방향을 피한다", () => {
     const rng = makeRng(7);
     const edges = [
-      { x: AREA.x0 + 0.1, y: 200, dir: "left" },
+      { x: AREA.x0 + 0.1, y: 300, dir: "left" },
       { x: 192, y: AREA.y0 + 0.1, dir: "up" },
       { x: 192, y: AREA.y1 - 0.1, dir: "down" },
     ] as const;

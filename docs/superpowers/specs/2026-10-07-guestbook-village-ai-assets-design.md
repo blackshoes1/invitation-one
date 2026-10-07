@@ -1,6 +1,6 @@
 # 도트 마당 'AI 에셋(ChatGPT 이미지) 도입' 설계
 
-작성일: 2026-10-07 · 상태: 사용자 결정(경로 A: 사용자가 ChatGPT 로 시트를 뽑고, 변환은 우리가 한다) → 사용자 승인 → 구현 완료(배경 교체는 사용자 제공 이미지 대기)
+작성일: 2026-10-07 · 상태: 사용자 결정(경로 A: 사용자가 ChatGPT 로 시트를 뽑고, 변환은 우리가 한다) → 사용자 승인 → 구현 완료(배경도 사용자 제공 이미지로 교체 완료)
 선행 문서: `2026-10-07-guestbook-village-crowd-design.md`(꽃길·보통 체형·북적임), `…hd-design.md`, `…garden-design.md`, `…topdown-design.md`, `…pixel-village-design.md`
 
 ## 이 문서의 위치
@@ -15,13 +15,13 @@
 | 하객 96종 조합 생성 | 시트에 있는 사람 수만큼(약 30명), 하객은 `hashId(id) % GUEST_LOOKS` |
 | 열: 앞·뒤·옆(오른쪽, 왼쪽은 반전) × 3프레임 = 9열 | 열: **앞·뒤·왼쪽·오른쪽 × 3프레임 = 12열**(왼쪽·오른쪽을 따로 그린 그대로 쓰고 반전하지 않는다) |
 | 시트 PNG 500KB 이하, "PNG == 생성기" 테스트 | 시트는 WebP(무손실~근사 무손실), **1.2MB 이하**. 원본 시트는 저장소에 넣지 않으므로 "결과물 속성 테스트"로 검증 |
-| 배경을 코드로 그림(384×512) | **ChatGPT 배경 이미지**를 세로(3:4)로 다듬은 @2x 이미지(논리 384×512, 실제 768×1024). 배경이 올 때까지 지금 배경 유지 |
+| 배경을 코드로 그림(`garden.mjs`, 384×352) | **ChatGPT 배경 이미지**: `village-src/background.png`(1149×1368, 커밋 안 함) → `npm run village:bg`(`ingest-bg.mjs`) → `public/pic/village-bg.webp`(손실 WebP q85, 768×914 = 원본 비율 그대로, 논리 **384×457**, 약 220KB / 예산 400KB). 코드 생성 배경(`garden.mjs`·`build.mjs`·`village-bg.png`)은 제거됨. 세계 높이 `WORLD_H = 457`, 걷는 영역 `AREA`·신랑신부 자리는 이 그림을 재서 정했다(`villageSim.ts`·`PixelVillage.tsx` 주석) |
 
 ## 원본 에셋 (저장소 밖)
 
 - 원본은 `village-src/` (git 제외)에 둔다. 현재 `public/pic/dot_img1~4.png` 에 있는 네 장은 `village-src/` 로 옮겨 쓴다(커밋하지 않는다).
 - 원본 시트 형식(사용자 이미지): 1536×1024 RGBA 투명 PNG, 한 장에 **캐릭터 8명(4열×2행)**. 캐릭터 한 명 = **3열×4줄**: 1줄 앞, 2줄 왼쪽, 3줄 오른쪽, 4줄 뒤(줄마다 프레임 3개: 걷기1·가운데·걷기2 로 보이는 구도). 격자가 정확하지 않아 위치·크기가 조금씩 다르다. 알파는 몸통 약 252/255, 가장자리에 옅은 번짐이 있다.
-- 신랑·신부(②)와 배경(③)은 사용자가 추후 같은 방식으로 뽑아 넣는다. 그 전까지 신랑·신부는 시트의 한 명씩으로 임시 대체한다(검은 정장 한 명, 흰 드레스 한 명을 하객 목록에서 빼서 쓴다).
+- 신랑·신부(②)는 사용자가 추후 같은 방식으로 뽑아 넣는다. 그 전까지 신랑·신부는 시트의 한 명씩으로 임시 대체한다(검은 정장 한 명, 흰 드레스 한 명을 하객 목록에서 빼서 쓴다). 배경(③)은 `village-src/background.png` 로 받아 교체했다(위 표).
 
 ## 변환 스크립트 (`scripts/village-art/ingest.mjs`, 저장소 안)
 
@@ -40,7 +40,7 @@
 
 - `pixelSprite.ts`: `SPRITE_W=40`, `SPRITE_H=64`(논리), `SHEET_SCALE=2`, 프레임 이름 12개, `GUEST_LOOKS`(시트의 하객 수), 신랑·신부 줄, `SHEET_SRC` = webp, `frameRect(row, frame)` 는 시트 픽셀 사각형.
 - `villageSim.ts`: `spriteFor` 는 `{ frame }` 만 돌려준다(왼쪽·오른쪽을 따로 그리므로 `flip` 없음). `HALF_W=20`, `BOX_H=64` 로 맞춘다(논리).
-- `PixelVillage.tsx`: 시트를 논리 크기로 그린다(`drawImage(sheet, sx, sy, sw, sh, dx, dy, sw/2, sh/2)`), 이미지 부드럽게 보간(`imageSmoothingEnabled = true`, 도트 배율 렌더가 아니라 @2x 그림이므로).
+- `PixelVillage.tsx`: 시트를 논리 크기로 그린다(`drawImage(sheet, sx, sy, sw, sh, dx, dy, sw/2, sh/2)`), 배경·캐릭터 모두 부드럽게 보간(`imageSmoothingEnabled = true` + `quality high`, 도트 배율 렌더가 아니라 @2x 그림이므로). 배경을 못 불러오면 단색 잔디(`#9fa33c`)로 그린다.
 
 ## 위험
 

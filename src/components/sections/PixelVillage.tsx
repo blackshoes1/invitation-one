@@ -39,8 +39,8 @@ const BUBBLE_MAX_CSS_W = 150;
 const BUBBLE_MAX_LINES = 3;
 /** 아치 아래 신랑·신부를 누르면 뜨는 안내 */
 const COUPLE_TEXT = "저를 누르면 사진들 볼 수 있어요!";
-/** 정원 예식장 배경 — 384×352, 걷는 영역은 villageSim.ts 의 AREA */
-const BG_SRC = "/pic/village-bg.png";
+/** 정원 예식장 배경 — @2x 그림(768×914)을 논리 384×457 로 그린다. 걷는 영역은 villageSim.ts 의 AREA */
+const BG_SRC = "/pic/village-bg.webp";
 
 interface Bubble {
   id: string;
@@ -61,21 +61,21 @@ interface Info {
   tagAlign?: "left" | "right" | "center";
 }
 
-/** 단상 위 신랑·신부 — 발 위치는 아치 아래 */
+/** 단상 위 신랑·신부 — 발 위치는 아치 아래 단상 바닥, 아치 중심(논리 x 약 182) 좌우로 나란히 */
 const NPCS: ReadonlyArray<{ id: string; x: number; y: number; row: number; info: Info }> = [
   {
     id: "npc-groom",
-    x: 172,
-    y: 112,
+    x: 162,
+    y: 222,
     row: GROOM_ROW,
-    info: { name: groom.name, text: COUPLE_TEXT, npc: true, tagColor: "#a8864e", tagX: 190, tagAlign: "right" },
+    info: { name: groom.name, text: COUPLE_TEXT, npc: true, tagColor: "#a8864e", tagX: 180, tagAlign: "right" },
   },
   {
     id: "npc-bride",
-    x: 212,
-    y: 112,
+    x: 202,
+    y: 222,
     row: BRIDE_ROW,
-    info: { name: bride.name, text: COUPLE_TEXT, npc: true, tagColor: "#cf7aa3", tagX: 194, tagAlign: "left" },
+    info: { name: bride.name, text: COUPLE_TEXT, npc: true, tagColor: "#cf7aa3", tagX: 184, tagAlign: "left" },
   },
 ];
 
@@ -94,7 +94,7 @@ function drawBackground(ctx: CanvasRenderingContext2D, bg: HTMLImageElement | nu
     ctx.drawImage(bg, 0, 0, WORLD_W, WORLD_H);
     return;
   }
-  ctx.fillStyle = "#88ae65";
+  ctx.fillStyle = "#9fa33c"; // 배경 그림의 잔디색(중앙값 #aea036 은 단색으로 칠하면 누렇게 보여 조금 푸르게)
   ctx.fillRect(0, 0, WORLD_W, WORLD_H);
 }
 
@@ -263,7 +263,7 @@ function scrollToGallery(reduced: boolean): void {
 
 /**
  * 🏘️ 도트 마당 — 글을 남긴 하객 1명 = 도트 캐릭터 1명이 위에서 내려다본 정원 예식장을 앞뒤좌우로 걷는다(바람의 나라식).
- * 그림은 두 장(배경 village-bg.png, @2x 캐릭터 시트 village-sprites.webp)이고, 하객은 id 해시로 시트의 한 줄을 고른다.
+ * 그림은 두 장(@2x 배경 village-bg.webp, @2x 캐릭터 시트 village-sprites.webp)이고, 하객은 id 해시로 시트의 한 줄을 고른다.
  * 단상 위에는 신랑·신부가 서 있고(누르면 안내 → 한 번 더 누르면 갤러리), 하객은 누르면 메시지 말풍선이 뜨며
  * 아무도 안 눌러도 약 6초마다 한 명의 말풍선이 저절로 뜬다.
  * 캔버스 한 장에 모두 그리고, 화면 밖·백그라운드 탭에서는 루프를 멈추며, 모션 줄이기 설정이면 정지 화면만 그린다.
@@ -314,12 +314,10 @@ export default function PixelVillage({
     const draw = () => {
       // 1) 도트 세계 — 배경과 캐릭터(아래쪽 캐릭터가 위쪽을 가린다)
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
-      // 배경은 아직 옛 도트 그림이라 보간하면 흐려진다 — 그릴 때만 끈다(@2x 배경으로 바뀌면 통일)
-      ctx.imageSmoothingEnabled = false;
-      drawBackground(ctx, bg);
-      // 캐릭터는 @2x 시트를 줄여 그리므로 보간한다
+      // 배경·캐릭터 모두 @2x 그림을 줄이거나 늘려 그리므로 보간한다
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
+      drawBackground(ctx, bg);
       const list = [...walkersRef.current.values()].sort((a, b) => a.y - b.y);
       if (!sheet) return; // 시트가 오기 전에는 이름표만 허공에 뜨지 않게 글씨도 그리지 않는다
       for (const w of list) {
