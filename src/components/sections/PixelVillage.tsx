@@ -96,21 +96,13 @@ function drawBackground(ctx: CanvasRenderingContext2D, bg: HTMLImageElement | nu
   ctx.fillRect(0, 0, WORLD_W, WORLD_H);
 }
 
-/** 캐릭터 시트에서 (줄, 프레임)을 잘라 그린다. 왼쪽은 옆모습을 좌우 반전 */
+/** 캐릭터 시트에서 (줄, 프레임)을 잘라 논리 크기로 그린다 — 시트는 @2x 이고 왼쪽·오른쪽은 따로 그려져 있다 */
 function drawWalker(ctx: CanvasRenderingContext2D, w: Walker, sheet: HTMLImageElement, row: number): void {
-  const { frame, flip } = spriteFor(w);
+  const { frame } = spriteFor(w);
   const { sx, sy, sw, sh } = frameRect(row, frame);
   const dx = Math.round(w.x - SPRITE_W / 2);
   const dy = Math.round(w.y - SPRITE_H);
-  if (!flip) {
-    ctx.drawImage(sheet, sx, sy, sw, sh, dx, dy, sw, sh);
-    return;
-  }
-  ctx.save();
-  ctx.translate(dx + SPRITE_W, dy);
-  ctx.scale(-1, 1);
-  ctx.drawImage(sheet, sx, sy, sw, sh, 0, 0, sw, sh);
-  ctx.restore();
+  ctx.drawImage(sheet, sx, sy, sw, sh, dx, dy, SPRITE_W, SPRITE_H);
 }
 
 /** 화면 해상도(캔버스 픽셀) 좌표계에서 그리는 글씨 설정 — s: 도트 배율, fp: 글자 크기(px) */
@@ -228,7 +220,7 @@ function scrollToGallery(reduced: boolean): void {
 
 /**
  * 🏘️ 도트 마당 — 글을 남긴 하객 1명 = 도트 캐릭터 1명이 위에서 내려다본 정원 예식장을 앞뒤좌우로 걷는다(바람의 나라식).
- * 그림은 PNG 두 장(배경 village-bg.png, 캐릭터 시트 village-sprites.png)이고, 하객은 id 해시로 시트의 한 줄을 고른다.
+ * 그림은 두 장(배경 village-bg.png, @2x 캐릭터 시트 village-sprites.webp)이고, 하객은 id 해시로 시트의 한 줄을 고른다.
  * 단상 위에는 신랑·신부가 서 있고(누르면 안내 → 한 번 더 누르면 갤러리), 하객은 누르면 메시지 말풍선이 뜨며
  * 아무도 안 눌러도 약 6초마다 한 명의 말풍선이 저절로 뜬다.
  * 캔버스 한 장에 모두 그리고, 화면 밖·백그라운드 탭에서는 루프를 멈추며, 모션 줄이기 설정이면 정지 화면만 그린다.
@@ -279,8 +271,12 @@ export default function PixelVillage({
     const draw = () => {
       // 1) 도트 세계 — 배경과 캐릭터(아래쪽 캐릭터가 위쪽을 가린다)
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      // 배경은 아직 옛 도트 그림이라 보간하면 흐려진다 — 그릴 때만 끈다(@2x 배경으로 바뀌면 통일)
       ctx.imageSmoothingEnabled = false;
       drawBackground(ctx, bg);
+      // 캐릭터는 @2x 시트를 줄여 그리므로 보간한다
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
       const list = [...walkersRef.current.values()].sort((a, b) => a.y - b.y);
       if (!sheet) return; // 시트가 오기 전에는 이름표만 허공에 뜨지 않게 글씨도 그리지 않는다
       for (const w of list) {

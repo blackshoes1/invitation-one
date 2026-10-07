@@ -10,7 +10,7 @@ import type { FrameName } from "@/lib/pixelSprite";
 export const WORLD_W = 384;
 export const WORLD_H = 352;
 /** 캐릭터 가로 반폭 */
-export const HALF_W = 16;
+export const HALF_W = 20;
 export const BOX_H = 64;
 
 /** 걸을 수 있는 영역 — 발 위치 기준. 단상·화단(위) 아래의 잔디밭 전체 */
@@ -142,11 +142,10 @@ export function stepWalker(w: Walker, dt: number, rng: Rng, frozen = false): Wal
 
 const WALK_CYCLE = ["walk1", "idle", "walk2", "idle"] as const;
 
-/** 지금 그릴 스프라이트 프레임. 왼쪽은 옆모습을 좌우 반전(flip)해서 그린다. */
-export function spriteFor(w: Walker): { frame: FrameName; flip: boolean } {
-  const view = w.dir === "left" || w.dir === "right" ? "side" : w.dir;
+/** 지금 그릴 스프라이트 프레임. 방향마다 시트에 따로 그려져 있어 반전이 필요 없다. */
+export function spriteFor(w: Walker): { frame: FrameName } {
   const anim = w.mode === "walk" ? WALK_CYCLE[Math.floor(w.clock * 6) % WALK_CYCLE.length] : "idle";
-  return { frame: `${view}_${anim}`, flip: w.dir === "left" };
+  return { frame: `${w.dir}_${anim}` };
 }
 
 /** 논리 좌표 (px, py) 를 누른 캐릭터 중 가장 앞(아래)에 그려진 것. 터치 여유 pad 포함. */

@@ -252,11 +252,16 @@ describe("stepWalker — 걷기", () => {
 });
 
 describe("spriteFor", () => {
-  it("위·아래는 뒤·앞 모습, 좌우는 옆모습이고 왼쪽만 반전한다", () => {
-    expect(spriteFor(base({ dir: "down" }))).toEqual({ frame: "down_idle", flip: false });
-    expect(spriteFor(base({ dir: "up" }))).toEqual({ frame: "up_idle", flip: false });
-    expect(spriteFor(base({ dir: "right" }))).toEqual({ frame: "side_idle", flip: false });
-    expect(spriteFor(base({ dir: "left" }))).toEqual({ frame: "side_idle", flip: true });
+  it("방향마다 앞·뒤·왼쪽·오른쪽 프레임이 따로 나온다 (반전 없음)", () => {
+    expect(spriteFor(base({ dir: "down" }))).toEqual({ frame: "down_idle" });
+    expect(spriteFor(base({ dir: "up" }))).toEqual({ frame: "up_idle" });
+    expect(spriteFor(base({ dir: "left" }))).toEqual({ frame: "left_idle" });
+    expect(spriteFor(base({ dir: "right" }))).toEqual({ frame: "right_idle" });
+  });
+
+  it("왼쪽·오른쪽으로 걸으면 각자의 걷기 프레임이 나온다", () => {
+    expect(spriteFor(base({ dir: "left", mode: "walk", clock: 0 })).frame).toBe("left_walk1");
+    expect(spriteFor(base({ dir: "right", mode: "walk", clock: 0 })).frame).toBe("right_walk1");
   });
 
   it("걷는 중이면 걷기 프레임이 번갈아 나온다", () => {

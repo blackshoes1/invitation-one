@@ -18,12 +18,4 @@ describe("도트 마당 이미지 규격 (public/pic)", () => {
   it("배경은 가볍다 — 200KB 미만", () => {
     expect(statSync(pic("village-bg.png")).size).toBeLessThan(200 * 1024);
   });
-
-  it("캐릭터 시트 village-sprites.png 는 288×6272 PNG 이다 — 9열 × 98줄(32×64 프레임)", () => {
-    expect(pngSize(pic("village-sprites.png"))).toEqual({ signature: "PNG", width: 9 * 32, height: 98 * 64 });
-  });
-
-  it("캐릭터 시트도 가볍다 — 500KB 미만", () => {
-    expect(statSync(pic("village-sprites.png")).size).toBeLessThan(500 * 1024);
-  });
 });

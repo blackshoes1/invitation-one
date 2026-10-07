@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { webpSize } from "../helpers/webpSize";
 import { COLUMNS, FRAME_H, FRAME_W, applyFrameOverrides, findComponents } from "../../scripts/village-art/ingest.mjs";
 
 /** w×h 투명 이미지에 (x0,y0)-(x1,y1) 불투명 사각형들을 찍는다 */
@@ -76,16 +77,6 @@ describe("applyFrameOverrides — 프레임 덮어쓰기", () => {
 });
 
 const SHEET = path.resolve(process.cwd(), "public/pic/village-sprites.webp");
-
-/** WebP 헤더에서 캔버스 크기를 읽는다 (VP8X / VP8L / VP8 ) */
-function webpSize(buf: Buffer): { width: number; height: number } {
-  if (buf.toString("ascii", 0, 4) !== "RIFF" || buf.toString("ascii", 8, 12) !== "WEBP") throw new Error("not webp");
-  const fourcc = buf.toString("ascii", 12, 16);
-  if (fourcc === "VP8X") return { width: 1 + buf.readUIntLE(24, 3), height: 1 + buf.readUIntLE(27, 3) };
-  if (fourcc === "VP8L") { const b = buf.readUInt32LE(21); return { width: 1 + (b & 0x3fff), height: 1 + ((b >> 14) & 0x3fff) }; }
-  if (fourcc === "VP8 ") return { width: buf.readUInt16LE(26) & 0x3fff, height: buf.readUInt16LE(28) & 0x3fff };
-  throw new Error("unknown webp chunk " + fourcc);
-}
 
 describe("결과 시트 village-sprites.webp", () => {
   it("규격: 12열 × 80, 줄은 128 의 배수이고 최소 하객 20명 + 신랑 + 신부", () => {
