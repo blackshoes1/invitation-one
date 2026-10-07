@@ -5,7 +5,7 @@ import { COLUMNS, FRAME_H, FRAME_W, SHEET_SCALE } from "../../scripts/village-ar
 import { webpSize } from "../helpers/webpSize";
 import {
   BRIDE_ROW, FRAME_NAMES, GROOM_ROW, GUEST_LOOKS, SHEET_FRAME_H, SHEET_FRAME_W, SHEET_ROWS,
-  SHEET_SCALE as APP_SCALE, SPRITE_H, SPRITE_W, frameRect, hashId, lookRowFromId,
+  SHEET_SCALE as APP_SCALE, SPRITE_H, SPRITE_HEAD_H, SPRITE_W, frameRect, hashId, lookRowFromId,
 } from "@/lib/pixelSprite";
 
 describe("캐릭터 시트 규격", () => {
@@ -92,5 +92,39 @@ describe("frameRect — 시트에서 잘라 낼 사각형", () => {
       }
     }
     expect(seen.size).toBe(SHEET_ROWS * FRAME_NAMES.length);
+  });
+});
+
+describe("SPRITE_HEAD_H — 말풍선 꼬리가 닿을 머리 높이", () => {
+  it("38 이상 SPRITE_H 이하의 수이다", () => {
+    expect(typeof SPRITE_HEAD_H).toBe("number");
+    expect(SPRITE_HEAD_H).toBeGreaterThanOrEqual(38);
+    expect(SPRITE_HEAD_H).toBeLessThanOrEqual(SPRITE_H);
+  });
+});
+
+// sharp 가 있을 때만 도는 실측 검사 (CI 에 sharp 가 없으면 건너뛴다)
+const sharpMod = await import("sharp").then((m) => m.default).catch(() => null);
+
+describe.skipIf(!sharpMod)("SPRITE_HEAD_H — 실제 시트 실측", () => {
+  it("발 기준점에서 머리 꼭대기까지 높이의 중앙값이 상수와 6 논리 px 이내", async () => {
+    const { data, info } = await sharpMod!(path.resolve(process.cwd(), "public/pic/village-sprites.webp"))
+      .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const heights: number[] = [];
+    for (let row = 0; row < SHEET_ROWS; row++) {
+      for (let col = 0; col < FRAME_NAMES.length; col++) {
+        let top = -1;
+        for (let y = 0; y < SHEET_FRAME_H && top < 0; y++) {
+          for (let x = 0; x < SHEET_FRAME_W; x++) {
+            if (data[((row * SHEET_FRAME_H + y) * info.width + col * SHEET_FRAME_W + x) * 4 + 3] >= 128) { top = y; break; }
+          }
+        }
+        // 스프라이트 아래 끝(= 발 기준점)에서 머리 꼭대기까지, 논리 px
+        if (top >= 0) heights.push((SHEET_FRAME_H - top) / APP_SCALE);
+      }
+    }
+    heights.sort((p, q) => p - q);
+    const median = heights[heights.length >> 1];
+    expect(Math.abs(median - SPRITE_HEAD_H), `중앙값 ${median}`).toBeLessThanOrEqual(6);
   });
 });

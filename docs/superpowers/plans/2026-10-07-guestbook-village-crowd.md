@@ -1,5 +1,7 @@
 # 도트 마당 '꽃길 + 보통 체형 하객 + 북적임' Implementation Plan
 
+> 이 계획의 Task 3(코드 생성 하객 다양화)·Task 4(코드 생성 배경)는 2026-10-07-guestbook-village-ai-assets.md 로 대체되었다(Task 3·4 본문은 기록용).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 방명록 `🏘️ 마을` 탭의 그림을 참고 영상(세로 꽃길에 보통 체형 하객이 북적이는 화면)에 가깝게 올린다: 32×64 보통 체형 캐릭터 96종, 384×512 세로 꽃길 배경, 앞사람에게 가린 이름표 숨김, 둥근 말풍선.

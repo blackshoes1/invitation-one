@@ -8,6 +8,7 @@ import {
   GROOM_ROW,
   SHEET_SRC,
   SPRITE_H,
+  SPRITE_HEAD_H,
   SPRITE_W,
   frameRect,
   lookRowFromId,
@@ -217,12 +218,15 @@ function drawBubble(ctx: CanvasRenderingContext2D, t: TextMetrics, w: Walker, in
   const bh = (lines.length + 1) * lineH + padY * 2;
   const cw = WORLD_W * t.s;
   const x = Math.round(Math.min(cw - bw - 3, Math.max(3, w.x * t.s - bw / 2)));
-  const y = Math.max(3, Math.round((w.y - SPRITE_H - 8) * t.s - bh - t.fp * 0.6));
-  const tailX = Math.round(Math.min(x + bw - t.fp, Math.max(x + t.fp, w.x * t.s)));
+  // 꼬리 끝이 머리 바로 위에 닿게 한다(시트 위쪽 투명 여백 때문에 SPRITE_H 가 아니라 실측 머리 높이를 쓴다)
+  const y = Math.max(3, Math.round((w.y - SPRITE_HEAD_H - 4) * t.s - bh - t.fp * 0.6));
   const tail = Math.round(t.fp * 0.6);
-  const border = Math.max(1, Math.round(t.ratio));
-
   const radius = Math.round(t.fp * 0.9);
+  const border = Math.max(1, Math.round(t.ratio));
+  // 꼬리 밑변이 둥근 모서리 위에 얹히지 않게 모서리 안쪽으로만 움직인다(너무 좁으면 가운데)
+  const tailLo = x + radius + tail;
+  const tailHi = x + bw - radius - tail;
+  const tailX = Math.round(tailLo > tailHi ? x + bw / 2 : Math.min(tailHi, Math.max(tailLo, w.x * t.s)));
   ctx.save();
   ctx.shadowColor = "rgba(40,30,20,0.28)";
   ctx.shadowBlur = Math.round(t.fp * 0.6);
@@ -325,7 +329,7 @@ export default function PixelVillage({
       // 2) 글씨 — 화면 해상도로 그려 또렷하게
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       const t: TextMetrics = { s: scale, fp: Math.round(FONT_CSS * ratio), ratio };
-      // 앞사람에 가려지는 뒷사람 이름표는 숨긴다(눌러서 말풍선 제목으로 볼 수 있다)
+      // 이름표끼리 겹치면 앞사람 것만 남기고 나머지는 숨긴다(눌러서 말풍선 제목으로 볼 수 있다)
       const boxes: TagBox[] = [];
       const meta = new Map<string, { text: string; color: string; rect: Rect }>();
       for (const w of list) {

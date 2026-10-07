@@ -1,5 +1,14 @@
 // ChatGPT 가 그린 캐릭터 시트(village-src/dot_img*.png)를 12열 @2x 시트(public/pic/village-sprites.webp)로 바꾼다.
-// 사용: npm run village:ingest — 원본은 저장소에 넣지 않는다(village-src/ 는 git 제외). sharp 는 Next 가 깔아 둔 것을 쓴다.
+// 원본은 저장소에 넣지 않는다(village-src/ 는 .gitignore). sharp 는 Next 가 깔아 둔 것을 쓴다.
+//
+// 다시 만들 때 (순서대로):
+//  (a) 원본은 village-src/dot_imgN.png 로 둔다. 모두 1536×1024, 가로 12열 × 8블록(4줄 × 2) 규격 — sliceSource 가 이 배치를 박아 두고 있다.
+//  (b) npm run village:ingest 를 돌리고 찍히는 `guests N` 을 src/lib/pixelSprite.ts 의 GUEST_LOOKS 에 손으로 맞춘다
+//      (안 맞추면 시트 줄 수와 어긋나 tests/unit/pixelSprite.test.ts 가 깨진다).
+//  (c) 신랑·신부 전용 시트를 따로 받았다면: 같은 블록 규격이면 COUPLE_PICKS 만 바꾸면 되지만,
+//      2명짜리처럼 배치가 다르면 sliceSource 가 `프레임 열이 12개가 아니다` 로 멈추니 두 번째 배치를 sliceSource 에 추가해야 한다.
+//  (d) 용량 예산 1.2MB — 지금 nearLossless q90 으로 약 15KB 여유뿐이라, 줄이 늘면 조용히 q85 이하 손실 압축으로 내려간다(출력의 webp 모드 확인).
+//  MIRROR_RIGHT·FRAME_OVERRIDES 는 원본 파일·블록 번호가 바뀌면 다시 눈으로 확인해 고친다(안 맞는 항목은 오류로 알려 준다).
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -16,7 +25,7 @@ export const COLUMNS = [
 ];
 
 // 신랑·신부로 쓸 블록. source = 원본 파일 이름순 번호(0~), block = 블록 읽기 순서(왼→오, 위→아래, 0~7).
-// 커플 전용 시트를 새로 받으면 여기만 바꾼다.
+// 같은 8블록 규격의 시트에서 다른 블록으로 바꿀 때만 여기를 고친다(규격이 다른 시트는 위 머리말 (c) 참고).
 export const COUPLE_PICKS = {
   groom: { source: 0, block: 0 }, // dot_img1 왼쪽 위 — 검은 정장
   bride: { source: 2, block: 6 }, // dot_img3 아래 줄 세 번째 — 금발·크림색 드레스
@@ -306,12 +315,12 @@ const key = ({ source, block }) => `${source}:${block}`;
  * 디코드된 원본들 → 12열 시트. 줄 순서: 원본 이름순 → 블록 읽기 순서, 신랑·신부 블록은 빼서 맨 끝(신랑, 신부).
  * 같은 사람의 4방향은 머리 폭으로 크기를 맞추고(앞모습 기준, ±15%), 시트 전체는 공통 배율 하나를 쓴다(아이는 작게 남는다).
  */
-export function buildSheet(sources, picks = COUPLE_PICKS, { mirrorRight = MIRROR_RIGHT, frameOverrides = FRAME_OVERRIDES } = {}) {
+export function buildSheet(sources, picks = COUPLE_PICKS, { mirrorRight = MIRROR_RIGHT, frameOverrides = FRAME_OVERRIDES, slice = sliceSource } = {}) {
   const coupleKeys = [key(picks.groom), key(picks.bride)];
   const mirrorKeys = new Set(mirrorRight.map(key));
   const people = [];
   sources.forEach((src, source) => {
-    sliceSource(src).forEach((rows, block) => {
+    slice(src).forEach((rows, block) => {
       const views = {};
       rows.forEach((frames, r) => { views[SOURCE_VIEWS[r]] = frames; });
       if (mirrorKeys.has(key({ source, block }))) views.right = views.left.map(mirror);
@@ -319,6 +328,12 @@ export function buildSheet(sources, picks = COUPLE_PICKS, { mirrorRight = MIRROR
       people.push({ source, block, views: mine.length ? applyFrameOverrides(views, mine) : views });
     });
   });
+  // 원본이 바뀌어 어느 블록에도 안 맞는 항목은 조용히 무시되면 그림이 어긋난 채로 굳으므로 바로 멈춘다
+  const known = new Set(people.map(key));
+  for (const [label, list] of [["MIRROR_RIGHT", mirrorRight], ["FRAME_OVERRIDES", frameOverrides]]) {
+    const bad = list.find((e) => !known.has(key(e)));
+    if (bad) throw new Error(`${label} 항목이 어느 블록에도 맞지 않는다: ${key(bad)} (원본 ${sources.length}장, 블록 번호 0~7)`);
+  }
   const guests = people.filter((p) => !coupleKeys.includes(key(p)));
   const ordered = [...guests, ...coupleKeys.map((k) => {
     const p = people.find((q) => key(q) === k);
@@ -398,8 +413,11 @@ export function buildSheet(sources, picks = COUPLE_PICKS, { mirrorRight = MIRROR
 async function main() {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
   const srcDir = path.join(root, "village-src");
-  const files = readdirSync(srcDir).filter((f) => /^dot_img\d+\.png$/.test(f)).sort((p, q) => p.localeCompare(q, "en", { numeric: true }));
-  if (!files.length) throw new Error(`원본이 없다: ${srcDir}/dot_img*.png`);
+  const noSource = () => new Error(`원본이 없다: ${srcDir}/dot_img*.png`);
+  let names;
+  try { names = readdirSync(srcDir); } catch { throw noSource(); } // 폴더 자체가 없어도 같은 안내로
+  const files = names.filter((f) => /^dot_img\d+\.png$/.test(f)).sort((p, q) => p.localeCompare(q, "en", { numeric: true }));
+  if (!files.length) throw noSource();
   const sources = files.map((f) => decodePng(readFileSync(path.join(srcDir, f))));
   const sheet = buildSheet(sources);
 

@@ -11,6 +11,8 @@
 /** 논리 크기 — 화면에 그리는 캐릭터 크기 */
 export const SPRITE_W = 40;
 export const SPRITE_H = 64;
+/** 발 기준점(스프라이트 아래 끝)에서 머리 꼭대기까지의 대표 높이(논리 px) — 시트 실측 40~55(중앙값 49.5). 말풍선 꼬리 위치에 쓴다 */
+export const SPRITE_HEAD_H = 52;
 
 /** 시트는 논리 크기의 2배로 그려 두어, 큰 화면에서도 흐려지지 않고 줄여 그릴 때 보간한다 */
 export const SHEET_SCALE = 2;
@@ -31,7 +33,7 @@ export const FRAME_NAMES: readonly FrameName[] = SPRITE_DIRS.flatMap((d) =>
   SPRITE_ANIMS.map((a): FrameName => `${d}_${a}`)
 );
 
-/** 하객 모습 가짓수(시트의 앞쪽 줄) */
+/** 하객 모습 가짓수(시트의 앞쪽 줄) — 시트를 다시 만들면 `npm run village:ingest` 가 찍는 `guests N` 으로 맞출 것 */
 export const GUEST_LOOKS = 30;
 export const GROOM_ROW = GUEST_LOOKS;
 export const BRIDE_ROW = GUEST_LOOKS + 1;

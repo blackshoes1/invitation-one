@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { webpSize } from "../helpers/webpSize";
-import { COLUMNS, FRAME_H, FRAME_W, applyFrameOverrides, findComponents } from "../../scripts/village-art/ingest.mjs";
+import { COLUMNS, FRAME_H, FRAME_W, applyFrameOverrides, buildSheet, findComponents } from "../../scripts/village-art/ingest.mjs";
 
 /** w×h 투명 이미지에 (x0,y0)-(x1,y1) 불투명 사각형들을 찍는다 */
 function image(w: number, h: number, rects: [number, number, number, number, number?][]) {
@@ -76,6 +76,21 @@ describe("applyFrameOverrides — 프레임 덮어쓰기", () => {
   });
 });
 
+describe("buildSheet — 어느 블록에도 안 맞는 목록 항목은 조용히 넘기지 않는다", () => {
+  // 블록 8개(4줄 × 3프레임)를 돌려주는 가짜 자르기 — 이 검사는 크기 계산 전에 일어난다
+  const blocks = () => Array.from({ length: 8 }, () => Array.from({ length: 4 }, () => [{}, {}, {}]));
+  const picks = { groom: { source: 0, block: 0 }, bride: { source: 0, block: 1 } };
+  const opts = (o: object) => ({ mirrorRight: [], frameOverrides: [], slice: blocks, ...o });
+
+  it("MIRROR_RIGHT 에 없는 블록이 있으면 그 키를 담아 오류", () => {
+    expect(() => buildSheet([{}], picks, opts({ mirrorRight: [{ source: 5, block: 0 }] }))).toThrow(/MIRROR_RIGHT.*5:0/);
+  });
+
+  it("FRAME_OVERRIDES 에 없는 블록이 있으면 그 키를 담아 오류", () => {
+    expect(() => buildSheet([{}], picks, opts({ frameOverrides: [{ source: 0, block: 9, frame: "up_idle", from: "down_idle" }] }))).toThrow(/FRAME_OVERRIDES.*0:9/);
+  });
+});
+
 const SHEET = path.resolve(process.cwd(), "public/pic/village-sprites.webp");
 
 describe("결과 시트 village-sprites.webp", () => {
@@ -108,14 +123,15 @@ describe.skipIf(!sharpMod)("결과 시트 픽셀 속성", () => {
           const a = data[((row * FRAME_H + y) * info.width + col * FRAME_W + x) * 4 + 3];
           if (a >= 128) { opaque++; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
         }
-        expect(opaque).toBeGreaterThan(800);
-        expect(y1).toBeGreaterThanOrEqual(FRAME_H - 8); // 발끝이 아래 가까이
-        expect(y1).toBeLessThanOrEqual(FRAME_H - 1);
-        expect(x0).toBeGreaterThanOrEqual(1);          // 좌우로 잘리지 않음
-        expect(x1).toBeLessThanOrEqual(FRAME_W - 2);
-        expect(y0).toBeGreaterThanOrEqual(1);          // 위로 잘리지 않음
-        expect((x0 + x1) / 2).toBeGreaterThanOrEqual(FRAME_W / 2 - 14);
-        expect((x0 + x1) / 2).toBeLessThanOrEqual(FRAME_W / 2 + 14);
+        const at = `row ${row} col ${col}`; // 어느 프레임이 깨졌는지 바로 보이게
+        expect(opaque, at).toBeGreaterThan(800);
+        expect(y1, at).toBeGreaterThanOrEqual(FRAME_H - 8); // 발끝이 아래 가까이
+        expect(y1, at).toBeLessThanOrEqual(FRAME_H - 1);
+        expect(x0, at).toBeGreaterThanOrEqual(1);          // 좌우로 잘리지 않음
+        expect(x1, at).toBeLessThanOrEqual(FRAME_W - 2);
+        expect(y0, at).toBeGreaterThanOrEqual(1);          // 위로 잘리지 않음
+        expect((x0 + x1) / 2, at).toBeGreaterThanOrEqual(FRAME_W / 2 - 14);
+        expect((x0 + x1) / 2, at).toBeLessThanOrEqual(FRAME_W / 2 + 14);
       }
     }
   });
