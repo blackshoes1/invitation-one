@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import { COLUMNS, FRAME_H, FRAME_W, findComponents } from "../../scripts/village-art/ingest.mjs";
+import { COLUMNS, FRAME_H, FRAME_W, applyFrameOverrides, findComponents } from "../../scripts/village-art/ingest.mjs";
 
 /** w×h 투명 이미지에 (x0,y0)-(x1,y1) 불투명 사각형들을 찍는다 */
 function image(w: number, h: number, rects: [number, number, number, number, number?][]) {
@@ -34,6 +34,44 @@ describe("findComponents — 알파 연결 성분", () => {
   it("대각선으로만 닿은 픽셀은 같은 덩어리가 아니다(4방향 연결)", () => {
     const { w, h, rgba } = image(6, 6, [[1, 1, 2, 2], [3, 3, 4, 4]]);
     expect(findComponents(rgba, w, h, { alphaMin: 128 })).toHaveLength(2);
+  });
+});
+
+type Crop = { w: number; h: number; rgba: Uint8Array; colX: number };
+
+describe("applyFrameOverrides — 프레임 덮어쓰기", () => {
+  // 2×1 크롭: 왼쪽 픽셀 알파 = id, 오른쪽 픽셀 알파 = 255 (반전되면 순서가 바뀐다)
+  const crop = (id: number): Crop => ({ w: 2, h: 1, rgba: Uint8Array.from([0, 0, 0, id, 0, 0, 0, 255]), colX: 0.5 });
+  const views = () => {
+    let id = 1;
+    const v: Record<string, Crop[]> = {};
+    for (const view of ["down", "up", "left", "right"]) v[view] = [crop(id++), crop(id++), crop(id++)]; // 원본 순서: 걷기1·가운데·걷기2
+    return v;
+  };
+
+  it("목록의 프레임만 다른 프레임의 반전으로 바꾸고 나머지는 그대로 둔다", () => {
+    const before = views();
+    const after = applyFrameOverrides(before, [
+      { frame: "left_walk1", from: "right_walk1", mirror: true },
+      { frame: "right_walk2", from: "left_walk2", mirror: true },
+    ]);
+    // left_walk1(원본 0번) ← right 원본 0번(id 10)의 반전
+    expect(Array.from(after.left[0].rgba)).toEqual([0, 0, 0, 255, 0, 0, 0, 10]);
+    expect(after.left[0].colX).toBe(1.5);
+    // right_walk2(원본 2번) ← 덮어쓰기 전 left 원본 2번(id 9)의 반전
+    expect(Array.from(after.right[2].rgba)).toEqual([0, 0, 0, 255, 0, 0, 0, 9]);
+    // 나머지 10개 프레임은 같은 객체, 입력은 바뀌지 않는다
+    for (const v of ["down", "up", "left", "right"]) for (let i = 0; i < 3; i++) {
+      if ((v === "left" && i === 0) || (v === "right" && i === 2)) continue;
+      expect(after[v][i]).toBe(before[v][i]);
+    }
+    expect(before.left[0].rgba[3]).toBe(7);
+  });
+
+  it("반전 없이 그대로 가져올 수도 있고, 모르는 프레임 이름은 오류", () => {
+    const before = views();
+    expect(applyFrameOverrides(before, [{ frame: "up_idle", from: "down_idle", mirror: false }]).up[1]).toBe(before.down[1]);
+    expect(() => applyFrameOverrides(before, [{ frame: "side_walk1", from: "down_idle" }])).toThrow();
   });
 });
 

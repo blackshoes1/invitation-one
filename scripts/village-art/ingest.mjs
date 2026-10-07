@@ -33,6 +33,14 @@ export const MIRROR_RIGHT = [
   { source: 3, block: 4 }, // dot_img4 은발 할아버지 — 서 있는 3/4 앞모습
 ];
 
+// 한 프레임만 반대쪽을 보게 그려진 경우 — 그 프레임을 다른 프레임의 반전으로 바꾼다(눈으로 확인한 목록).
+// frame·from 은 시트 열 이름(`${view}_${anim}`). MIRROR_RIGHT 적용 뒤의 프레임을 기준으로 한다.
+export const FRAME_OVERRIDES = [
+  // dot_img4 조끼 소년: 왼쪽 줄 걷기1 은 오른쪽을, 오른쪽 줄 걷기2 는 왼쪽을 본다
+  { source: 3, block: 6, frame: "left_walk1", from: "right_walk1", mirror: true },
+  { source: 3, block: 6, frame: "right_walk2", from: "left_walk2", mirror: true },
+];
+
 // 원본 한 블록 안 줄 순서(1줄 앞, 2줄 왼쪽, 3줄 오른쪽, 4줄 뒤) → 시트 방향
 const SOURCE_VIEWS = ["down", "left", "right", "up"];
 // 원본 프레임은 걷기1·가운데·걷기2 순 → 시트 열은 idle·walk1·walk2 순
@@ -272,6 +280,25 @@ function resample(crop, s) {
   return { w: dw, h: dh, rgba: out, colX: crop.colX * (dw / sw) };
 }
 
+/**
+ * views({ down|up|left|right: 원본 순서 프레임 3개 })에 그 사람의 프레임 덮어쓰기를 적용한 새 객체.
+ * 원본 프레임은 바꾸지 않고, 목록에 없는 프레임은 같은 객체를 그대로 둔다. 바꿀 원본은 덮어쓰기 전 상태에서 가져온다.
+ */
+export function applyFrameOverrides(views, overrides) {
+  const pick = (name) => {
+    const [view, anim] = name.split("_");
+    if (!views[view] || !(anim in SOURCE_FRAME_OF)) throw new Error(`알 수 없는 프레임: ${name}`);
+    return [view, SOURCE_FRAME_OF[anim]];
+  };
+  const out = Object.fromEntries(Object.entries(views).map(([v, frames]) => [v, [...frames]]));
+  for (const o of overrides) {
+    const [tv, ti] = pick(o.frame), [fv, fi] = pick(o.from);
+    const src = views[fv][fi];
+    out[tv][ti] = o.mirror ? mirror(src) : src;
+  }
+  return out;
+}
+
 const median = (xs) => [...xs].sort((p, q) => p - q)[xs.length >> 1];
 const key = ({ source, block }) => `${source}:${block}`;
 
@@ -279,7 +306,7 @@ const key = ({ source, block }) => `${source}:${block}`;
  * 디코드된 원본들 → 12열 시트. 줄 순서: 원본 이름순 → 블록 읽기 순서, 신랑·신부 블록은 빼서 맨 끝(신랑, 신부).
  * 같은 사람의 4방향은 머리 폭으로 크기를 맞추고(앞모습 기준, ±15%), 시트 전체는 공통 배율 하나를 쓴다(아이는 작게 남는다).
  */
-export function buildSheet(sources, picks = COUPLE_PICKS, { mirrorRight = MIRROR_RIGHT } = {}) {
+export function buildSheet(sources, picks = COUPLE_PICKS, { mirrorRight = MIRROR_RIGHT, frameOverrides = FRAME_OVERRIDES } = {}) {
   const coupleKeys = [key(picks.groom), key(picks.bride)];
   const mirrorKeys = new Set(mirrorRight.map(key));
   const people = [];
@@ -288,7 +315,8 @@ export function buildSheet(sources, picks = COUPLE_PICKS, { mirrorRight = MIRROR
       const views = {};
       rows.forEach((frames, r) => { views[SOURCE_VIEWS[r]] = frames; });
       if (mirrorKeys.has(key({ source, block }))) views.right = views.left.map(mirror);
-      people.push({ source, block, views });
+      const mine = frameOverrides.filter((o) => key(o) === key({ source, block }));
+      people.push({ source, block, views: mine.length ? applyFrameOverrides(views, mine) : views });
     });
   });
   const guests = people.filter((p) => !coupleKeys.includes(key(p)));
