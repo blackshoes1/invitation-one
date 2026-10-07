@@ -115,9 +115,53 @@ describe("캐릭터 생성기 (scripts/village-art/chargen.mjs)", () => {
   });
 
   it("앞·뒤·옆과 정지·걷기 프레임이 서로 달라 방향이 구분되고 걷기 애니메이션이 된다", () => {
-    for (const row of [0, 10, 33, 63]) {
+    for (const row of [0, 10, 33, 63, 95]) {
       const shas = Array.from({ length: COLUMNS.length }, (_, col) => sha(frameBytes(row, col)));
       expect(new Set(shas).size).toBe(COLUMNS.length); // 9프레임이 모두 다르다
+    }
+  });
+
+  /** 프레임에서 불투명 픽셀의 경계 상자 */
+  const bbox = (row: number, col: number) => {
+    const f = frameBytes(row, col);
+    let x0 = FRAME_W, x1 = -1, y0 = FRAME_H, y1 = -1;
+    for (let y = 0; y < FRAME_H; y++) for (let x = 0; x < FRAME_W; x++) {
+      if (f[(y * FRAME_W + x) * 4 + 3] === 255) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    }
+    return { x0, x1, y0, y1 };
+  };
+
+  it("모든 프레임에서 캐릭터는 프레임 안에 가운데 서 있고 발이 아래에 붙으며 키가 56~63px 이다", () => {
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < COLUMNS.length; col++) {
+        const b = bbox(row, col);
+        expect(b.y1).toBeGreaterThanOrEqual(60); // 발끝(그림자 포함)이 맨 아래 근처
+        expect(b.y1 - b.y0 + 1).toBeGreaterThanOrEqual(56);
+        expect(b.y1 - b.y0 + 1).toBeLessThanOrEqual(64);
+        const cx = (b.x0 + b.x1) / 2;
+        // 옆모습은 머리카락·코가 한쪽으로 쏠려 상자가 조금 치우친다
+        expect(cx).toBeGreaterThanOrEqual(12);
+        expect(cx).toBeLessThanOrEqual(19);
+        expect(b.x0).toBeGreaterThanOrEqual(0);
+        expect(b.x1).toBeLessThanOrEqual(FRAME_W - 1);
+      }
+    }
+  });
+
+  it("외곽선은 순수 검정이 아니다 (색 외곽선)", () => {
+    for (const row of [0, 40, rows - 1]) {
+      const f = frameBytes(row, 0);
+      for (let i = 0; i < f.length; i += 4) {
+        if (f[i + 3] === 255) expect(f[i] + f[i + 1] + f[i + 2]).toBeGreaterThan(30);
+      }
+    }
+  });
+
+  it("걷기 프레임에서 몸이 1px 오르내린다 (idle 과 walk1 의 머리 꼭대기가 다르다)", () => {
+    for (const row of [0, 25, 70]) {
+      const idle = bbox(row, 0).y0;
+      const walk = bbox(row, 1).y0;
+      expect(Math.abs(idle - walk)).toBeGreaterThanOrEqual(1);
     }
   });
 
