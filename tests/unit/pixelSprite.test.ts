@@ -14,9 +14,9 @@ import {
 } from "@/lib/pixelSprite";
 
 describe("캐릭터 시트 규격", () => {
-  it("프레임은 32×48 이다", () => {
+  it("프레임은 32×64 이다", () => {
     expect(SPRITE_W).toBe(32);
-    expect(SPRITE_H).toBe(48);
+    expect(SPRITE_H).toBe(64);
   });
 
   it("열은 앞→뒤→옆, 각각 정지→걷기1→걷기2 순서의 9프레임이다", () => {
@@ -27,11 +27,11 @@ describe("캐릭터 시트 규격", () => {
     ]);
   });
 
-  it("줄은 하객 64종 → 신랑 → 신부 = 66줄이다", () => {
-    expect(GUEST_LOOKS).toBe(64);
-    expect(GROOM_ROW).toBe(64);
-    expect(BRIDE_ROW).toBe(65);
-    expect(SHEET_ROWS).toBe(66);
+  it("줄은 하객 96종 → 신랑 → 신부 = 98줄이다", () => {
+    expect(GUEST_LOOKS).toBe(96);
+    expect(GROOM_ROW).toBe(96);
+    expect(BRIDE_ROW).toBe(97);
+    expect(SHEET_ROWS).toBe(98);
   });
 });
 
@@ -51,7 +51,7 @@ describe("hashId / lookRowFromId — 하객 id → 시트 줄", () => {
     expect(lookRowFromId("guest-1")).toBe(lookRowFromId("guest-1"));
   });
 
-  it("줄은 항상 하객 줄(0~63)의 정수이고 신랑·신부 줄은 나오지 않는다", () => {
+  it("줄은 항상 하객 줄(0~95)의 정수이고 신랑·신부 줄은 나오지 않는다", () => {
     for (let i = 0; i < 2000; i++) {
       const row = lookRowFromId(`id-${i}`);
       expect(Number.isInteger(row)).toBe(true);
@@ -62,30 +62,30 @@ describe("hashId / lookRowFromId — 하객 id → 시트 줄", () => {
     }
   });
 
-  it("id 가 다르면 줄이 골고루 나온다 (500명이면 64줄 중 55줄 이상 쓰인다)", () => {
+  it("id 가 다르면 줄이 골고루 나온다 (500명이면 96줄 중 85줄 이상 쓰인다)", () => {
     const rows = new Set(Array.from({ length: 500 }, (_, i) => lookRowFromId(`id-${i}`)));
-    expect(rows.size).toBeGreaterThanOrEqual(55);
+    expect(rows.size).toBeGreaterThanOrEqual(85);
   });
 });
 
 describe("frameRect — 시트에서 잘라 낼 사각형", () => {
-  it("첫 줄 첫 열은 (0, 0) 에서 32×48", () => {
-    expect(frameRect(0, "down_idle")).toEqual({ sx: 0, sy: 0, sw: 32, sh: 48 });
+  it("첫 줄 첫 열은 (0, 0) 에서 32×64", () => {
+    expect(frameRect(0, "down_idle")).toEqual({ sx: 0, sy: 0, sw: 32, sh: 64 });
   });
 
-  it("열은 프레임 순서 × 32, 줄은 줄 번호 × 48", () => {
-    expect(frameRect(3, "up_walk1")).toEqual({ sx: 4 * 32, sy: 3 * 48, sw: 32, sh: 48 });
-    expect(frameRect(BRIDE_ROW, "side_walk2")).toEqual({ sx: 8 * 32, sy: 65 * 48, sw: 32, sh: 48 });
+  it("열은 프레임 순서 × 32, 줄은 줄 번호 × 64", () => {
+    expect(frameRect(3, "up_walk1")).toEqual({ sx: 4 * 32, sy: 3 * 64, sw: 32, sh: 64 });
+    expect(frameRect(BRIDE_ROW, "side_walk2")).toEqual({ sx: 8 * 32, sy: 97 * 64, sw: 32, sh: 64 });
   });
 
-  it("모든 줄·프레임의 사각형이 시트(288×3168) 안에 있고 서로 겹치지 않는다", () => {
+  it("모든 줄·프레임의 사각형이 시트(288×6272) 안에 있고 서로 겹치지 않는다", () => {
     const seen = new Set<string>();
     for (let row = 0; row < SHEET_ROWS; row++) {
       for (const f of FRAME_NAMES) {
         const r = frameRect(row, f);
         expect(r.sx).toBeGreaterThanOrEqual(0);
         expect(r.sx + r.sw).toBeLessThanOrEqual(288);
-        expect(r.sy + r.sh).toBeLessThanOrEqual(3168);
+        expect(r.sy + r.sh).toBeLessThanOrEqual(6272);
         seen.add(`${r.sx},${r.sy}`);
       }
     }

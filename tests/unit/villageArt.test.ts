@@ -69,18 +69,18 @@ describe("캐릭터 생성기 (scripts/village-art/chargen.mjs)", () => {
   };
   const sha = (b: Buffer) => createHash("sha1").update(b).digest("hex");
 
-  it("시트는 9열 × (하객 64 + 신랑 + 신부 = 66)줄의 32×48 프레임이다", () => {
+  it("시트는 9열 × (하객 96 + 신랑 + 신부 = 98)줄의 32×64 프레임이다", () => {
     expect(FRAME_W).toBe(32);
-    expect(FRAME_H).toBe(48);
+    expect(FRAME_H).toBe(64);
     expect(COLUMNS).toHaveLength(9);
     expect(rows).toBe(GUEST_LOOKS + 2);
     expect(sheet.width).toBe(9 * 32);
-    expect(sheet.height).toBe(66 * 48);
+    expect(sheet.height).toBe(98 * 64);
   });
 
-  it("하객 64종은 서로 다른 조합이고 머리 모양·옷·피부색이 골고루 나온다 (정장은 없다)", () => {
-    const looks = buildGuestLooks(64);
-    expect(new Set(looks.map((l: object) => JSON.stringify(l))).size).toBe(64);
+  it("하객 96종은 서로 다른 조합이고 머리 모양·옷·피부색이 골고루 나온다 (정장은 없다)", () => {
+    const looks = buildGuestLooks(96);
+    expect(new Set(looks.map((l: object) => JSON.stringify(l))).size).toBe(96);
     const count = (key: string) => {
       const m = new Map<string, number>();
       for (const l of looks as Record<string, string>[]) m.set(l[key], (m.get(l[key]) ?? 0) + 1);
@@ -99,7 +99,7 @@ describe("캐릭터 생성기 (scripts/village-art/chargen.mjs)", () => {
   });
 
   it("같은 시드는 같은 결과를 낸다", () => {
-    expect(JSON.stringify(buildGuestLooks(64))).toBe(JSON.stringify(buildGuestLooks(64)));
+    expect(JSON.stringify(buildGuestLooks(96))).toBe(JSON.stringify(buildGuestLooks(96)));
   });
 
   it("모든 줄·열 프레임에 불투명 픽셀이 있고 투명 배경(알파 0)도 있다", () => {
@@ -123,7 +123,7 @@ describe("캐릭터 생성기 (scripts/village-art/chargen.mjs)", () => {
 
   it("신랑·신부는 서로 다르고 하객 줄과도 다르다", () => {
     const shas = Array.from({ length: rows }, (_, row) => sha(frameBytes(row, 0)));
-    expect(new Set(shas).size).toBe(rows); // 66줄 모두 다르다
+    expect(new Set(shas).size).toBe(rows); // 98줄 모두 다르다
   });
 
   it("커밋된 캐릭터 시트 PNG 는 생성기 결과와 픽셀까지 같다 (스크립트를 고치면 npm run village:art 로 다시 만들어야 한다)", () => {

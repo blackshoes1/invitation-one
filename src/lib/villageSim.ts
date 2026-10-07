@@ -11,7 +11,7 @@ export const WORLD_W = 384;
 export const WORLD_H = 352;
 /** 캐릭터 가로 반폭 */
 export const HALF_W = 16;
-export const BOX_H = 48;
+export const BOX_H = 64;
 
 /** 걸을 수 있는 영역 — 발 위치 기준. 단상·화단(위) 아래의 잔디밭 전체 */
 export const AREA = { x0: HALF_W, x1: WORLD_W - HALF_W, y0: 144, y1: WORLD_H } as const;

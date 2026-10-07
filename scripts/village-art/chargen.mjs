@@ -1,9 +1,9 @@
-// 도트 마당 캐릭터 생성기 — 32×48 레이어식 도트를 코드로 그려 시트 픽셀(RGBA)로 만든다.
+// 도트 마당 캐릭터 생성기 — 32×64 레이어식 도트를 코드로 그려 시트 픽셀(RGBA)로 만든다.
 // 도형 → 음영(위·왼쪽은 밝게, 아래·오른쪽은 어둡게) → 실루엣 바깥 1px 외곽선을 자동으로 만든다.
 // 순수 함수라 같은 입력이면 항상 같은 그림이 나온다. 앱은 이 파일을 쓰지 않고 결과 PNG 만 쓴다.
 
 export const FRAME_W = 32;
-export const FRAME_H = 48;
+export const FRAME_H = 64;
 /** 시트의 열 순서 — src/lib/pixelSprite.ts 의 FRAME_NAMES 와 같아야 한다(테스트가 검사한다) */
 export const COLUMNS = [
   ["down", "idle"], ["down", "walk1"], ["down", "walk2"],
@@ -11,7 +11,7 @@ export const COLUMNS = [
   ["side", "idle"], ["side", "walk1"], ["side", "walk2"],
 ];
 /** 시트의 하객 줄 수. 줄 GUEST_LOOKS = 신랑, GUEST_LOOKS + 1 = 신부 */
-export const GUEST_LOOKS = 64;
+export const GUEST_LOOKS = 96;
 
 const CW = FRAME_W, CH = FRAME_H;
 export const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
@@ -32,11 +32,12 @@ const minus = (a, b) => (x, y) => a(x, y) && !b(x, y);
 const shift = (p, dx, dy) => (x, y) => p(x - dx, y - dy);
 const NONE = () => false;
 
-/** 한 프레임 → 길이 32*48 의 색 배열(hex 문자열, 투명은 null) */
+/** 한 프레임 → 길이 32*64 의 색 배열(hex 문자열, 투명은 null) */
 export function renderFrame(look, dir, anim) {
   const buf = new Array(CW * CH).fill(null);
   const OUT = "#2a1d22";
-  const put = (x, y, c) => { if (x >= 0 && y >= 0 && x < CW && y < CH) buf[y * CW + x] = c; };
+  const DY = CH - 48; // 임시: 기존 32×48 그림을 프레임 아래에 붙인다(Task 2 에서 새 그림으로 교체)
+  const put = (x, y, c) => { y += DY; if (x >= 0 && y >= 0 && x < CW && y < CH) buf[y * CW + x] = c; };
   const layer = (pred, color, flat) => {
     for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) if (pred(x, y)) {
       let c = color;
