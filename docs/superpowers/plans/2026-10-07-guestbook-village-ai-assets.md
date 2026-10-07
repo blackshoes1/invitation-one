@@ -374,3 +374,65 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
 
 (`git status` 로 `village-src/`, `dot_img*.png`, `wedding_main.jpg` 가 포함되지 않았는지 확인한다. `git add -A` 는 위 경로에만 쓴다.)
+
+---
+
+### Task 3: ChatGPT 배경 이미지로 교체 (세계 크기·걷는 영역·신랑신부 자리)
+
+사용자가 보낸 배경 이미지를 `village-src/background.png`(1149×1368, 4122761바이트, 손실 압축된 원본에서 PNG 로 옮김, 이미 만들어져 있다)에 두었다. 구성: 위쪽 큰 버드나무 + 꽃으로 장식한 흰 천 아치와 낮은 단상(y≈400~720), 단상 아래로 가운데 흙·자갈 길(y≈720~1200, 폭이 위쪽은 좁고 아래는 넓은 원근), 길 양옆 꽃 상자·등(lantern), 길 양옆 흰 의자 줄(좌 x≈100~370, 우 x≈710~970, y≈690~880), 왼쪽 아래 팻말(`근영 ♡ 아영 결혼식`), 아래쪽에는 키 큰 풀과 꽃덤불(y>1150), 양옆 덤불. 사람 없음. (좌표는 원본 1149×1368 픽셀 기준의 대략값이다 — 구현자가 이미지를 열어 정확히 잰다.)
+
+**Files:**
+- Create: `scripts/village-art/ingest-bg.mjs`
+- Modify: `package.json` (script `"village:bg": "node scripts/village-art/ingest-bg.mjs"` 추가, `"village:art"` 삭제 — 코드로 그리던 배경 생성기가 사라진다)
+- Create: `public/pic/village-bg.webp`
+- Delete: `public/pic/village-bg.png`, `scripts/village-art/garden.mjs`, `scripts/village-art/build.mjs`
+- Modify: `src/lib/villageSim.ts` (`WORLD_H`, `AREA`, 머리말 주석), `src/components/sections/PixelVillage.tsx` (`BG_SRC`, 배경 그리기, `NPCS` 좌표·이름표 기준 x, 주석), `tests/unit/villageSim.test.ts`, `tests/unit/villageArt.test.ts`(정원 `describe` 삭제, PNG 코덱 테스트는 유지), `tests/unit/villageBg.test.ts`(새 규격), `docs/superpowers/specs/2026-10-07-guestbook-village-ai-assets-design.md`(배경 항목 갱신)
+
+**Interfaces:**
+- Consumes: `village-src/background.png`, `sharp`(개발용).
+- Produces:
+  - `ingest-bg.mjs` → `export const BG_W = 768`, `export function bgHeightFor(srcW, srcH): number`(`Math.round(768 * srcH / srcW)`, 홀수면 짝수로 올림해 논리 높이가 정수가 되게), 직접 실행하면 `public/pic/village-bg.webp` 를 쓰고 크기·용량을 출력한다(손실 WebP q85 시작, 용량 **400KB 이하**가 되도록 눈으로 보며 조정).
+  - `villageSim.ts` → `WORLD_W = 384`, `WORLD_H = BG_H / 2`(1149×1368 → 768×914 → **457**), `AREA = { x0, x1, y0, y1: WORLD_H }`(값은 아래 기준으로 눈으로 정한다), `ENTER_Y = WORLD_H + BOX_H`(그대로 식).
+  - `PixelVillage.tsx` → `BG_SRC = "/pic/village-bg.webp"`, `NPCS` 의 `x`·`y`(신랑·신부 발 위치)·`tagX`.
+
+**걷는 영역·신랑신부 기준(눈으로 확인):**
+- 신랑·신부는 **단상 위, 아치 아래**에 나란히 선다(발 위치 y 는 단상 바닥, 두 사람 x 는 아치 중심 좌우로 약 ±20, 이름표 기준 x 는 아치 중심 ±2 에서 오른쪽 맞춤·왼쪽 맞춤으로 서로 겹치지 않게 — 기존 `tagX`/`tagAlign` 방식 유지). 아치 중심 x 는 원본 기준 약 540 → 논리 약 180.
+- 하객은 단상·계단에 올라서지 않는다: `AREA.y0` 는 계단 바로 아래(원본 기준 약 730 → 논리 약 245). `AREA.y1` 은 `WORLD_H` 이되, 아래쪽 키 큰 풀 띠에 발이 묻혀 어색하면 `y1` 을 풀 띠 위 선으로 올려 정한다(그 경우 `ENTER_Y` 계산이 `AREA.y1` 과 어긋나지 않는지 `stepWalker` 입장 코드를 확인한다).
+- 가로는 길 + 양옆 잔디 가운데를 걷게 한다(`AREA.x0`~`x1` 사각형, 의자·꽃 상자 위를 지나가는 것은 허용 — 평면 그림이라 완벽히 피할 수 없다). 양끝 덤불·나무에 캐릭터 몸이 완전히 묻히지 않도록 값을 정한다.
+- 사각형 하나로 부족하다고 판단되면 보고한다(규칙을 바꾸지 말고 보고만 한다 — 이동 규칙은 이 계획 범위가 아니다).
+
+- [ ] **Step 1: 테스트를 새 규격으로 쓰고 실패 확인**
+
+`tests/unit/villageBg.test.ts` 를 새 배경에 맞춰 쓴다(제목·단언 모두): 배경 `public/pic/village-bg.webp` 의 가로는 `768`, 세로는 `WORLD_H * 2`(상수 import: `import { WORLD_H, WORLD_W } from "@/lib/villageSim"`, `tests/helpers/webpSize.ts` 의 `webpSize` 사용), 용량은 400KB 이하. 비율 테스트: `|768/(WORLD_H*2) − 1149/1368| < 0.005`(원본 비율과 같음 — `ingest-bg.mjs` 의 `bgHeightFor(1149, 1368)` 이 `WORLD_H * 2` 와 같아야 한다는 단언도 함께). `tests/unit/villageSim.test.ts` 의 세계 테스트를 `WORLD_W 384`, `WORLD_H 457`, `AREA` 는 아래 구현이 정한 값으로 단언하되 `AREA.y1 <= WORLD_H`, `AREA.y0 > 단상 계단 아래`(숫자로 `>= 230`)와 `x0 < x1`, `y0 < y1` 를 같이 단언한다. 신랑·신부 좌표를 쓰는 테스트(`spawnNpc("npc-groom", …)`)는 새 NPC 좌표로 고친다. `tests/unit/villageArt.test.ts` 에서 정원(`drawGarden`) `describe` 와 그 import 를 지운다(PNG 코덱 테스트와 `readPng` 가 더는 쓰이지 않으면 함께 정리).
+
+Run: `npx vitest run tests/unit/villageBg.test.ts tests/unit/villageSim.test.ts tests/unit/villageArt.test.ts` → FAIL
+
+- [ ] **Step 2: `ingest-bg.mjs` 구현과 눈으로 보는 확인**
+
+`sharp` 로 `village-src/background.png` 를 가로 768 으로 줄여 `public/pic/village-bg.webp` 로 쓴다(손실 WebP, 처음 q85). 원본이 없으면 한국어 메시지로 종료한다. 직접 실행할 때만 파일을 쓴다(import 만으로는 쓰지 않는다). 결과를 `Read` 로 열어 원본과 나란히 비교한다(깨짐·띠 현상·번짐 없는지). 용량이 400KB 를 넘으면 품질을 낮추되 화질을 눈으로 확인한다.
+
+- [ ] **Step 3: 앱 코드 바꾸기**
+
+`villageSim.ts`: `WORLD_H = 457`, `AREA` 를 위 기준으로, 머리말 주석의 크기 문구 갱신. `PixelVillage.tsx`: `BG_SRC = "/pic/village-bg.webp"`; 배경은 이제 @2x 그림이므로 **`imageSmoothingEnabled` 토글을 없애고** 항상 `true`(+`imageSmoothingQuality = "high"`)로 그린다(Task 2 에서 넣은 "배경은 smoothing off" 분기와 주석 삭제); `NPCS` 의 `x`·`y`·`tagX`·`tagAlign` 을 새 단상에 맞춘다; 배경 실패 시 단색 대체는 그대로(색은 새 잔디 색 `#8aa63f` 근처로 눈으로 맞춘다). `WORLD_H` 에 의존하는 다른 식(`ENTER_Y`, 이름표 clamp, 말풍선 clamp)이 새 값에 맞게 동작하는지 읽고 확인한다. `package.json` 의 `village:art` 를 지우고 `village:bg` 를 더한다. 삭제: `public/pic/village-bg.png`, `scripts/village-art/garden.mjs`, `scripts/village-art/build.mjs`. `ingest.mjs` 머리말에 배경은 `npm run village:bg` 라는 한 줄을 더한다.
+
+- [ ] **Step 4: 테스트·타입·빌드 통과 확인**
+
+Run: `npx vitest run tests/unit/villageBg.test.ts tests/unit/villageSim.test.ts tests/unit/villageArt.test.ts tests/unit/pixelSprite.test.ts tests/unit/villageSheet.test.ts` → PASS
+Run: `npx tsc --noEmit && npx eslint src scripts tests && npx vitest run && npm run build` → 모두 성공
+
+- [ ] **Step 5: 눈으로 확인 (임시 확인 페이지)**
+
+이전 Task 의 확인 환경(`scratchpad/preview-kit`, 보고서 `…/ai-assets/task-2-report.md`·`…/crowd/task-5-report.md` 의 실행 방법; `setup.ps1` 은 한글 경로에서 node_modules 복사가 안 되니 robocopy 로 직접 복사)을 현재 HEAD 로 다시 만들어 모바일(390×844 dpr 3)·데스크톱(dpr 1·2) 에서 `n=0, 12, 40, 60` 스크린샷을 찍고 `Read` 로 열어 점검한다: ① 신랑·신부가 아치 아래 단상에 서 있고 이름표가 서로 겹치지 않는가 ② 하객이 단상·계단에 올라서지 않는가 ③ 하객이 길과 잔디에 자연스럽게 모이고 풀 띠·덤불에 묻히지 않는가 ④ 말풍선이 위로 잘리지 않는가(신랑·신부 말풍선 포함) ⑤ 배경이 흐리지 않고 캐릭터와 화풍이 어울리는가 ⑥ 새 하객이 화면 아래에서 걸어 들어오는가 ⑦ 신랑·신부 탭→말풍선→두 번째 탭→`#gallery` 스크롤 ⑧ 콘솔 오류 없음 ⑨ 배경만 막았을 때 단색 잔디 + 캐릭터. 또 작업 폴더에 `AREA` 사각형과 신랑·신부 발 위치를 배경 위에 그린 확인용 PNG 를 만들어 영역을 점검한다. 문제가 있으면 `AREA`·좌표를 고쳐 다시 찍는다(최소 2바퀴). 스크린샷 경로를 보고에 남긴다. 확인용 환경은 저장소 밖에만 두고 끝나면 `git worktree remove --force` 로 지운다.
+
+- [ ] **Step 6: 문서 갱신 + Commit**
+
+`docs/superpowers/specs/2026-10-07-guestbook-village-ai-assets-design.md` 의 배경 관련 문장(표의 배경 행, "배경이 올 때까지 지금 배경 유지")을 현재 상태에 맞게 고친다: 배경은 `village-src/background.png` → `npm run village:bg` → `public/pic/village-bg.webp`(768×914, 논리 384×457), 코드 생성 배경(`garden.mjs`)은 제거됨.
+
+```bash
+git add -A src scripts tests public/pic package.json docs
+git commit -m "feat(guestbook): ChatGPT 배경 이미지로 교체 — 세계 384×457·걷는 영역·신랑신부 자리
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+```
+
+(`git status` 로 `village-src/`, `wedding_main.jpg` 가 포함되지 않았는지 확인한다.)
