@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Celebration } from "@/lib/supabase";
 import { KOREA_VIEW } from "@/lib/koreaGeo";
+import { sidoOf } from "@/lib/regions";
 import {
   OTHER_KEY,
   VIEW,
@@ -349,5 +350,80 @@ describe("placeLabel — 지역명 라벨 위치", () => {
   it("방해물이 없으면 기본 자리(아래 가운데)", () => {
     const a: BubbleItem = { key: "부산", x: 80, y: 90, r: 5 };
     expect(placeLabel(a, [a], "부산")).toEqual({ x: 80, y: 98, anchor: "middle" });
+  });
+});
+
+describe("이상한 지역 문자열 — Object.prototype 키 방어", () => {
+  const WEIRD = ["constructor", "__proto__", "toString", "hasOwnProperty", "valueOf", " ", "서울특별시 ??", "constructor 서울", "서울 constructor"];
+
+  it("sidoOf 는 프로토타입 키를 시/도로 보지 않는다", () => {
+    for (const a of ["constructor", "__proto__", "toString", "hasOwnProperty"]) {
+      expect(sidoOf(a)).toBeNull();
+      expect(sidoOf(`${a} 강남구`)).toBeNull();
+    }
+    // 정상 입력은 그대로
+    expect(sidoOf("서울 강남구")).toBe("서울");
+    expect(sidoOf("부산")).toBe("부산");
+    expect(sidoOf(null)).toBeNull();
+  });
+
+  it("프로토타입 키 문자열은 해외·기타로 모은다", () => {
+    const g = groupByRegion(
+      [heart("constructor"), heart("__proto__"), heart("toString"), heart("hasOwnProperty"), heart("valueOf")],
+      "all",
+    );
+    expect(g).toHaveLength(1);
+    expect(g[0].key).toBe(OTHER_KEY);
+    expect(g[0].total).toBe(5);
+  });
+
+  it("어떤 이상한 값이 섞여도 모든 버블 좌표·반지름이 유한하고 다른 버블은 그대로다", () => {
+    const normal = [heart("서울"), heart("서울"), heart("부산"), direct("대구", { date: "2026-09-01" })];
+    const base = groupByRegion(normal, "all");
+    const mixed = groupByRegion([...normal, ...WEIRD.map((a) => heart(a))], "all");
+    for (const g of mixed) {
+      expect(Number.isFinite(g.x)).toBe(true);
+      expect(Number.isFinite(g.y)).toBe(true);
+    }
+    // 정상 지역의 집계·좌표는 영향이 없다 (서울은 "서울특별시 ??" 등 3건이 올바르게 서울로 합쳐진다)
+    for (const b of base) {
+      const m = mixed.find((x) => x.key === b.key)!;
+      expect(m.total).toBe(b.key === "서울" ? b.total + 3 : b.total);
+      expect([m.x, m.y]).toEqual([b.x, b.y]);
+    }
+    expect(mixed.find((x) => x.key === OTHER_KEY)!.total).toBe(6);
+    const max = Math.max(...mixed.map((g) => g.total));
+    const out = layoutBubbles(mixed.map((g) => ({ key: g.key, x: g.x, y: g.y, r: bubbleRadius(g.total, max) })));
+    for (const b of out) {
+      expect(Number.isFinite(b.x)).toBe(true);
+      expect(Number.isFinite(b.y)).toBe(true);
+      expect(Number.isFinite(b.r)).toBe(true);
+    }
+  });
+
+  it("카드 수치와 여정도 이상한 값에 흔들리지 않는다", () => {
+    const data = [direct("constructor", { date: "2026-09-01" }), direct("서울", { date: "2026-09-02" }), direct("부산", { date: "2026-09-03" })];
+    expect(cardStats(data).areaCount).toBe(3);
+    expect(journeyKeys(data)).toEqual(["서울", "부산"]);
+  });
+});
+
+describe("시간순 — created_at 타임스탬프 기준", () => {
+  it("날짜 없는 직접 만남은 시간대 표기가 달라도 실제 시각 순서로 정렬한다", () => {
+    // 문자열로는 "…01:00:00Z" 가 앞이지만 실제로는 +09:00 쪽이 8시간 빠르다
+    const keys = journeyKeys([
+      direct("부산", { date: null, created_at: "2026-09-18T01:00:00Z" }),
+      direct("대구", { date: null, created_at: "2026-09-18T08:00:00+09:00" }),
+      direct("서울", { date: "2026-09-10" }),
+    ]);
+    expect(keys).toEqual(["서울", "대구", "부산"]);
+  });
+
+  it("같은 시각이면 id 로 안정 정렬한다", () => {
+    const ts = "2026-09-18T01:00:00Z";
+    const a = direct("부산", { id: "b", date: null, created_at: ts });
+    const b = direct("대구", { id: "a", date: null, created_at: ts });
+    expect(journeyKeys([a, b])).toEqual(["대구", "부산"]);
+    expect(journeyKeys([b, a])).toEqual(["대구", "부산"]);
   });
 });

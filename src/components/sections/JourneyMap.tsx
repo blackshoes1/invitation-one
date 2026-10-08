@@ -91,7 +91,11 @@ export default function JourneyMap({
     );
   }
 
-  const toggleFilter = (f: Exclude<Filter, "all">) => setFilter(filter === f ? "all" : f);
+  const toggleFilter = (f: Exclude<Filter, "all">) => {
+    setFilter(filter === f ? "all" : f);
+    // 필터로 가려진 버블의 말풍선이 나중에 되살아나지 않게 닫는다
+    setOpen(null);
+  };
   // 작은 버블이 위로 오도록 큰 것부터 그린다
   const drawOrder = [...bubbles].sort((a, b) => b.r - a.r);
   const items = bubbles.map((b) => ({ key: b.group.key, x: b.x, y: b.y, r: b.r }));
@@ -266,11 +270,11 @@ export default function JourneyMap({
                   type="button"
                   aria-expanded={isOpen}
                   aria-label={`${key} ${total}명, ${[
-                    direct.length > 0 ? `직접 ${direct.length}` : null,
-                    heart.length > 0 ? `마음 ${heart.length}` : null,
+                    direct.length > 0 ? `직접 ${direct.length}명` : null,
+                    heart.length > 0 ? `마음 ${heart.length}명` : null,
                   ]
                     .filter(Boolean)
-                    .join(" ")}`}
+                    .join(" · ")}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     setOpen(isOpen ? null : key);

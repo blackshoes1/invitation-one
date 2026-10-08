@@ -30,6 +30,9 @@ const MAX_ITER = 80;
 
 /* ---------- 지역 판정 ---------- */
 
+/** 자기 키만 인정 — `in` 은 constructor·__proto__ 같은 Object.prototype 키도 참으로 만든다 */
+const has = (obj: object, k: string) => Object.prototype.hasOwnProperty.call(obj, k);
+
 /**
  * 시/군/구 단독명 → 시/도. 전국에서 이름이 유일한 것만 수록("동구"처럼
  * 여러 시/도에 있는 이름은 제외). "경주시" → "경주" 축약형도 등록해
@@ -44,7 +47,7 @@ const SUB_SIDO: Record<string, string> = (() => {
     put(sub, sido);
     const short = sub.replace(/(시|군|구)$/, "");
     // 축약형이 시/도명과 겹치면 제외 (예: "광주시"→"광주"는 광역시와 충돌)
-    if (short && short !== sub && !(short in SIDO_POS)) put(short, sido);
+    if (short && short !== sub && !has(SIDO_POS, short)) put(short, sido);
   }
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(cand)) if (v.size === 1) out[k] = [...v][0];
@@ -59,23 +62,31 @@ export function resolveSido(area: string | null | undefined): string | null {
     if (!tok) continue;
     // "서울시"·"부산광역시" 류 접미사 정규화
     const t = tok.replace(/(특별시|광역시|특별자치시|특별자치도|도|시)$/, "");
-    if (tok in SIDO_POS) return tok;
-    if (t && t in SIDO_POS) return t;
-    if (tok in SUB_SIDO) return SUB_SIDO[tok];
-    if (t && t in SUB_SIDO) return SUB_SIDO[t];
+    if (has(SIDO_POS, tok)) return tok;
+    if (t && has(SIDO_POS, t)) return t;
+    if (has(SUB_SIDO, tok)) return SUB_SIDO[tok];
+    if (t && has(SUB_SIDO, t)) return SUB_SIDO[t];
   }
   return null;
 }
 
 const keyOf = (area: string | null | undefined) => resolveSido(area) ?? OTHER_KEY;
 
-/** 시간순 정렬 키 — 날짜가 없으면 등록 시각(앞 10자 YYYY-MM-DD)으로 대신한다 */
-const timeKey = (c: Celebration) => c.date ?? c.created_at.slice(0, 10);
+/**
+ * 시간순 정렬 키(ms) — 날짜가 없으면 등록 시각으로 대신한다.
+ * 문자열 비교는 시간대 표기(Z/+09:00)가 섞이면 틀려서 타임스탬프로 비교한다.
+ */
+const ts = (s: string) => {
+  const t = Date.parse(s);
+  return Number.isNaN(t) ? 0 : t;
+};
 function byTime(a: Celebration, b: Celebration): number {
-  const ka = timeKey(a);
-  const kb = timeKey(b);
-  if (ka !== kb) return ka < kb ? -1 : 1;
-  if (a.created_at !== b.created_at) return a.created_at < b.created_at ? -1 : 1;
+  const ka = ts(a.date ?? a.created_at);
+  const kb = ts(b.date ?? b.created_at);
+  if (ka !== kb) return ka - kb;
+  const ca = ts(a.created_at);
+  const cb = ts(b.created_at);
+  if (ca !== cb) return ca - cb;
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
@@ -100,7 +111,8 @@ export function groupByRegion(celebrations: Celebration[], filter: Filter): Regi
     const key = keyOf(c.area);
     let g = map.get(key);
     if (!g) {
-      const pos = key === OTHER_KEY ? OVERSEAS_POS : SIDO_POS[key];
+      // 좌표가 없는 키는 어떤 경우에도 해외·기타 자리로 — 위치는 항상 유한해야 한다
+      const pos = key !== OTHER_KEY && has(SIDO_POS, key) ? SIDO_POS[key] : OVERSEAS_POS;
       g = { key, direct: [], heart: [], total: 0, x: pos.x, y: pos.y };
       map.set(key, g);
     }
