@@ -105,7 +105,8 @@ export function splitRegion(location: string | null | undefined): {
 export function sidoOf(area: string | null | undefined): string | null {
   if (!area) return null;
   const first = area.trim().split(/\s+/)[0];
-  return first in SIDO_POS ? first : null;
+  // `in` 은 constructor 같은 Object.prototype 키도 참이라 자기 키만 본다
+  return Object.prototype.hasOwnProperty.call(SIDO_POS, first) ? first : null;
 }
 
 // SIDO_POS(시/도 지도 좌표)는 정밀 지도 데이터와 함께 관리 → koreaGeo 에서 재노출
