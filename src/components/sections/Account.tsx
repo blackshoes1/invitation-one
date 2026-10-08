@@ -129,9 +129,12 @@ export default function Account() {
           </p>
           <div className="text-xs text-neutral-500 max-w-[300px] mx-auto leading-loose font-light pt-2 space-y-3">
             <p className="tracking-wide">
-              저희의 예식은 하객 여러분과 더 깊게 눈을 맞추고
+              저희의 예식은 하객 여러분과
               <br />
-              축하를 나누고자{" "}
+              더 깊게 눈을 맞추고
+              <br />
+              축하를 나누고자
+              <br />
               <span className="font-normal text-sage-700 border-b border-wedding-gold/40 pb-0.5">
                 현장 축의대를 운영하지 않습니다.
               </span>
