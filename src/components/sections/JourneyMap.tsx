@@ -114,7 +114,8 @@ export default function JourneyMap({
             tone="gold"
             value={stats.directCount}
             unit="명"
-            label="🛵 직접 만난 분"
+            icon="🛵"
+            label="직접 만난 분"
             pressed={filter === "직접배달"}
             onClick={() => toggleFilter("직접배달")}
           />
@@ -122,11 +123,12 @@ export default function JourneyMap({
             tone="rose"
             value={stats.heartCount}
             unit="명"
-            label="💌 마음 보낸 분"
+            icon="💌"
+            label="마음 보낸 분"
             pressed={filter === "마음배송"}
             onClick={() => toggleFilter("마음배송")}
           />
-          <StatCard tone="sage" value={stats.areaCount} unit="곳" label="📍 닿은 지역" />
+          <StatCard tone="sage" value={stats.areaCount} unit="곳" icon="📍" label="닿은 지역" />
         </div>
       </section>
 
@@ -351,6 +353,7 @@ function StatCard({
   tone,
   value,
   unit,
+  icon,
   label,
   pressed,
   onClick,
@@ -358,6 +361,7 @@ function StatCard({
   tone: keyof typeof TONES;
   value: number;
   unit: string;
+  icon: string;
   label: string;
   pressed?: boolean;
   onClick?: () => void;
@@ -369,7 +373,11 @@ function StatCard({
         {value}
         <span className="text-sm">{unit}</span>
       </span>
-      <span className="mt-1.5 block text-[11px] text-neutral-600">{label}</span>
+      {/* 이모지는 윗줄에 따로 — 좁은 폭(320)에서 "분" 한 글자가 홀로 넘어가지 않게 */}
+      <span className="mt-1.5 block text-sm leading-none">{icon}</span>
+      <span className="mt-1 block text-[11px] leading-tight break-keep text-neutral-600">
+        {label}
+      </span>
     </>
   );
   // 눌렸을 때 테두리만 바뀌어 카드 크기가 흔들리지 않게 항상 2px
