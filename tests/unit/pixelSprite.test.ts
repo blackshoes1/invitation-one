@@ -32,6 +32,11 @@ describe("캐릭터 시트 규격", () => {
     expect(SHEET_ROWS).toBe(GUEST_LOOKS + 2);
     expect(GUEST_LOOKS).toBeGreaterThanOrEqual(20);
   });
+
+  it("하객은 하객 시트 4장 × 8명 = 32종(신랑·신부는 전용 시트에서 오므로 하객에서 빼지 않는다), 시트는 34줄", () => {
+    expect(GUEST_LOOKS).toBe(32);
+    expect(SHEET_ROWS).toBe(34);
+  });
 });
 
 describe("앱 쪽 시트 규격과 변환 스크립트 규격이 같다", () => {

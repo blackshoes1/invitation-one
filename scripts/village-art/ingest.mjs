@@ -1,14 +1,18 @@
-// ChatGPT 가 그린 캐릭터 시트(village-src/dot_img*.png)를 12열 @2x 시트(public/pic/village-sprites.webp)로 바꾼다.
+// ChatGPT 가 그린 캐릭터 시트를 12열 @2x 시트(public/pic/village-sprites.webp)로 바꾼다.
 // 원본은 저장소에 넣지 않는다(village-src/ 는 .gitignore). sharp 는 Next 가 깔아 둔 것을 쓴다.
 // 배경 그림은 따로 만든다: npm run village:bg (ingest-bg.mjs)
 //
+// 원본 두 종류 (배치는 LAYOUTS, 한 사람 = 블록 하나 = 프레임 3열 × 4줄):
+//  - 하객: village-src/dot_img1.png, dot_img2.png … (이름 순, 1장에 4×2 블록 = 8명, 모두 하객)
+//  - 신랑·신부: village-src/couple.png (2×1 블록: 왼쪽 신랑, 오른쪽 신부) — 꼭 있어야 한다
+//
 // 다시 만들 때 (순서대로):
-//  (a) 원본은 village-src/dot_imgN.png 로 둔다. 모두 1536×1024, 가로 12열 × 8블록(4줄 × 2) 규격 — sliceSource 가 이 배치를 박아 두고 있다.
+//  (a) 원본을 위 이름으로 village-src/ 에 둔다. 배치가 LAYOUTS 와 다르면 sliceSource 가 `프레임 열이 N개가 아니다` 로 멈춘다.
 //  (b) npm run village:ingest 를 돌리고 찍히는 `guests N` 을 src/lib/pixelSprite.ts 의 GUEST_LOOKS 에 손으로 맞춘다
 //      (안 맞추면 시트 줄 수와 어긋나 tests/unit/pixelSprite.test.ts 가 깨진다).
-//  (c) 신랑·신부 전용 시트를 따로 받았다면: 같은 블록 규격이면 COUPLE_PICKS 만 바꾸면 되지만,
-//      2명짜리처럼 배치가 다르면 sliceSource 가 `프레임 열이 12개가 아니다` 로 멈추니 두 번째 배치를 sliceSource 에 추가해야 한다.
-//  (d) 용량 예산 1.2MB — 지금 nearLossless q90 으로 약 15KB 여유뿐이라, 줄이 늘면 조용히 q85 이하 손실 압축으로 내려간다(출력의 webp 모드 확인).
+//  (c) 출력의 `scale guests` 는 하객 배율, `couple` 은 신랑·신부 배율(머리 폭을 하객에 맞춤)이다. `fit` 이 1 보다 작으면
+//      프레임에 들어가게 그만큼 더 줄였다는 뜻이니 연락표로 크기를 확인한다.
+//  (d) 용량 예산 1.2MB — 줄이 늘면 손실 압축 품질을 q90 → q85 → q80 → q75 로 내린다(출력의 webp 모드 확인).
 //  MIRROR_RIGHT·FRAME_OVERRIDES 는 원본 파일·블록 번호가 바뀌면 다시 눈으로 확인해 고친다(안 맞는 항목은 오류로 알려 준다).
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -25,11 +29,12 @@ export const COLUMNS = [
   "right_idle", "right_walk1", "right_walk2",
 ];
 
-// 신랑·신부로 쓸 블록. source = 원본 파일 이름순 번호(0~), block = 블록 읽기 순서(왼→오, 위→아래, 0~7).
-// 같은 8블록 규격의 시트에서 다른 블록으로 바꿀 때만 여기를 고친다(규격이 다른 시트는 위 머리말 (c) 참고).
-export const COUPLE_PICKS = {
-  groom: { source: 0, block: 0 }, // dot_img1 왼쪽 위 — 검은 정장
-  bride: { source: 2, block: 6 }, // dot_img3 아래 줄 세 번째 — 금발·크림색 드레스
+// 원본 종류별 배치. blocksX × blocksY 블록, 블록 하나 = 프레임 3열 × 4줄. roles 가 있으면 블록 번호 순서대로 그 역할이다.
+// frames = 한 줄의 원본 프레임(왼→오)이 무슨 동작인지(다리를 보고 정함). 블록 번호 = 읽기 순서(왼→오, 위→아래).
+// 사람(블록) 키는 `${source}:${block}`, source = 하객 시트 이름순 번호(0~) 또는 "couple".
+export const LAYOUTS = {
+  guests: { blocksX: 4, blocksY: 2, frames: ["walk1", "idle", "walk2"] }, // 가운데가 서 있는 모습
+  couple: { blocksX: 2, blocksY: 1, frames: ["idle", "walk1", "walk2"], roles: ["groom", "bride"] }, // 첫 프레임이 서 있는 모습(옆·뒤 줄이 뚜렷)
 };
 
 // 오른쪽 줄(3줄)이 옆모습이 아니게 그려진 블록 — 그 사람만 왼쪽 줄을 좌우 반전해 오른쪽으로 쓴다(눈으로 확인한 목록).
@@ -53,7 +58,7 @@ export const FRAME_OVERRIDES = [
 
 // 원본 한 블록 안 줄 순서(1줄 앞, 2줄 왼쪽, 3줄 오른쪽, 4줄 뒤) → 시트 방향
 const SOURCE_VIEWS = ["down", "left", "right", "up"];
-// 원본 프레임은 걷기1·가운데·걷기2 순 → 시트 열은 idle·walk1·walk2 순
+// 사람마다 방향별 프레임 3개를 이 순서(걷기1·정지·걷기2)로 들고 다닌다 — 하객 원본 순서와 같다. 시트 열은 idle·walk1·walk2 순
 const SOURCE_FRAME_OF = { idle: 1, walk1: 0, walk2: 2 };
 
 const ALPHA_BODY = 160; // 덩어리 찾기: 옅은 번짐이 이웃을 이어 붙이지 않게 높게
@@ -107,17 +112,17 @@ function mergeRuns(intervals) {
   return out;
 }
 
-/** 한 프레임 열에서 위아래 프레임 8개(2블록 × 4줄)를 가르는 컷 7개 — 불투명 픽셀이 가장 적은 높이를 고른다.
+/** 한 프레임 열에서 위아래 프레임 n개(블록 줄 수 × 4줄)를 가르는 컷 n-1개 — 불투명 픽셀이 가장 적은 높이를 고른다.
  *  위아래 프레임이 발끝·머리로 맞닿는 곳이 있어 성분만으로는 못 가른다. */
-function rowCuts(rgba, W, H, a, b) {
+function rowCuts(rgba, W, H, a, b, n) {
   const prof = new Int32Array(H);
   for (let y = 0; y < H; y++) for (let x = a; x <= b; x++) if (rgba[(y * W + x) * 4 + 3] >= ALPHA_BODY) prof[y]++;
-  const pitch = H / 8, minH = Math.round(pitch * 0.74), maxH = Math.round(pitch * 1.37);
-  const INF = Infinity;
-  const dp = Array.from({ length: 7 }, () => new Float64Array(H).fill(INF));
-  const from = Array.from({ length: 7 }, () => new Int32Array(H).fill(-1));
+  const pitch = H / n, minH = Math.round(pitch * 0.74), maxH = Math.round(pitch * 1.37);
+  const K = n - 1, INF = Infinity;
+  const dp = Array.from({ length: K }, () => new Float64Array(H).fill(INF));
+  const from = Array.from({ length: K }, () => new Int32Array(H).fill(-1));
   for (let c = minH; c <= maxH && c < H; c++) dp[0][c] = prof[c];
-  for (let k = 1; k < 7; k++) {
+  for (let k = 1; k < K; k++) {
     for (let c = 0; c < H; c++) {
       for (let p = Math.max(0, c - maxH); p <= c - minH; p++) {
         const v = dp[k - 1][p] + prof[c];
@@ -126,10 +131,10 @@ function rowCuts(rgba, W, H, a, b) {
     }
   }
   let last = -1;
-  for (let c = H - maxH; c <= H - minH; c++) if (last < 0 || dp[6][c] < dp[6][last]) last = c;
-  if (last < 0 || dp[6][last] === INF) throw new Error(`프레임 줄을 가를 수 없다 (x ${a}-${b})`);
+  for (let c = H - maxH; c <= H - minH; c++) if (last < 0 || dp[K - 1][c] < dp[K - 1][last]) last = c;
+  if (last < 0 || dp[K - 1][last] === INF) throw new Error(`프레임 줄을 가를 수 없다 (x ${a}-${b})`);
   const cuts = [last];
-  for (let k = 6; k > 0; k--) cuts.unshift(from[k][cuts[0]]);
+  for (let k = K - 1; k > 0; k--) cuts.unshift(from[k][cuts[0]]);
   // 빈 줄 위의 컷은 빈 구간 가운데로 옮긴다
   return cuts.map((c) => {
     if (prof[c] > 0) return c;
@@ -166,25 +171,26 @@ function seamAround(rgba, W, a, b, cut, band = 18) {
   return ys;
 }
 
-/** 원본 한 장 → blocks[8][4줄][3프레임] 크롭 { w, h, rgba, colX(원본 열 중심의 크롭 안 x) } */
-function sliceSource(src) {
+/** 원본 한 장 → blocks[블록][4줄][3프레임] 크롭 { w, h, rgba, colX(원본 열 중심의 크롭 안 x) }. 배치는 layout(LAYOUTS 의 하나) */
+export function sliceSource(src, layout) {
   const { width: W, height: H } = src;
+  const nCols = layout.blocksX * 3, nRows = layout.blocksY * 4;
   const rgba = Uint8Array.from(src.rgba);
   for (let i = 3; i < rgba.length; i += 4) if (rgba[i] < ALPHA_KEEP) rgba[i - 3] = rgba[i - 2] = rgba[i - 1] = rgba[i] = 0;
 
   const big = findComponents(rgba, W, H, { alphaMin: ALPHA_BODY }).filter((c) => c.area >= 1500);
   const cols = mergeRuns(big.map((c) => [c.x0, c.x1]));
-  if (cols.length !== 12) throw new Error(`프레임 열이 12개가 아니다: ${cols.length}`);
+  if (cols.length !== nCols) throw new Error(`프레임 열이 ${nCols}개가 아니다: ${cols.length}`);
 
-  const blocks = Array.from({ length: 8 }, () => Array.from({ length: 4 }, () => new Array(3)));
+  const blocks = Array.from({ length: layout.blocksX * layout.blocksY }, () => Array.from({ length: 4 }, () => new Array(3)));
   cols.forEach(([a, b], ci) => {
     const xa = ci === 0 ? 0 : ((cols[ci - 1][1] + a) >> 1) + 1;
-    const xb = ci === 11 ? W - 1 : (b + cols[ci + 1][0]) >> 1;
-    const seams = rowCuts(rgba, W, H, a, b).map((cut) => seamAround(rgba, W, a, b, cut));
+    const xb = ci === nCols - 1 ? W - 1 : (b + cols[ci + 1][0]) >> 1;
+    const seams = rowCuts(rgba, W, H, a, b, nRows).map((cut) => seamAround(rgba, W, a, b, cut));
     const seamY = (s, x) => s[Math.min(Math.max(x - a, 0), b - a)];
-    for (let seg = 0; seg < 8; seg++) {
+    for (let seg = 0; seg < nRows; seg++) {
       const top = (x) => (seg === 0 ? 0 : seamY(seams[seg - 1], x) + 1);
-      const bot = (x) => (seg === 7 ? H - 1 : seamY(seams[seg], x));
+      const bot = (x) => (seg === nRows - 1 ? H - 1 : seamY(seams[seg], x));
       let y0 = H, y1 = 0;
       for (let x = xa; x <= xb; x++) { y0 = Math.min(y0, top(x)); y1 = Math.max(y1, bot(x)); }
       // 칸(이음선 사이)만 남긴 지역 버퍼
@@ -198,7 +204,7 @@ function sliceSource(src) {
       const crop = cleanCrop(cell, cw, ch, (a + b + 1) / 2 - xa);
       // 원본 가장자리에 닿은 프레임은 원본에서 이미 잘렸을 수 있다 — 보고만 한다
       crop.touchesEdge = xa + crop.ox === 0 || xa + crop.ox + crop.w === W || y0 + crop.oy === 0 || y0 + crop.oy + crop.h === H;
-      blocks[(seg >> 2) * 4 + Math.floor(ci / 3)][seg & 3][ci % 3] = crop;
+      blocks[(seg >> 2) * layout.blocksX + Math.floor(ci / 3)][seg & 3][ci % 3] = crop;
     }
   });
   return blocks;
@@ -313,37 +319,44 @@ const median = (xs) => [...xs].sort((p, q) => p - q)[xs.length >> 1];
 const key = ({ source, block }) => `${source}:${block}`;
 
 /**
- * 디코드된 원본들 → 12열 시트. 줄 순서: 원본 이름순 → 블록 읽기 순서, 신랑·신부 블록은 빼서 맨 끝(신랑, 신부).
- * 같은 사람의 4방향은 머리 폭으로 크기를 맞추고(앞모습 기준, ±15%), 시트 전체는 공통 배율 하나를 쓴다(아이는 작게 남는다).
+ * 원본들 → 12열 시트. sources = [{ id, layout, image }] (id 는 사람 키의 source).
+ * 줄 순서: 하객(원본 순서 → 블록 읽기 순서) → 신랑 → 신부. 같은 사람의 4방향은 머리 폭으로 크기를 맞춘다(앞모습 기준, ±15%).
+ * 하객은 공통 배율 하나(아이는 작게 남는다). 신랑·신부는 따로 그린 시트라 그림 크기가 달라 둘이 함께 쓰는 배율을 따로 둔다:
+ * 앞모습 머리 폭(둘의 평균)이 하객 머리 폭 중앙값과 같게, 프레임에 안 들어가면 더 줄인다. 하객 배율은 신랑·신부와 무관하다.
  */
-export function buildSheet(sources, picks = COUPLE_PICKS, { mirrorRight = MIRROR_RIGHT, frameOverrides = FRAME_OVERRIDES, slice = sliceSource } = {}) {
-  const coupleKeys = [key(picks.groom), key(picks.bride)];
+export function buildSheet(sources, { mirrorRight = MIRROR_RIGHT, frameOverrides = FRAME_OVERRIDES, slice = sliceSource } = {}) {
   const mirrorKeys = new Set(mirrorRight.map(key));
   const people = [];
-  sources.forEach((src, source) => {
-    slice(src).forEach((rows, block) => {
+  for (const { id: source, layout, image } of sources) {
+    slice(image, layout).forEach((rows, block) => {
+      // 원본 프레임 순서(layout.frames)를 공통 순서(SOURCE_FRAME_OF)로 바꿔 둔다 — 덮어쓰기·배치는 이 순서만 안다
       const views = {};
-      rows.forEach((frames, r) => { views[SOURCE_VIEWS[r]] = frames; });
+      rows.forEach((frames, r) => {
+        const out = new Array(3);
+        layout.frames.forEach((anim, i) => { out[SOURCE_FRAME_OF[anim]] = frames[i]; });
+        views[SOURCE_VIEWS[r]] = out;
+      });
       if (mirrorKeys.has(key({ source, block }))) views.right = views.left.map(mirror);
       const mine = frameOverrides.filter((o) => key(o) === key({ source, block }));
-      people.push({ source, block, views: mine.length ? applyFrameOverrides(views, mine) : views });
+      people.push({ source, block, role: layout.roles?.[block] ?? "guest", views: mine.length ? applyFrameOverrides(views, mine) : views });
     });
-  });
+  }
   // 원본이 바뀌어 어느 블록에도 안 맞는 항목은 조용히 무시되면 그림이 어긋난 채로 굳으므로 바로 멈춘다
   const known = new Set(people.map(key));
   for (const [label, list] of [["MIRROR_RIGHT", mirrorRight], ["FRAME_OVERRIDES", frameOverrides]]) {
     const bad = list.find((e) => !known.has(key(e)));
-    if (bad) throw new Error(`${label} 항목이 어느 블록에도 맞지 않는다: ${key(bad)} (원본 ${sources.length}장, 블록 번호 0~7)`);
+    if (bad) throw new Error(`${label} 항목이 어느 블록에도 맞지 않는다: ${key(bad)} (원본 ${sources.map((s) => s.id).join(", ")})`);
   }
-  const guests = people.filter((p) => !coupleKeys.includes(key(p)));
-  const ordered = [...guests, ...coupleKeys.map((k) => {
-    const p = people.find((q) => key(q) === k);
-    if (!p) throw new Error(`신랑·신부 블록이 없다: ${k}`);
-    return p;
-  })];
+  const guests = people.filter((p) => p.role === "guest");
+  const couple = ["groom", "bride"].map((role) => {
+    const found = people.filter((p) => p.role === role);
+    if (found.length !== 1) throw new Error(`신랑·신부 블록이 맞지 않는다: ${role} ${found.length}개 (village-src/couple.png 를 확인)`);
+    return found[0];
+  });
+  const ordered = [...guests, ...couple];
 
   // 방향별 보정: 앞모습 머리 폭 / 그 방향 머리 폭 (3프레임 중앙값)
-  const report = { capped: [], clamped: [], edge: [] };
+  const report = { capped: [], clamped: [], edge: [], limitBy: "", targetHead: 0, coupleFit: 1, coupleLimitBy: "" };
   for (const p of ordered) {
     for (const [v, frames] of Object.entries(p.views)) if (frames.some((f) => f.touchesEdge)) report.edge.push(`${key(p)} ${v}`);
   }
@@ -359,27 +372,41 @@ export function buildSheet(sources, picks = COUPLE_PICKS, { mirrorRight = MIRROR
     }
   }
 
-  // 공통 배율: 가장 큰 앞모습이 120px, 그리고 모든 프레임이 폭·높이 안에 들어가게
-  const limits = [];
-  for (const p of ordered) {
-    for (const [v, frames] of Object.entries(p.views)) {
-      for (const f of frames) {
-        const m = measure(f);
-        const who = `${key(p)} ${v}`;
-        if (v === "down") limits.push([MAX_FRONT_H / m.bh, `앞모습 높이 ${who}`]);
-        limits.push([(FRAME_W - 2 * SIDE_MARGIN) / (m.bw * p.corr[v]), `폭 ${who}`]);
-        limits.push([(FRAME_H - FOOT_GAP - 2) / (m.bh * p.corr[v]), `높이 ${who}`]);
+  // 모든 프레임이 폭·높이 안에 들어가는 가장 큰 배율 [값, 기준]. frontH 면 가장 큰 앞모습도 120px 로 묶는다(하객 크기 기준)
+  const fitScale = (list, frontH) => {
+    const limits = [];
+    for (const p of list) {
+      for (const [v, frames] of Object.entries(p.views)) {
+        for (const f of frames) {
+          const m = measure(f);
+          const who = `${key(p)} ${v}`;
+          if (frontH && v === "down") limits.push([MAX_FRONT_H / m.bh, `앞모습 높이 ${who}`]);
+          limits.push([(FRAME_W - 2 * SIDE_MARGIN) / (m.bw * p.corr[v]), `폭 ${who}`]);
+          limits.push([(FRAME_H - FOOT_GAP - 2) / (m.bh * p.corr[v]), `높이 ${who}`]);
+        }
       }
     }
-  }
-  const [scale, limitBy] = limits.reduce((p, q) => (q[0] < p[0] ? q : p));
+    return limits.reduce((p, q) => (q[0] < p[0] ? q : p));
+  };
+  const [scale, limitBy] = fitScale(guests, true);
   report.limitBy = limitBy;
+
+  // 신랑·신부 배율: 앞모습 머리 폭을 하객(배율 적용 뒤) 중앙값에 맞추고, 프레임에 안 들어가면 그 한도로 줄인다
+  const frontHead = (p) => median(p.views.down.map((f) => measure(f).head));
+  const targetHead = median(guests.map((p) => frontHead(p) * scale));
+  const headScale = targetHead / (couple.reduce((s, p) => s + frontHead(p), 0) / couple.length);
+  const [coupleFitScale, coupleFitBy] = fitScale(couple, false);
+  const coupleScale = Math.min(headScale, coupleFitScale);
+  report.targetHead = targetHead;
+  report.coupleFit = Math.min(1, coupleFitScale / headScale);
+  report.coupleLimitBy = coupleFitScale < headScale ? coupleFitBy : "머리 폭";
 
   const width = FRAME_W * COLUMNS.length, height = FRAME_H * ordered.length;
   const rgba = new Uint8Array(width * height * 4);
   ordered.forEach((p, row) => {
+    const s = p.role === "guest" ? scale : coupleScale;
     for (const v of ["down", "up", "left", "right"]) {
-      const frames = p.views[v].map((f) => resample(f, scale * p.corr[v]));
+      const frames = p.views[v].map((f) => resample(f, s * p.corr[v]));
       const ms = frames.map(measure);
       // 원본 열 중심을 공통 기준으로 삼아 3프레임의 흔들림은 그대로 두고, 몸 중심 중앙값을 프레임 가운데로
       const m = median(ms.map((mm, i) => mm.cx - frames[i].colX));
@@ -405,9 +432,9 @@ export function buildSheet(sources, picks = COUPLE_PICKS, { mirrorRight = MIRROR
 
   return {
     width, height, rgba,
-    rows: ordered.map(({ source, block }) => ({ source, block })),
+    rows: ordered.map(({ source, block, role }) => ({ source, block, role })),
     guests: guests.length,
-    scale, report,
+    scale, coupleScale, report,
   };
 }
 
@@ -419,7 +446,13 @@ async function main() {
   try { names = readdirSync(srcDir); } catch { throw noSource(); } // 폴더 자체가 없어도 같은 안내로
   const files = names.filter((f) => /^dot_img\d+\.png$/.test(f)).sort((p, q) => p.localeCompare(q, "en", { numeric: true }));
   if (!files.length) throw noSource();
-  const sources = files.map((f) => decodePng(readFileSync(path.join(srcDir, f))));
+  // 신랑·신부는 전용 시트에서만 온다 — 없으면 하객 중 한 명으로 대신하지 않고 멈춘다
+  if (!names.includes("couple.png")) throw new Error(`신랑·신부 원본이 없다: ${srcDir}/couple.png (왼쪽 신랑·오른쪽 신부, 각 3열 × 4줄)`);
+  const read = (f) => decodePng(readFileSync(path.join(srcDir, f)));
+  const sources = [
+    ...files.map((f, i) => ({ id: i, layout: LAYOUTS.guests, image: read(f) })),
+    { id: "couple", layout: LAYOUTS.couple, image: read("couple.png") },
+  ];
   const sheet = buildSheet(sources);
 
   const { default: sharp } = await import("sharp");
@@ -441,8 +474,9 @@ async function main() {
   if (out.length > LIMIT) throw new Error(`용량 초과: ${out.length} bytes`);
   const dest = path.join(root, "public", "pic", "village-sprites.webp");
   writeFileSync(dest, out);
-  console.log(`sources ${files.join(", ")}`);
-  console.log(`scale ${sheet.scale.toFixed(4)} (기준: ${sheet.report.limitBy})  rows ${sheet.rows.length}  guests ${sheet.guests} (GUEST_LOOKS)`);
+  console.log(`sources ${files.join(", ")} + couple.png`);
+  console.log(`scale guests ${sheet.scale.toFixed(4)} (기준: ${sheet.report.limitBy})  rows ${sheet.rows.length}  guests ${sheet.guests} (GUEST_LOOKS)`);
+  console.log(`scale couple ${sheet.coupleScale.toFixed(4)} (머리 폭 ${sheet.report.targetHead.toFixed(1)}px 에 맞춤, fit ${sheet.report.coupleFit.toFixed(3)}, 기준: ${sheet.report.coupleLimitBy})`);
   console.log(`village-sprites.webp  ${sheet.width}x${sheet.height}  ${out.length} bytes  (${mode})`);
   if (sheet.report.capped.length) console.log(`보정 한도(±15%)에 걸림: ${sheet.report.capped.join(", ")}`);
   if (sheet.report.edge.length) console.log(`원본 가장자리에 닿음(원본에서 잘렸을 수 있음): ${sheet.report.edge.join(", ")}`);

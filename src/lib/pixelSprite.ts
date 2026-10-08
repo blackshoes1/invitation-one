@@ -33,8 +33,11 @@ export const FRAME_NAMES: readonly FrameName[] = SPRITE_DIRS.flatMap((d) =>
   SPRITE_ANIMS.map((a): FrameName => `${d}_${a}`)
 );
 
-/** 하객 모습 가짓수(시트의 앞쪽 줄) — 시트를 다시 만들면 `npm run village:ingest` 가 찍는 `guests N` 으로 맞출 것 */
-export const GUEST_LOOKS = 30;
+/**
+ * 하객 모습 가짓수(시트의 앞쪽 줄) — 하객 시트 4장 × 8명. 신랑·신부는 전용 시트(couple.png)에서 온다.
+ * 시트를 다시 만들면 `npm run village:ingest` 가 찍는 `guests N` 으로 맞출 것
+ */
+export const GUEST_LOOKS = 32;
 export const GROOM_ROW = GUEST_LOOKS;
 export const BRIDE_ROW = GUEST_LOOKS + 1;
 export const SHEET_ROWS = GUEST_LOOKS + 2;
