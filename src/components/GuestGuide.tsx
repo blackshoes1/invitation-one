@@ -42,7 +42,7 @@ export default function GuestGuide({
               <p className="mt-1.5 text-[14px] leading-[1.5] text-[#6c7077]">주차장에서 예식장까지 오시는 길을 안내해 드려요.</p>
               <ChevronRight size={24} aria-hidden="true" className="absolute top-1/2 right-4 -translate-y-1/2 text-[#455c3c]" />
             </Link>
-            <Link href={{ pathname: "/", query: { ...query, view: "photos" }, hash: "guest-snap" }} prefetch={false} aria-label="오늘의 베스트샷을 찾습니다!" className="relative block rounded-[15px] bg-[#faf9f6] px-[22px] py-[20px] text-[#111511] transition-colors hover:bg-white">
+            <Link href={{ pathname: "/", query: { ...query, view: "guest-snap" } }} prefetch={false} aria-label="오늘의 베스트샷을 찾습니다!" className="relative block rounded-[15px] bg-[#faf9f6] px-[22px] py-[20px] text-[#111511] transition-colors hover:bg-white">
               <p className="font-serif text-[14px] leading-tight text-[#455c3c]">03</p>
               <h2 className="mt-1.5 pr-5 font-serif text-[clamp(16px,4.7vw,22px)] font-semibold leading-relaxed">오늘의 베스트샷을 찾습니다!</h2>
               <p className="mt-1.5 text-[14px] leading-[1.5] text-[#6c7077]">사진을 올려주시는 분들 중<br />첫 업로드와 베스트샷에 선물을 드려요.</p>

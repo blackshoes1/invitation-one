@@ -90,7 +90,18 @@ export default async function Home({
       <main className="invitation-content min-h-screen bg-wedding-cream text-sage-800 font-sans antialiased">
         <RememberInvitationKey />
         <TextSizeToggle />
-        <GuestGuide view={view} query={query} />
+        {view === "guest-snap" ? (
+          <>
+            <div className="mx-auto max-w-[440px] px-6 pt-12 pb-4">
+              <Link href={{ pathname: "/", query }} className="inline-flex min-h-11 items-center gap-2 text-sm text-sage-700">
+                <ArrowLeft size={16} aria-hidden="true" /> 하객 안내로
+              </Link>
+            </div>
+            <GuestSnap uploadToken={issueUploadToken()} />
+          </>
+        ) : (
+          <GuestGuide view={view} query={query} />
+        )}
       </main>
     );
   }

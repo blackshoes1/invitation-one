@@ -43,7 +43,7 @@ describe("하객 안내 공개 일정", () => {
     expect(types.includes(Hero)).toBe(!active);
   });
 
-  it.each(["accounts", "route"])("공개 전에는 view=%s로 안내 화면을 열 수 없다", async (view) => {
+  it.each(["accounts", "route", "guest-snap"])("공개 전에는 view=%s로 안내 화면을 열 수 없다", async (view) => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-14T23:59:59.999+09:00"));
     const page = await Home({ searchParams: Promise.resolve({ key: "schedule-test-key", view }) });

@@ -7,7 +7,7 @@ const GUIDE_ACTIVE = process.env.VERCEL_ENV === "preview" || Date.now() >= GUEST
 
 test("공개 전에는 안내 URL로 들어가도 기존 청첩장이 바로 열린다", async ({ page }) => {
   test.skip(GUIDE_ACTIVE, "하객 안내 공개 전 동작 검증");
-  for (const view of ["", "accounts", "route"]) {
+  for (const view of ["", "accounts", "route", "guest-snap"]) {
     await page.goto(`${HOME}&view=${view}`);
     await expect(page.getByAltText(/웨딩 사진/)).toBeVisible();
     await expect(page.getByRole("link", { name: "축의금 계좌 안내" })).toHaveCount(0);
@@ -42,11 +42,14 @@ test.describe("하객 안내 공개 이후", () => {
   test("베스트샷 카드는 청첩장의 하객 사진 업로드로 바로 이동한다", async ({ page }) => {
     await page.goto(HOME);
     await page.getByRole("link", { name: "오늘의 베스트샷을 찾습니다!", exact: true }).click();
-    await expect(page).toHaveURL(/view=photos#guest-snap$/);
+    await expect(page).toHaveURL(/view=guest-snap$/);
     expect(new URL(page.url()).searchParams.get("key")).toBe(KEY);
     expect(new URL(page.url()).searchParams.get("via")).toBe("qr");
     await expect(page.locator("#guest-snap").getByRole("heading", { name: "하객 스냅" })).toBeInViewport();
     await expect(page.getByRole("button", { name: "앨범에서 고르기" })).toBeVisible();
+    await expect(page.getByAltText(/웨딩 사진/)).toHaveCount(0);
+    await page.getByRole("link", { name: "하객 안내로", exact: true }).click();
+    await expect(page.getByRole("link", { name: "오늘의 베스트샷을 찾습니다!", exact: true })).toBeVisible();
   });
 
   test("계좌 안내를 열면 실제 계좌가 펼쳐져 있고 번호를 복사할 수 있다", async ({ page }) => {
@@ -78,7 +81,7 @@ test.describe("하객 안내 공개 이후", () => {
   for (const width of [320, 390]) {
     test(`${width}px 큰 글씨에서도 안내와 세부 화면이 가로로 넘치지 않는다`, async ({ page }) => {
       await page.setViewportSize({ width, height: 844 });
-      for (const view of ["", "accounts", "route"]) {
+      for (const view of ["", "accounts", "route", "guest-snap"]) {
         await page.goto(`${HOME}&view=${view}`);
         await expect(page.getByRole("button", { name: "작은 글씨로 보기" })).toHaveAttribute("aria-pressed", "true");
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -88,7 +91,7 @@ test.describe("하객 안내 공개 이후", () => {
 
 });
 
-for (const view of ["accounts", "route", "photos"]) {
+for (const view of ["accounts", "route", "guest-snap", "photos"]) {
   test(`접근 키 없이 ${view} 화면으로 직접 들어가도 잠금이 유지된다`, async ({ page }) => {
     await page.goto(`/?view=${view}`);
     await expect(page.getByText("아직 공개 전이에요")).toBeVisible();
