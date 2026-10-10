@@ -8,9 +8,10 @@ import FadeIn from "@/components/FadeIn";
 import MessageFeed, { buildFeed } from "@/components/sections/MessageFeed";
 import JourneyMap from "@/components/sections/JourneyMap";
 import VerifyBadge from "@/components/sections/VerifyBadge";
+import PixelVillage from "@/components/sections/PixelVillage";
 import CelebrationForm from "@/components/sections/CelebrationForm";
 
-type ViewMode = "map" | "messages";
+type ViewMode = "map" | "messages" | "village";
 
 // 예식지(서울 용산) 기준 위치 — '가장 먼 곳' 계산용
 const SEOUL = SIDO_POS["서울"];
@@ -208,12 +209,20 @@ export default function Guestbook({
                   >
                     💬 메시지
                   </ToggleBtn>
+                  <ToggleBtn
+                    active={mode === "village"}
+                    onClick={() => setMode("village")}
+                  >
+                    🏘️ 마을
+                  </ToggleBtn>
                 </div>
               </FadeIn>
             )}
 
             <FadeIn>
-              {mapOnly || mode === "map" ? (
+              {!mapOnly && mode === "village" ? (
+                <PixelVillage items={feed} highlightId={mineId} />
+              ) : mapOnly || mode === "map" ? (
                 <>
                   {(() => {
                     const st = regionStats(celebrations);
@@ -283,7 +292,7 @@ function ToggleBtn({
     <button
       type="button"
       onClick={onClick}
-      className={`px-5 py-2 text-sm rounded-full transition-colors ${
+      className={`px-4 whitespace-nowrap py-2 text-sm rounded-full transition-colors ${
         active ? "bg-sage-600 text-white font-bold" : "text-neutral-500"
       }`}
     >
