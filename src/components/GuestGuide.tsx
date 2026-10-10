@@ -37,13 +37,11 @@ export default function GuestGuide({
             <>함께해 주실 날, 먼저 안내드려요.</>
           )}
         </h1>
-        <p className="mt-2 text-sm leading-relaxed text-sage-600">
-          {detail ? (
-            view === "accounts" ? "현장 축의대는 운영하지 않습니다. 축의금은 계좌 입금을 부탁드립니다." : `${parkingLot.name} → ${venue.name} 야외예식장`
-          ) : (
-            <>편안하게 오실 수 있도록 두 가지 안내를 준비했습니다.</>
-          )}
-        </p>
+        {detail && (
+          <p className="mt-2 text-sm leading-relaxed text-sage-600">
+            {view === "accounts" ? "현장 축의대는 운영하지 않습니다. 축의금은 계좌 입금을 부탁드립니다." : `${parkingLot.name} → ${venue.name} 야외예식장`}
+          </p>
+        )}
       </header>
 
       {view === "accounts" ? (
