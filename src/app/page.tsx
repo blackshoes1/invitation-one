@@ -14,10 +14,13 @@ import BgmToggle from "@/components/BgmToggle";
 import PostWeddingBanner from "@/components/PostWeddingBanner";
 import LockedGate from "@/components/LockedGate";
 import { cookies } from "next/headers";
-import { INVITATION_KEY } from "@/lib/wedding";
+import { GUEST_GUIDE_START, INVITATION_KEY } from "@/lib/wedding";
 import { INVITATION_COOKIE } from "@/lib/inviteAccess";
 import RememberInvitationKey from "@/components/RememberInvitationKey";
 import { issueUploadToken } from "@/lib/signedToken";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import GuestGuide from "@/components/GuestGuide";
 
 /**
  * Admin 업로드 메인 사진을 서버에서 미리 조회 (5분 캐시).
@@ -46,7 +49,7 @@ async function fetchHeroImage(): Promise<string | null> {
 }
 
 /**
- * 모바일 청첩장
+ * 모바일 청첩장: 10월 15일(한국시간)부터 하객 안내 → 사진 보기(?view=photos)
  * Hero → Greeting → Gallery → Album(세이브 더 데이트) → Location
  * → 💝 축하해준 사람들 → 마음 전하기
  * (Album 은 admin 콘텐츠 탭에서 사진을 넣어야 표시.
@@ -61,9 +64,9 @@ async function fetchHeroImage(): Promise<string | null> {
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ key?: string; via?: string }>;
+  searchParams: Promise<{ key?: string; via?: string; view?: string }>;
 }) {
-  const { key, via } = await searchParams;
+  const { key, via, view } = await searchParams;
 
   if (!INVITATION_KEY) {
     // 배포 시 NEXT_PUBLIC_INVITATION_KEY 설정을 깜빡하면 바로 눈치채도록 로그
@@ -78,6 +81,20 @@ export default async function Home({
     return <LockedGate />;
   }
 
+  const query = { ...(key ? { key } : {}), ...(via ? { via } : {}) };
+  // 동적으로 렌더링되는 서버 페이지에서 요청 시각을 기준으로 공개한다.
+  // eslint-disable-next-line react-hooks/purity
+  const guideActive = Date.now() >= GUEST_GUIDE_START.getTime();
+  if (guideActive && view !== "photos") {
+    return (
+      <main className="invitation-content min-h-screen bg-wedding-cream text-sage-800 font-sans antialiased">
+        <RememberInvitationKey />
+        <TextSizeToggle />
+        <GuestGuide view={view} query={query} />
+      </main>
+    );
+  }
+
   const qrEntry = via === "qr";
   const heroUrl = await fetchHeroImage();
 
@@ -87,6 +104,13 @@ export default async function Home({
       <TextSizeToggle />
       <BgmToggle />
       <PostWeddingBanner />
+      {guideActive && (
+        <div className="bg-wedding-cream px-6 pt-12 pb-4">
+          <Link href={{ pathname: "/", query }} className="mx-auto flex min-h-11 max-w-sm items-center gap-2 text-sm text-sage-700">
+            <ArrowLeft size={16} aria-hidden="true" /> 하객 안내로 돌아가기
+          </Link>
+        </div>
+      )}
       <Hero heroUrl={heroUrl} />
       <Greeting />
       <LoveStory />

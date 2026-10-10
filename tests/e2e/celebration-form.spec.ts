@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 const KEY = process.env.NEXT_PUBLIC_INVITATION_KEY ?? "ci-dummy-key";
 
-for (const path of ["/", `/?key=${KEY}`]) {
+for (const path of ["/", `/?key=${KEY}&view=photos`]) {
   test(`메인 ${path}에서 이름과 메시지만으로 축하를 남긴다`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.route("**/rest/v1/**", (route) => route.fulfill({ json: [] }));
@@ -52,7 +52,7 @@ test("공개 메시지 저장 후 피드가 즉시 갱신된다", async ({ page 
     created_at: "2026-09-10", rating: null, reply: null,
   }] : [] }));
   await page.route("**/api/celebrations", (route) => { saved = true; return route.fulfill({ json: { ok: true } }); });
-  await page.goto(`/?key=${KEY}`);
+  await page.goto(`/?key=${KEY}&view=photos`);
   const form = page.getByRole("form", { name: "축하 한마디 남기기" });
   await form.getByRole("textbox", { name: "이름", exact: true }).fill("홍길동");
   await form.getByRole("textbox", { name: "축하 한마디", exact: true }).fill("새 축하 메시지");

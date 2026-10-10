@@ -9,7 +9,7 @@ import { test, expect } from "@playwright/test";
  * 아예 없애버린다 — 화면에는 버튼이 그대로 보이므로 눈으로는 알아채기 어렵다.
  */
 const KEY = process.env.NEXT_PUBLIC_INVITATION_KEY ?? "ci-dummy-key";
-const HOME = `/?key=${encodeURIComponent(KEY)}`;
+const HOME = `/?key=${encodeURIComponent(KEY)}&view=photos`;
 
 test("찍기와 앨범 고르기 두 경로가 모두 있다", async ({ page }) => {
   await page.goto(HOME);

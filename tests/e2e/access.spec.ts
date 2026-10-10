@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { GUEST_GUIDE_START } from "../../src/lib/wedding";
 
 /**
  * E2E-1 청첩장 접근 (invitation key 게이트)
@@ -20,20 +21,28 @@ test("잘못된 키로 접근하면 잠금 화면이 보인다", async ({ page }
   await expect(page.getByText("아직 공개 전이에요")).toBeVisible();
 });
 
-test("정상 키로 접근하면 청첩장 본문이 렌더된다", async ({ page }) => {
+test("정상 키로 접근하면 공개 일정에 맞는 청첩장이 열린다", async ({ page }) => {
   await page.goto(`/?key=${encodeURIComponent(KEY)}`);
-  // 히어로(웨딩 사진)가 보이고 잠금 화면은 없다
+  if (Date.now() >= GUEST_GUIDE_START.getTime()) {
+    await expect(page.getByRole("link", { name: "계좌 확인하기" })).toBeVisible();
+    await expect(page.getByAltText(/웨딩 사진/)).toHaveCount(0);
+    await page.getByRole("link", { name: "사진 보기", exact: true }).click();
+  }
   await expect(page.getByAltText(/웨딩 사진/)).toBeVisible();
   await expect(page.getByText("아직 공개 전이에요")).toHaveCount(0);
 });
 
 test("한 번 열어본 기기는 키 없이 다시 들어와도 열린다", async ({ page }) => {
   await page.goto(`/?key=${encodeURIComponent(KEY)}`);
-  await expect(page.getByAltText(/웨딩 사진/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "작은 글씨로 보기" })).toBeVisible();
   // 링크를 잃어버리고 주소만 다시 여는 상황
   await page.goto("/");
-  await expect(page.getByAltText(/웨딩 사진/)).toBeVisible();
   await expect(page.getByText("아직 공개 전이에요")).toHaveCount(0);
+  if (Date.now() >= GUEST_GUIDE_START.getTime()) {
+    await expect(page.getByRole("link", { name: "계좌 확인하기" })).toBeVisible();
+    await page.getByRole("link", { name: "사진 보기", exact: true }).click();
+  }
+  await expect(page.getByAltText(/웨딩 사진/)).toBeVisible();
 });
 
 test("잠금 화면에서 '내 신청 찾기'로 복구할 수 있다", async ({ page }) => {

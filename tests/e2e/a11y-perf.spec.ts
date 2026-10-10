@@ -8,7 +8,7 @@ import { test, expect } from "@playwright/test";
  * 멈출 수 없게 되는 것, 모션 최소화 설정이 무시되는 것.
  */
 const KEY = process.env.NEXT_PUBLIC_INVITATION_KEY ?? "ci-dummy-key";
-const HOME = `/?key=${encodeURIComponent(KEY)}`;
+const HOME = `/?key=${encodeURIComponent(KEY)}&view=photos`;
 
 test("청첩장은 큰 글씨가 기본이고 작은 글씨 선택을 기억한다", async ({ page }) => {
   await page.goto(HOME);

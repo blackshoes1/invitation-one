@@ -78,8 +78,8 @@ function AccountRow({ acc }: { acc: Acct }) {
   );
 }
 
-function AccountAccordion({ title, accounts }: { title: string; accounts: Acct[] }) {
-  const [open, setOpen] = useState(false);
+function AccountAccordion({ title, accounts, initiallyOpen }: { title: string; accounts: Acct[]; initiallyOpen: boolean }) {
+  const [open, setOpen] = useState(initiallyOpen);
   // 펼친 영역과 버튼을 aria-controls 로 이어 준다 (스크린리더가 관계를 읽도록)
   const panelId = useId();
   return (
@@ -119,7 +119,7 @@ function AccountAccordion({ title, accounts }: { title: string; accounts: Acct[]
   );
 }
 
-export default function Account() {
+export default function Account({ initiallyOpen = false }: { initiallyOpen?: boolean }) {
   return (
     <section className="px-6 py-12 bg-wedding-cream border-t border-wedding-gold/10">
       <div className="max-w-sm mx-auto space-y-10 text-center">
@@ -153,8 +153,8 @@ export default function Account() {
         </FadeIn>
 
         <FadeIn className="space-y-3">
-          {/* 신랑·신부 통합 계좌 — 아코디언 하나로 안내 */}
-          <AccountAccordion title="마음 전하기 · 계좌 보기" accounts={accounts} />
+          {/* 신랑·신부 계좌를 아코디언 하나로 안내 */}
+          <AccountAccordion title="마음 전하기 · 계좌 보기" accounts={accounts} initiallyOpen={initiallyOpen} />
         </FadeIn>
       </div>
     </section>

@@ -25,6 +25,9 @@ export interface Account {
 /** 예식 일시 (로컬 기준) */
 export const WEDDING_DATE = new Date(2026, 9, 18, 11, 0); // 2026-10-18 11:00 (월은 0-base)
 
+/** 하객 안내 첫 화면 공개 시각 (한국시간, 서버 시간대와 무관) */
+export const GUEST_GUIDE_START = new Date("2026-10-15T00:00:00+09:00");
+
 export const groom: Person = {
   name: "성근영",
   mother: "김도윤",
@@ -123,13 +126,19 @@ export const parkingLot = {
   },
 };
 
-/** 마음 전하기 계좌 — 신랑·신부 통합 (카카오뱅크) */
+/** 마음 전하기 계좌 — 신랑·신부 각각 안내 (카카오뱅크) */
 export const accounts: Account[] = [
   {
-    role: "신랑 · 신부",
-    name: `${groom.name} · ${bride.name}`,
+    role: "신랑",
+    name: groom.name,
     bank: "카카오뱅크",
     number: "3333-37-8660608",
+  },
+  {
+    role: "신부",
+    name: bride.name,
+    bank: "카카오뱅크",
+    number: "3333-28-8939945",
   },
 ];
 
