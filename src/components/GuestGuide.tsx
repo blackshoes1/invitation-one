@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, ArrowUpRight, Flower2, Footprints, Images, MapPin, ParkingCircle, Wallet } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, Footprints, Images, MapPin, ParkingCircle, Wallet } from "lucide-react";
 import Account from "@/components/sections/Account";
 import ParkingRouteMap from "@/components/ParkingRouteMap";
 import ShareButton from "@/components/ShareButton";
@@ -18,14 +18,10 @@ export default function GuestGuide({
 
   return (
     <div className="mx-auto max-w-[440px] px-6 pt-6 pb-8">
-      {detail ? (
+      {detail && (
         <Link href={{ pathname: "/", query }} className="inline-flex min-h-11 items-center gap-2 text-sm text-sage-700">
           <ArrowLeft size={16} aria-hidden="true" /> 하객 안내로
         </Link>
-      ) : (
-        <p className="flex items-center gap-2 font-serif text-xs tracking-[0.12em] text-sage-600">
-          <Flower2 size={15} aria-hidden="true" /> OUR WEDDING
-        </p>
       )}
 
       <header className="pt-4 pb-4">
