@@ -17,7 +17,7 @@ export default function GuestGuide({
   const detail = view === "accounts" || view === "route";
 
   return (
-    <div className="mx-auto max-w-[440px] px-6 pt-12 pb-8">
+    <div className="mx-auto max-w-[440px] px-6 pt-6 pb-8">
       {detail ? (
         <Link href={{ pathname: "/", query }} className="inline-flex min-h-11 items-center gap-2 text-sm text-sage-700">
           <ArrowLeft size={16} aria-hidden="true" /> 하객 안내로
@@ -28,24 +28,24 @@ export default function GuestGuide({
         </p>
       )}
 
-      <header className="pt-8 pb-7">
-        <p className="mb-3 text-xs tracking-[0.12em] text-sage-600">
+      <header className="pt-4 pb-4">
+        <p className="mb-2 text-xs tracking-[0.12em] text-sage-600">
           {view === "accounts" ? "마음 전하실 곳" : view === "route" ? "주차 후 이동 안내" : "소중한 하객 여러분께"}
         </p>
-        <h1 className="font-serif text-[1.8rem] leading-[1.55] tracking-tight">
+        <h1 className="font-serif text-xl leading-[1.35] tracking-tight">
           {view === "accounts" ? (
             <>마음 전하기</>
           ) : view === "route" ? (
-            <>주차장에서<br />예식장까지 안내드려요.</>
+            <>주차장에서 예식장까지 안내드려요.</>
           ) : (
-            <>함께해 주실 날,<br />먼저 안내드려요.</>
+            <>함께해 주실 날, 먼저 안내드려요.</>
           )}
         </h1>
-        <p className="mt-4 text-sm leading-relaxed text-sage-600">
+        <p className="mt-2 text-sm leading-relaxed text-sage-600">
           {detail ? (
             view === "accounts" ? "현장 축의대는 운영하지 않습니다. 축의금은 계좌 입금을 부탁드립니다." : `${parkingLot.name} → ${venue.name} 야외예식장`
           ) : (
-            <>편안하게 오실 수 있도록<br />두 가지 안내를 준비했습니다.</>
+            <>편안하게 오실 수 있도록 두 가지 안내를 준비했습니다.</>
           )}
         </p>
       </header>
@@ -83,35 +83,35 @@ export default function GuestGuide({
           </article>
         </section>
       ) : (
-        <section aria-label="꼭 확인해 주세요" className="space-y-4">
-          <article className="rounded-2xl border border-sage-200 bg-white p-5">
-            <div className="mb-4 flex items-center justify-between text-sage-600">
-              <p className="text-xs tracking-wide">마음 전하실 곳</p><span className="font-serif text-2xl">01</span>
+        <section aria-label="꼭 확인해 주세요" className="space-y-3">
+          <article className="rounded-2xl border border-sage-200 bg-white p-4">
+            <div className="mb-2 flex items-center justify-between text-sage-600">
+              <p className="text-xs tracking-wide">마음 전하실 곳</p><span className="font-serif text-sm">01</span>
             </div>
-            <h2 className="text-xl font-medium leading-relaxed">축의대는<br />운영하지 않습니다.</h2>
-            <p className="mt-3 text-sm leading-relaxed text-sage-600">별도의 현장 접수는 없어요.<br />축의금은 아래 계좌로 보내주시면<br />감사하겠습니다.</p>
-            <Link href={{ pathname: "/", query: { ...query, view: "accounts" } }} className={`${actionClass} mt-5`}>
+            <h2 className="text-base font-medium leading-snug">축의대는 운영하지 않습니다.</h2>
+            <p className="mt-2 text-sm leading-relaxed text-sage-600">별도의 현장 접수는 없어요. 축의금은 아래 계좌로 보내주시면 감사하겠습니다.</p>
+            <Link href={{ pathname: "/", query: { ...query, view: "accounts" } }} className={`${actionClass} mt-3`}>
               <Wallet size={16} aria-hidden="true" /> 계좌 확인하기 <ArrowUpRight size={16} aria-hidden="true" />
             </Link>
           </article>
-          <article className="rounded-2xl border border-sage-200 bg-white p-5">
-            <div className="mb-4 flex items-center justify-between text-sage-600">
-              <p className="text-xs tracking-wide">오시는 길</p><span className="font-serif text-2xl">02</span>
+          <article className="rounded-2xl border border-sage-200 bg-white p-4">
+            <div className="mb-2 flex items-center justify-between text-sage-600">
+              <p className="text-xs tracking-wide">오시는 길</p><span className="font-serif text-sm">02</span>
             </div>
-            <h2 className="text-xl font-medium leading-relaxed">주차 후, 예식장까지<br />이렇게 오세요.</h2>
-            <p className="mt-3 text-sm leading-relaxed text-sage-600">{parkingLot.name}에 주차 후<br />{venue.name} 야외예식장으로 이동해 주세요.</p>
-            <div className="mt-4 flex items-center justify-between gap-2 text-xs text-sage-700" aria-label="주차장, 이동 경로, 예식장 순서">
+            <h2 className="text-base font-medium leading-snug">주차 후, 예식장까지 이렇게 오세요.</h2>
+            <p className="mt-2 text-sm leading-relaxed text-sage-600">{parkingLot.name}에 주차 후 {venue.name} 야외예식장으로 이동해 주세요.</p>
+            <div className="mt-3 flex items-center justify-between gap-2 text-xs text-sage-700" aria-label="주차장, 이동 경로, 예식장 순서">
               <span className="inline-flex items-center gap-1"><ParkingCircle size={14} aria-hidden="true" />주차장</span><ArrowRight size={14} aria-hidden="true" />
               <span>이동 경로</span><ArrowRight size={14} aria-hidden="true" /><span className="inline-flex items-center gap-1"><MapPin size={14} aria-hidden="true" />예식장</span>
             </div>
-            <Link href={{ pathname: "/", query: { ...query, view: "route" } }} className={`${actionClass} mt-5`}>
+            <Link href={{ pathname: "/", query: { ...query, view: "route" } }} className={`${actionClass} mt-3`}>
               <Footprints size={16} aria-hidden="true" /> 주차장 → 예식장 길 안내 <ArrowUpRight size={16} aria-hidden="true" />
             </Link>
           </article>
         </section>
       )}
 
-      <div className="mt-7 border-t border-sage-200 pt-6 text-center">
+      <div className="mt-5 border-t border-sage-200 pt-4 text-center">
         <p className="mb-3 text-sm text-sage-600">저희의 이야기도 만나보세요.</p>
         <Link href={{ pathname: "/", query: { ...query, view: "photos" } }} prefetch={false} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-sage-700 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-sage-800">
           <Images size={17} aria-hidden="true" /> 사진 보기 <ArrowRight size={16} aria-hidden="true" />
