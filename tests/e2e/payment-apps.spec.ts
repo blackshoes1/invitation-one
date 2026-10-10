@@ -6,14 +6,20 @@ test("account offers only copying, without payment app links", async ({ page }) 
       document.documentElement.dataset.copiedAccount = text;
     } } });
   });
-  await page.goto("/?key=ci-dummy-key");
-  await page.getByRole("button", { name: "마음 전하기 · 계좌 보기" }).click();
+  await page.goto("/?key=ci-dummy-key&view=photos");
+  await expect(page.getByRole("button", { name: "마음 전하기", exact: true })).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByRole("link", { name: /카카오페이|토스로 보내기|설치 안내/ })).toHaveCount(0);
   const copy = page.getByRole("button", { name: /계좌번호 복사/ });
-  await expect(copy).toHaveCount(1);
-  await copy.click();
+  await expect(copy).toHaveCount(2);
+  await page.getByRole("button", { name: "성근영 계좌번호 복사" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-copied-account", "3333-37-8660608");
   await expect(page.getByText("계좌번호를 복사했어요. 은행 앱에서 이체해주세요.")).toBeVisible();
+  await page.getByRole("button", { name: "김아영 계좌번호 복사" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-copied-account", "3333-28-8939945");
+  await expect(page.getByText("복사한 계좌번호로 이체해주세요.", { exact: true })).toHaveCount(1);
+  const order = await page.locator("section").filter({ has: page.getByRole("button", { name: "마음 전하기", exact: true }) }).innerText();
+  expect(order.indexOf("신랑 계좌정보")).toBeLessThan(order.indexOf("신부 계좌정보"));
+  expect(order.indexOf("신부 계좌정보")).toBeLessThan(order.indexOf("복사한 계좌번호로 이체해주세요."));
   await expect(page).toHaveURL(/\?key=ci-dummy-key/);
 });
 
@@ -24,9 +30,8 @@ test("mobile copy failure keeps account visible without navigation", async ({ br
     Object.defineProperty(navigator, "clipboard", { value: { writeText: async () => { throw new Error("denied"); } } });
     document.execCommand = () => false;
   });
-  await page.goto("/?key=ci-dummy-key");
-  await page.getByRole("button", { name: "마음 전하기 · 계좌 보기" }).click();
-  await page.getByRole("button", { name: /계좌번호 복사/ }).click();
+  await page.goto("/?key=ci-dummy-key&view=photos");
+  await page.getByRole("button", { name: "성근영 계좌번호 복사" }).click();
   await expect(page.getByText("복사하지 못했어요. 위 계좌번호를 직접 입력해주세요.")).toBeVisible();
   await expect(page.getByText("3333-37-8660608", { exact: true })).toBeVisible();
   await expect(page).toHaveURL(/\?key=ci-dummy-key/);

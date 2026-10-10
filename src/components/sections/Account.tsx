@@ -48,7 +48,7 @@ function AccountRow({ acc }: { acc: Acct }) {
       <div className="flex justify-between items-center">
         <div className="space-y-1">
           <p className="text-[11px] text-wedding-gold font-medium tracking-wider">
-            {acc.role}
+            {acc.role} 계좌정보
             <span className="text-sage-700 font-light ml-1">{acc.name}</span>
           </p>
           <p className="text-sm font-light tracking-wide text-sage-700">
@@ -67,8 +67,6 @@ function AccountRow({ acc }: { acc: Acct }) {
           복사
         </button>
       </div>
-
-      <p className="text-xs text-neutral-600 leading-relaxed">복사한 계좌번호로 은행 앱에서 카카오뱅크 계좌에 이체해주세요.</p>
 
       {/* 복사 완료 등 짧은 안내 — 스크린리더에도 전달되도록 라이브 영역으로 둔다 */}
       <p className="text-[11px] text-sage-600 text-center" role="status">
@@ -112,6 +110,7 @@ function AccountAccordion({ title, accounts, initiallyOpen }: { title: string; a
             {accounts.map((acc, i) => (
               <AccountRow key={i} acc={acc} />
             ))}
+            <p className="pt-4 text-xs text-neutral-600 leading-relaxed">복사한 계좌번호로 이체해주세요.</p>
           </div>
         </div>
       </div>
@@ -119,7 +118,7 @@ function AccountAccordion({ title, accounts, initiallyOpen }: { title: string; a
   );
 }
 
-export default function Account({ initiallyOpen = false }: { initiallyOpen?: boolean }) {
+export default function Account({ initiallyOpen = true }: { initiallyOpen?: boolean }) {
   return (
     <section className="px-6 py-12 bg-wedding-cream border-t border-wedding-gold/10">
       <div className="max-w-sm mx-auto space-y-10 text-center">
@@ -154,7 +153,7 @@ export default function Account({ initiallyOpen = false }: { initiallyOpen?: boo
 
         <FadeIn className="space-y-3">
           {/* 신랑·신부 계좌를 아코디언 하나로 안내 */}
-          <AccountAccordion title="마음 전하기 · 계좌 보기" accounts={accounts} initiallyOpen={initiallyOpen} />
+          <AccountAccordion title="마음 전하기" accounts={accounts} initiallyOpen={initiallyOpen} />
         </FadeIn>
       </div>
     </section>

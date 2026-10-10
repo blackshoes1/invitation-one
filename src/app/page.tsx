@@ -82,9 +82,9 @@ export default async function Home({
   }
 
   const query = { ...(key ? { key } : {}), ...(via ? { via } : {}) };
-  // 동적으로 렌더링되는 서버 페이지에서 요청 시각을 기준으로 공개한다.
+  // 미리보기 배포에서는 즉시 공개하고, 운영은 요청 시각을 기준으로 공개한다.
   // eslint-disable-next-line react-hooks/purity
-  const guideActive = Date.now() >= GUEST_GUIDE_START.getTime();
+  const guideActive = process.env.VERCEL_ENV === "preview" || Date.now() >= GUEST_GUIDE_START.getTime();
   if (guideActive && view !== "photos") {
     return (
       <main className="invitation-content min-h-screen bg-wedding-cream text-sage-800 font-sans antialiased">

@@ -3,9 +3,10 @@ import { accounts, GUEST_GUIDE_START, parkingLot, venue } from "../../src/lib/we
 
 const KEY = process.env.NEXT_PUBLIC_INVITATION_KEY ?? "ci-dummy-key";
 const HOME = `/?key=${encodeURIComponent(KEY)}&via=qr`;
+const GUIDE_ACTIVE = process.env.VERCEL_ENV === "preview" || Date.now() >= GUEST_GUIDE_START.getTime();
 
 test("공개 전에는 안내 URL로 들어가도 기존 청첩장이 바로 열린다", async ({ page }) => {
-  test.skip(Date.now() >= GUEST_GUIDE_START.getTime(), "하객 안내 공개 전 동작 검증");
+  test.skip(GUIDE_ACTIVE, "하객 안내 공개 전 동작 검증");
   for (const view of ["", "accounts", "route"]) {
     await page.goto(`${HOME}&view=${view}`);
     await expect(page.getByAltText(/웨딩 사진/)).toBeVisible();
@@ -15,7 +16,7 @@ test("공개 전에는 안내 URL로 들어가도 기존 청첩장이 바로 열
 });
 
 test.describe("하객 안내 공개 이후", () => {
-  test.skip(Date.now() < GUEST_GUIDE_START.getTime(), "2026년 10월 15일 0시(KST) 이후 공개되는 화면");
+  test.skip(!GUIDE_ACTIVE, "미리보기 배포 또는 2026년 10월 15일 0시(KST) 이후 공개되는 화면");
 
   test("첫 안내에서 필수 정보를 보여주고 사진은 열기 전까지 받지 않는다", async ({ page }) => {
     const photoRequests: string[] = [];

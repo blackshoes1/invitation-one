@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Children, isValidElement } from "react";
 import Home from "@/app/page";
 import GuestGuide from "@/components/GuestGuide";
@@ -12,9 +12,23 @@ vi.mock("@/lib/wedding", async (importOriginal) => ({
   INVITATION_KEY: "schedule-test-key",
 }));
 
-afterEach(() => vi.useRealTimers());
+beforeEach(() => vi.stubEnv("VERCEL_ENV", "production"));
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllEnvs();
+});
 
 describe("하객 안내 공개 일정", () => {
+  it("미리보기 배포에서는 공개 전에도 하객 안내를 볼 수 있다", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-10T12:00:00+09:00"));
+    const page = await Home({ searchParams: Promise.resolve({ key: "schedule-test-key" }) });
+    const types = Children.toArray(page.props.children).filter(isValidElement).map(child => child.type);
+    expect(types).toContain(GuestGuide);
+    expect(types).not.toContain(Hero);
+  });
+
   it.each([
     ["2026-10-14T23:59:59.999+09:00", false],
     ["2026-10-15T00:00:00+09:00", true],

@@ -34,7 +34,7 @@ export default function GuestGuide({
         </p>
         <h1 className="font-serif text-[1.8rem] leading-[1.55] tracking-tight">
           {view === "accounts" ? (
-            <>축하의 마음,<br />감사히 받겠습니다.</>
+            <>마음 전하기</>
           ) : view === "route" ? (
             <>주차장에서<br />예식장까지 안내드려요.</>
           ) : (
