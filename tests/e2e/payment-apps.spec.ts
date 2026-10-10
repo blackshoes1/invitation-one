@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
+import { accounts } from "../../src/lib/wedding";
 
-test("account offers only copying, without payment app links", async ({ page }) => {
+test("account keeps copying and links each configured KakaoPay recipient", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "clipboard", { value: { writeText: async (text: string) => {
       document.documentElement.dataset.copiedAccount = text;
@@ -8,7 +9,16 @@ test("account offers only copying, without payment app links", async ({ page }) 
   });
   await page.goto("/?key=ci-dummy-key&view=photos");
   await expect(page.getByRole("button", { name: "마음 전하기", exact: true })).toHaveAttribute("aria-expanded", "true");
-  await expect(page.getByRole("link", { name: /카카오페이|토스로 보내기|설치 안내/ })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /토스로 보내기|설치 안내/ })).toHaveCount(0);
+  for (const account of accounts) {
+    const pay = page.getByRole("link", { name: `${account.name} 카카오페이 송금하기`, exact: true });
+    if (account.kakaoPayUrl) {
+      await expect(pay).toHaveAttribute("href", account.kakaoPayUrl);
+      await expect(pay).toHaveAttribute("target", "_blank");
+    } else {
+      await expect(pay).toHaveCount(0);
+    }
+  }
   const copy = page.getByRole("button", { name: /계좌번호 복사/ });
   await expect(copy).toHaveCount(2);
   await page.getByRole("button", { name: "성근영 계좌번호 복사" }).click();

@@ -68,6 +68,21 @@ function AccountRow({ acc }: { acc: Acct }) {
         </button>
       </div>
 
+      {acc.kakaoPayUrl && (
+        <div className="space-y-2">
+          <a
+            href={acc.kakaoPayUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`${acc.name} 카카오페이 송금하기`}
+            className="flex min-h-11 items-center justify-center rounded-lg bg-[#FEE500] px-4 py-3 text-sm font-medium text-[#191919] hover:bg-[#FADA0A] transition-colors"
+          >
+            카카오페이 송금하기
+          </a>
+          <p className="text-[11px] text-neutral-500 text-center">카카오페이 머니로 전달됩니다.</p>
+        </div>
+      )}
+
       {/* 복사 완료 등 짧은 안내 — 스크린리더에도 전달되도록 라이브 영역으로 둔다 */}
       <p className="text-[11px] text-sage-600 text-center" role="status">
         {toast && <span className="fade-in-soft inline-block">{toast}</span>}
