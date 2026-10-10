@@ -133,12 +133,14 @@ export const accounts: Account[] = [
     name: groom.name,
     bank: "카카오뱅크",
     number: "3333-37-8660608",
+    kakaoPayUrl: "https://qr.kakaopay.com/Ej7kfQhHh",
   },
   {
     role: "신부",
     name: bride.name,
     bank: "카카오뱅크",
     number: "3333-28-8939945",
+    kakaoPayUrl: "https://qr.kakaopay.com/FVamvLQ9w",
   },
 ];
 
