@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, ArrowUpRight, Footprints, Images, MapPin, ParkingCircle, Wallet } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, ChevronRight, Images, ParkingCircle } from "lucide-react";
 import Account from "@/components/sections/Account";
 import ParkingRouteMap from "@/components/ParkingRouteMap";
 import ShareButton from "@/components/ShareButton";
@@ -16,39 +16,75 @@ export default function GuestGuide({
 }) {
   const detail = view === "accounts" || view === "route";
 
+  if (!detail) {
+    return (
+      <div className="min-h-screen bg-[#354b31] bg-[radial-gradient(ellipse_at_top_left,#455c3b80,transparent_60%),radial-gradient(ellipse_at_bottom_right,#263c2780,transparent_60%)] text-[#faf9f5]">
+        <div className="mx-auto max-w-[440px] px-[22px] pt-[64px] pb-7">
+          <header className="px-3 pb-5">
+            <p className="font-serif text-[11px] leading-normal tracking-[0.12em]">{formatFullDate()} · {formatTime()}</p>
+            <h1 className="mt-6 font-serif text-[clamp(1.5rem,8.5vw,2rem)] leading-[1.45] tracking-tight">
+              <span className="block font-light">예식 전,</span>
+              <span className="block font-semibold">꼭 확인해 주세요.</span>
+            </h1>
+            <p className="mt-4 font-serif text-[14px] leading-relaxed text-white/90">하객 여러분을 위한 예식 당일 안내입니다.</p>
+          </header>
+
+          <nav aria-label="예식 당일 안내" className="space-y-[10px]">
+            <Link href={{ pathname: "/", query: { ...query, view: "accounts" } }} aria-label="축의금 계좌 안내" className="relative block rounded-[15px] bg-[#faf9f6] px-[22px] py-[20px] text-[#111511] transition-colors hover:bg-white">
+              <p className="font-serif text-[14px] leading-tight text-[#455c3c]">01</p>
+              <h2 className="mt-1.5 pr-5 font-serif text-[clamp(16px,4.7vw,22px)] font-semibold leading-relaxed">축의금 계좌 안내</h2>
+              <p className="mt-1.5 text-[14px] leading-[1.5] text-[#6c7077]">현장 축의대는 운영하지 않습니다.</p>
+              <ChevronRight size={24} aria-hidden="true" className="absolute top-1/2 right-4 -translate-y-1/2 text-[#455c3c]" />
+            </Link>
+            <Link href={{ pathname: "/", query: { ...query, view: "route" } }} aria-label="예식장 오시는 길" className="relative block rounded-[15px] bg-[#faf9f6] px-[22px] py-[20px] text-[#111511] transition-colors hover:bg-white">
+              <p className="font-serif text-[14px] leading-tight text-[#455c3c]">02</p>
+              <h2 className="mt-1.5 pr-5 font-serif text-[clamp(16px,4.7vw,22px)] font-semibold leading-relaxed">예식장 오시는 길</h2>
+              <p className="mt-1.5 text-[14px] leading-[1.5] text-[#6c7077]">주차장에서 예식장까지 오시는 길을 안내해 드려요.</p>
+              <ChevronRight size={24} aria-hidden="true" className="absolute top-1/2 right-4 -translate-y-1/2 text-[#455c3c]" />
+            </Link>
+            <Link href={{ pathname: "/", query: { ...query, view: "photos" }, hash: "guest-snap" }} prefetch={false} aria-label="오늘의 베스트샷을 찾습니다!" className="relative block rounded-[15px] bg-[#faf9f6] px-[22px] py-[20px] text-[#111511] transition-colors hover:bg-white">
+              <p className="font-serif text-[14px] leading-tight text-[#455c3c]">03</p>
+              <h2 className="mt-1.5 pr-5 font-serif text-[clamp(16px,4.7vw,22px)] font-semibold leading-relaxed">오늘의 베스트샷을 찾습니다!</h2>
+              <p className="mt-1.5 text-[14px] leading-[1.5] text-[#6c7077]">사진을 올려주시는 분들 중<br />첫 업로드와 베스트샷에 선물을 드려요.</p>
+              <ChevronRight size={24} aria-hidden="true" className="absolute top-1/2 right-4 -translate-y-1/2 text-[#455c3c]" />
+            </Link>
+          </nav>
+
+          <Link href={{ pathname: "/", query: { ...query, view: "photos" } }} prefetch={false} className="mt-4 flex min-h-[52px] items-center justify-center gap-3 rounded-full bg-[#ffffff24] px-4 py-3 text-[16px] transition-colors hover:bg-white/20">
+            모바일 청첩장 보러가기 <ArrowRight size={22} aria-hidden="true" />
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-[440px] px-6 pt-6 pb-8">
-      {detail && (
-        <Link href={{ pathname: "/", query }} className="inline-flex min-h-11 items-center gap-2 text-sm text-sage-700">
-          <ArrowLeft size={16} aria-hidden="true" /> 하객 안내로
-        </Link>
-      )}
+      <Link href={{ pathname: "/", query }} className="inline-flex min-h-11 items-center gap-2 text-sm text-sage-700">
+        <ArrowLeft size={16} aria-hidden="true" /> 하객 안내로
+      </Link>
 
       <header className="pt-4 pb-4">
         <p className="mb-2 text-xs tracking-[0.12em] text-sage-600">
-          {view === "accounts" ? "마음 전하실 곳" : view === "route" ? "주차 후 이동 안내" : "소중한 하객 여러분께"}
+          {view === "accounts" ? "마음 전하실 곳" : "주차 후 이동 안내"}
         </p>
         <h1 className="font-serif text-xl leading-[1.35] tracking-tight">
           {view === "accounts" ? (
             <>마음 전하기</>
-          ) : view === "route" ? (
-            <>주차장에서 예식장까지 안내드려요.</>
           ) : (
-            <>함께해 주실 날, 먼저 안내드려요.</>
+            <>주차장에서 예식장까지 안내드려요.</>
           )}
         </h1>
-        {detail && (
-          <p className="mt-2 text-sm leading-relaxed text-sage-600">
-            {view === "accounts" ? "현장 축의대는 운영하지 않습니다. 축의금은 계좌 입금을 부탁드립니다." : `${parkingLot.name} → ${venue.name} 야외예식장`}
-          </p>
-        )}
+        <p className="mt-2 text-sm leading-relaxed text-sage-600">
+          {view === "accounts" ? "현장 축의대는 운영하지 않습니다. 축의금은 계좌 입금을 부탁드립니다." : `${parkingLot.name} → ${venue.name} 야외예식장`}
+        </p>
       </header>
 
       {view === "accounts" ? (
         <div className="overflow-hidden rounded-2xl border border-sage-200">
           <Account initiallyOpen />
         </div>
-      ) : view === "route" ? (
+      ) : (
         <section aria-label="주차장부터 예식장까지 이동 안내" className="space-y-5">
           <article className="rounded-2xl border border-sage-200 bg-white p-5">
             <p className="mb-2 text-xs tracking-wider text-sage-600">01 · 주차 위치</p>
@@ -74,33 +110,6 @@ export default function GuestGuide({
             <h2 className="text-lg font-medium">{venue.name} 야외예식장</h2>
             <p className="mt-2 text-sm leading-relaxed text-sage-600">{venue.address}</p>
             <a href={`tel:${venue.tel}`} className="mt-4 inline-flex min-h-11 items-center text-sm text-sage-700 underline underline-offset-4">예식장 문의 · {venue.tel}</a>
-          </article>
-        </section>
-      ) : (
-        <section aria-label="꼭 확인해 주세요" className="space-y-3">
-          <article className="rounded-2xl border border-sage-200 bg-white p-4">
-            <div className="mb-2 flex items-center justify-between text-sage-600">
-              <p className="text-xs tracking-wide">마음 전하실 곳</p><span className="font-serif text-sm">01</span>
-            </div>
-            <h2 className="text-base font-medium leading-snug">축의대는 운영하지 않습니다.</h2>
-            <p className="mt-2 text-sm leading-relaxed text-sage-600">별도의 현장 접수는 없어요. 축의금은 아래 계좌로 보내주시면 감사하겠습니다.</p>
-            <Link href={{ pathname: "/", query: { ...query, view: "accounts" } }} className={`${actionClass} mt-3`}>
-              <Wallet size={16} aria-hidden="true" /> 계좌 확인하기 <ArrowUpRight size={16} aria-hidden="true" />
-            </Link>
-          </article>
-          <article className="rounded-2xl border border-sage-200 bg-white p-4">
-            <div className="mb-2 flex items-center justify-between text-sage-600">
-              <p className="text-xs tracking-wide">오시는 길</p><span className="font-serif text-sm">02</span>
-            </div>
-            <h2 className="text-base font-medium leading-snug">주차 후, 예식장까지 이렇게 오세요.</h2>
-            <p className="mt-2 text-sm leading-relaxed text-sage-600">{parkingLot.name}에 주차 후 {venue.name} 야외예식장으로 이동해 주세요.</p>
-            <div className="mt-3 flex items-center justify-between gap-2 text-xs text-sage-700" aria-label="주차장, 이동 경로, 예식장 순서">
-              <span className="inline-flex items-center gap-1"><ParkingCircle size={14} aria-hidden="true" />주차장</span><ArrowRight size={14} aria-hidden="true" />
-              <span>이동 경로</span><ArrowRight size={14} aria-hidden="true" /><span className="inline-flex items-center gap-1"><MapPin size={14} aria-hidden="true" />예식장</span>
-            </div>
-            <Link href={{ pathname: "/", query: { ...query, view: "route" } }} className={`${actionClass} mt-3`}>
-              <Footprints size={16} aria-hidden="true" /> 주차장 → 예식장 길 안내 <ArrowUpRight size={16} aria-hidden="true" />
-            </Link>
           </article>
         </section>
       )}
