@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, ArrowUpRight, ChevronRight, Images, ParkingCircle } from "lucide-react";
 import Account from "@/components/sections/Account";
+import GroomCallButton from "@/components/GroomCallButton";
 import ParkingRouteMap from "@/components/ParkingRouteMap";
 import ShareButton from "@/components/ShareButton";
 import { bride, groom, parkingLot, venue, formatFullDate, formatTime } from "@/lib/wedding";
@@ -109,7 +110,7 @@ export default function GuestGuide({
             <p className="mb-2 text-xs tracking-wider text-sage-600">03 · 예식장 도착</p>
             <h2 className="text-lg font-medium">{venue.name} 야외예식장</h2>
             <p className="mt-2 text-sm leading-relaxed text-sage-600">{venue.address}</p>
-            <a href={`tel:${venue.tel}`} className="mt-4 inline-flex min-h-11 items-center text-sm text-sage-700 underline underline-offset-4">예식장 문의 · {venue.tel}</a>
+            <GroomCallButton className="mt-4 min-h-11 rounded-xl border border-sage-300 px-4 text-sm text-sage-700" />
           </article>
         </section>
       )}
