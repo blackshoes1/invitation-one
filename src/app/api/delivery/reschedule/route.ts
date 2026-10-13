@@ -1,3 +1,4 @@
+import { collectionGuard } from "@/lib/privacy";
 import { NextResponse } from "next/server";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
 import { sendSms, isSmsConfigured } from "@/lib/sms";
@@ -18,6 +19,8 @@ import { rateLimitAllow, clientIp } from "@/lib/rateLimit";
  *   나갈 때(SOLAPI 설정)만 회전해, 미설정 환경에서 기존 링크가 죽는 일을 막는다.
  */
 export async function POST(req: Request) {
+  const closed = collectionGuard();
+  if (closed) return closed;
   const body = (await req.json().catch(() => ({}))) as {
     token?: string;
     date?: string;

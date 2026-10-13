@@ -20,7 +20,7 @@ for (const width of [320, 390, 1280]) {
     await expect(page.getByRole("heading", { name: "캘린더", exact: true })).toBeVisible();
     if (width < 1024) await page.getByRole("button", { name: "메뉴 열기" }).click();
     const nav = page.getByRole("navigation", { name: "관리자 메뉴" });
-    await expect(nav.getByRole("button")).toHaveCount(10);
+    await expect(nav.getByRole("button")).toHaveCount(11);
     await page.getByRole("button", { name: "그룹", exact: true }).click();
     await expect(page.getByRole("heading", { name: "그룹", exact: true })).toBeVisible();
     if (width < 1024) await expect(page.getByRole("button", { name: "메뉴 열기" })).toHaveAttribute("aria-expanded", "false");

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { collectionGuard } from "@/lib/privacy";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
 import { hashManageToken } from "@/lib/manageToken";
 import { rateLimitAllow, clientIp } from "@/lib/rateLimit";
@@ -9,6 +10,8 @@ import { INVITE_TOKEN_RE, maskPhone } from "@/lib/invite";
  * 실제 연락처는 내려가지 않는다 (마스킹). 제출 시 RPC 가 토큰으로 채움.
  */
 export async function GET(req: Request) {
+  const closed = collectionGuard();
+  if (closed) return closed;
   if (!isAdminConfigured || !supabaseAdmin)
     return NextResponse.json({ error: "server_not_configured" }, { status: 503 });
   const t = new URL(req.url).searchParams.get("i") ?? "";

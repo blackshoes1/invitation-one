@@ -135,6 +135,7 @@ export default async function Home({
       <Account />
       <footer className="bg-wedding-cream px-6 pt-2 pb-16 text-center">
         <ShareButton />
+      <a href="/privacy" className="mt-3 inline-block text-xs underline underline-offset-2">개인정보 처리 안내</a>
       </footer>
     </main>
   );

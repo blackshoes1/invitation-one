@@ -1,3 +1,4 @@
+import { collectionGuard } from "@/lib/privacy";
 import { NextResponse } from "next/server";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
 import { rateLimitAllow, clientIp } from "@/lib/rateLimit";
@@ -25,6 +26,8 @@ import type { RosterName } from "@/lib/roster";
  * 여기서만 service_role 로 읽고 **이름만** 걸러 내보낸다.
  */
 export async function GET(req: Request) {
+  const closed = collectionGuard();
+  if (closed) return closed;
   if (!isAdminConfigured || !supabaseAdmin)
     return NextResponse.json({ error: "server_not_configured" }, { status: 503 });
 

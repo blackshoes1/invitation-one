@@ -90,7 +90,8 @@ export type View =
   | "messages"
   | "content"
   | "snap"
-  | "field";
+  | "field"
+  | "privacy";
 
 export interface AdminStats {
   participants: { total: number; delivery: number; heart: number };

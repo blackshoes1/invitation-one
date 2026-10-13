@@ -16,12 +16,17 @@ import { isValidPhone } from "@/lib/wedding";
  * 토큰 반환 정책: 신규 제출(inserted)만 passToken 일회 반환. 기존 수정은 null.
  */
 
+import { collectionGuard } from "@/lib/privacy";
+import { identityNameHash, identityPhoneHash } from "@/lib/guestIdentity";
+import { hashManageToken, isManageTokenFormat } from "@/lib/manageToken";
+
 type Eating = "yes" | "no" | "undecided";
 
 const MAX_RSVP_ROWS = 400; // 단일 예식 상한 — 넘으면 스팸으로 간주하고 접수 중단
 
 interface Body {
   submitToken?: string;
+  verificationToken?: string;
   website?: string; // 허니팟 — 사람은 채우지 않는 숨김 필드
   name?: string;
   phone?: string;
@@ -40,6 +45,8 @@ const clampInt = (v: unknown, min: number, max: number, fallback: number) => {
 };
 
 export async function POST(req: Request) {
+  const closed = collectionGuard();
+  if (closed) return closed;
   if (!isAdminConfigured || !supabaseAdmin)
     return NextResponse.json(
       { error: "서버 설정이 필요합니다." },
@@ -81,6 +88,7 @@ export async function POST(req: Request) {
       { error: "연락처 형식이 올바르지 않습니다." },
       { status: 400, headers: PASS_HEADERS }
     );
+  if (!isManageTokenFormat(body.verificationToken)) return NextResponse.json({ error: "전화번호 문자 인증이 필요합니다." }, { status: 401, headers: PASS_HEADERS });
   const side = body.side === "bride" ? "bride" : "groom";
   const attending = body.attending === true;
   const companions = attending ? clampInt(body.companionCount, 0, 19, 0) : 0;
@@ -103,7 +111,10 @@ export async function POST(req: Request) {
       { status: 503, headers: PASS_HEADERS }
     );
 
-  const { data, error } = await supabaseAdmin.rpc("submit_rsvp_v2", {
+  const { data, error } = await supabaseAdmin.rpc("submit_rsvp_verified_v1", {
+    p_ticket_hash: hashManageToken(body.verificationToken),
+    p_name_hash: identityNameHash(name),
+    p_phone_hash: identityPhoneHash(phone),
     p_name: name,
     p_phone: phone,
     p_side: side,
@@ -115,7 +126,7 @@ export async function POST(req: Request) {
     p_memo: memo,
   });
   if (error) {
-    console.error("[rsvp] submit_rsvp_v2 실패:", error.message);
+    if (error.message === "identity_required") return NextResponse.json({ error: "문자 인증이 만료됐습니다. 다시 인증해주세요." }, { status: 401, headers: PASS_HEADERS });
     return NextResponse.json(
       { error: "전송에 실패했습니다. 잠시 후 다시 시도해 주세요." },
       { status: 500, headers: PASS_HEADERS }

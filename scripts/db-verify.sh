@@ -78,6 +78,8 @@ echo "== 권한·시그니처 검증 =="
 
 # 동작 테스트 — 데이터를 만들므로 권한 검증 뒤에 둔다 (새 DB 전용).
 echo "== 동작 검증 =="
+# This is a disposable test database. Keep existing fixtures runnable after the real retention deadline.
+"${PSQL[@]}" -c "update public.privacy_state set retention_until=now()+interval '1 year'"
 for f in $(ls supabase/tests/*_test.sql 2>/dev/null | sort); do
   echo "  -> $f"
   "${PSQL[@]}" -f "$f"

@@ -1,3 +1,4 @@
+import { collectionGuard } from "@/lib/privacy";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { hashManageToken } from "@/lib/manageToken";
 import { INVITE_TOKEN_RE } from "@/lib/invite";
@@ -10,6 +11,8 @@ const json = (body: unknown, status = 200) => Response.json(body, {
 
 /** Token goes in the body, not a new query-string/log surface. IDs are server-derived. */
 export async function POST(req: Request) {
+  const closed = collectionGuard();
+  if (closed) return closed;
   const sb = supabaseAdmin;
   if (!sb) return json({ error: "server_not_configured" }, 503);
   if (!(await rateLimitAllow(`group-space:${clientIp(req)}`, 60, 600)))

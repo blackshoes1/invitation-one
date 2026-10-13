@@ -125,6 +125,7 @@ export default function GuestGuide({
         <p className="font-serif text-sm text-sage-700">{groom.name} · {bride.name}</p>
         <p className="mt-2 text-xs leading-relaxed text-sage-600">{formatFullDate()} {formatTime()}<br />{venue.name} 야외예식장</p>
         <div className="mt-6"><ShareButton /></div>
+      <a href="/privacy" className="mt-3 inline-block text-xs underline underline-offset-2">개인정보 처리 안내</a>
       </footer>
     </div>
   );

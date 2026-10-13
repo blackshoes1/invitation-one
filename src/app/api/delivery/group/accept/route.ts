@@ -1,3 +1,4 @@
+import { collectionGuard } from "@/lib/privacy";
 import { after } from "next/server";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
 import { drainNotifications } from "@/lib/notifyOutbox";
@@ -24,6 +25,8 @@ import { inviteMatchesGroupSlug } from "@/lib/orderKind";
  * 참여자가 명단(group_member)과 연결된다.
  */
 export async function POST(req: Request) {
+  const closed = collectionGuard();
+  if (closed) return closed;
   if (!isAdminConfigured || !supabaseAdmin)
     return json({ error: "server_not_configured" }, 503);
 

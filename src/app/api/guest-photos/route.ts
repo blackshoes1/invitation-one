@@ -1,3 +1,4 @@
+import { collectionGuard } from "@/lib/privacy";
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
@@ -21,6 +22,8 @@ const PER_IP = { limit: 300, windowSec: 600 };
  * - service role 로 Storage 업로드 + guest_photos insert (실패 시 파일 롤백).
  */
 export async function POST(req: Request) {
+  const closed = collectionGuard();
+  if (closed) return closed;
   if (process.env.GUEST_PHOTO_STORAGE === "nas")
     return NextResponse.json({ error: "청첩장을 새로고침한 뒤 다시 업로드해주세요.", code: "direct_upload_required" }, { status: 409 });
   if (!isAdminConfigured || !supabaseAdmin)

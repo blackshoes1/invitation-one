@@ -1,5 +1,6 @@
 "use client";
 
+import PrivacyNotice from "@/components/PrivacyNotice";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
@@ -401,6 +402,7 @@ export default function DeliveryForm({
         <h2 ref={stepHeading} tabIndex={-1} className="sr-only">
           4단계: 신청 내용 확인
         </h2>
+        <div className="mx-auto max-w-md px-5"><PrivacyNotice /></div>
         <OrderSummary
           name={name}
           phone={

@@ -1,3 +1,4 @@
+import { collectionGuard } from "@/lib/privacy";
 import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, isAdminConfigured } from '@/lib/supabaseAdmin';
@@ -7,6 +8,8 @@ import { nasPhotoConfig, nasPhotoRequest, sign, verify, MAX_SIZE, PATH_PATTERN }
 
 const reply = (body: object, status = 200) => NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 export async function POST(req: Request) {
+  const closed = collectionGuard();
+  if (closed) return closed;
   let input;
   try {
     const text = await req.text();

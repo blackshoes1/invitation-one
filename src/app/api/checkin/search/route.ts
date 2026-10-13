@@ -1,5 +1,7 @@
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
-import { passJson, digits, checkEventKey, getCheckinWindow } from "@/lib/checkinServer";
+import { passJson, checkEventKey, getCheckinWindow } from "@/lib/checkinServer";
+import { checkinIdentity } from "@/lib/guestIdentity";
+import { recordAccess } from "@/lib/privacyAudit";
 import { rateLimitAllow, clientIp } from "@/lib/rateLimit";
 
 /**
@@ -7,7 +9,7 @@ import { rateLimitAllow, clientIp } from "@/lib/rateLimit";
  * 예식장 공용 QR 에 포함된 행사 키(?event=CHECKIN_EVENT_KEY)를 가진
  * 요청만 처리한다 (키 미설정 시 fail-closed). 익명 인터넷 전체에는
  * 닫혀 있고, 현장 QR 을 스캔한 사람에게만 열리는 게이트.
- * 이름 + 전화번호 뒤 4자리로 참석 RSVP 를 찾는다.
+ * 문자 인증으로 확인된 본인의 참석 RSVP만 조회한다.
  * 전체 전화번호·토큰은 반환하지 않는다 (마스킹 + rsvpId 만).
  * 운영 시간 창(checkin_enabled + 개방/마감) 안에서만 동작하고 IP rate limit 을 건다.
  */
@@ -17,9 +19,7 @@ export async function POST(req: Request) {
 
   const body = (await req.json().catch(() => ({}))) as {
     eventKey?: string;
-    name?: string;
-    last4?: string;
-    fullPhone?: string;
+    verificationToken?: string;
   };
 
   const gate = checkEventKey(body.eventKey);
@@ -33,28 +33,17 @@ export async function POST(req: Request) {
   const win = await getCheckinWindow(supabaseAdmin);
   if (win !== "ok") return passJson({ error: "window", state: win }, 403);
 
-  // IP 기준 rate limit (DB) — 이름+끝4자리 열거 시도 억제. 예식장 공용망 고려해 넉넉히.
+  // IP rate limit includes authenticated searches; allow for a shared venue network.
   if (!(await rateLimitAllow(`checkin-search:${clientIp(req)}`, 120, 600)))
     return passJson({ error: "rate_limited" }, 429);
 
-  const name = String(body.name ?? "").trim();
-  const last4 = digits(String(body.last4 ?? ""));
-  const fullPhone = digits(String(body.fullPhone ?? ""));
-  if (name.length < 2 || last4.length !== 4)
-    return passJson({ error: "bad_request" }, 400);
-
-  const { data, error } = await supabaseAdmin
-    .from("rsvp")
-    .select("id, name, phone, side, companion_count, table_id")
-    .eq("attending", true)
-    .eq("name", name);
+  const rsvpId = await checkinIdentity(body.verificationToken);
+  if (!rsvpId) return passJson({ error: "identity_required" }, 401);
+  if (!await recordAccess(req, "guest_checkin_read", "allowed")) return passJson({ error: "audit_unavailable" }, 503);
+  const { data, error } = await supabaseAdmin.from("rsvp")
+    .select("id, name, phone, side, companion_count, table_id").eq("attending", true).eq("id", rsvpId);
   if (error) return passJson({ error: "search_failed" }, 500);
-
-  let matched = (data ?? []).filter(
-    (r) => r.phone && digits(r.phone).endsWith(last4)
-  );
-  if (fullPhone.length >= 9)
-    matched = matched.filter((r) => digits(r.phone!) === fullPhone);
+  const matched = data ?? [];
 
   // 체크인 여부 병기 (안내데스크·본인 확인용)
   const ids = matched.map((r) => r.id);

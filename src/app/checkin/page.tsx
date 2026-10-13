@@ -8,14 +8,14 @@ import { WINDOW_MSG } from "./_components/constants";
 import { WindowNotice } from "./_components/ui";
 import { LoadingView, InvalidView, GuideView } from "./_components/StatusViews";
 import { PersonalStep } from "./_components/PersonalStep";
-import { SearchStep } from "./_components/SearchStep";
+import PhoneVerification from "@/components/PhoneVerification";
 import { ConfirmStep } from "./_components/ConfirmStep";
 import { DoneView } from "./_components/DoneView";
 
 /**
  * 현장 체크인 v2 (docs/CHECKIN_SEATING_SPEC.md §4.2~4.4, §13)
  * - ?t=<token>      : 개인 QR — 예약 확인 → 실제 인원 → 체크인 → 좌석 안내
- * - ?event=<행사키> : 예식장 공용 QR — 이름+뒤4자리로 RSVP 검색 후 체크인
+ * - ?event=<행사키> : 예식장 공용 QR — 이름+전체 전화번호 문자 인증 후 RSVP 확인·체크인
  * - 파라미터 없음   : 안내 화면 (QR 스캔 / 안내데스크 유도)
  * 현장 등록(walk-in)은 안내데스크(관리자 현장운영 탭) 전용 — 공개 API 없음.
  * 체크인 상태는 항상 서버 기록으로 판단. 레거시 localStorage 플래그는 제거만 한다.
@@ -34,7 +34,8 @@ export default function CheckinPage() {
 
   // 공용 — RSVP 검색
   const [sName, setSName] = useState("");
-  const [sLast4, setSLast4] = useState("");
+  const [sPhone, setSPhone] = useState("");
+  const [verificationToken, setVerificationToken] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   const [picked, setPicked] = useState<Candidate | null>(null);
 
@@ -123,21 +124,22 @@ export default function CheckinPage() {
   };
 
   /** 공용 — RSVP 검색 */
-  const submitSearch = async () => {
+  const submitSearch = async (verified: string) => {
     if (busy) return;
-    if (sName.trim().length < 2 || sLast4.replace(/\D/g, "").length !== 4) {
-      setError("성함과 전화번호 뒤 4자리를 입력해 주세요.");
-      return;
-    }
     setBusy(true);
     setError(null);
     try {
       const res = await fetch("/api/checkin/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventKey, name: sName.trim(), last4: sLast4 }),
+        body: JSON.stringify({ eventKey, verificationToken: verified }),
       });
       const j = await res.json();
+      if (j.error === "identity_required") {
+        setVerificationToken(null);
+        setError("문자 인증이 만료됐습니다. 다시 인증해주세요.");
+        return;
+      }
       if (j.error === "event_key") {
         setError("QR 을 다시 스캔해 주세요. 계속 안 되면 안내데스크로 와주세요.");
         return;
@@ -171,7 +173,7 @@ export default function CheckinPage() {
 
   /** 공용 — 검색된 RSVP 체크인 */
   const submitCommon = async () => {
-    if (!picked || busy) return;
+    if (!picked || !verificationToken || busy) return;
     setBusy(true);
     setError(null);
     try {
@@ -181,7 +183,8 @@ export default function CheckinPage() {
         body: JSON.stringify({
           eventKey,
           rsvpId: picked.rsvpId,
-          last4: sLast4,
+          last4: sPhone.replace(/\D/g, "").slice(-4),
+          verificationToken,
           actualPartySize: party,
         }),
       });
@@ -194,6 +197,9 @@ export default function CheckinPage() {
           already: j.result === "already_checked_in",
         });
         setMode("done");
+      } else if (j.result === "identity_required") {
+        setPicked(null); setCandidates(null); setVerificationToken(null);
+        setError("문자 인증이 만료됐습니다. 다시 인증해주세요.");
       } else if (WINDOW_MSG[j.result]) {
         setWindowState(j.result);
       } else {
@@ -253,21 +259,14 @@ export default function CheckinPage() {
               className="space-y-4 text-left"
             >
               {!picked ? (
-                <SearchStep
-                  sName={sName}
-                  setSName={setSName}
-                  sLast4={sLast4}
-                  setSLast4={setSLast4}
-                  candidates={candidates}
-                  error={error}
-                  busy={busy}
-                  onSubmit={submitSearch}
-                  onPick={(c) => {
-                    setPicked(c);
-                    setParty(c.expectedPartySize);
-                    setError(null);
-                  }}
-                />
+                <div className="space-y-3">
+                  <label className="block text-sm">성함<input value={sName} onChange={e => { setSName(e.target.value); setVerificationToken(null); setCandidates(null); }} className="mt-1 w-full rounded-lg border p-3 text-base" /></label>
+                  <label className="block text-sm">전체 전화번호<input type="tel" value={sPhone} onChange={e => { setSPhone(e.target.value); setVerificationToken(null); setCandidates(null); }} className="mt-1 w-full rounded-lg border p-3 text-base" /></label>
+                  <PhoneVerification name={sName} phone={sPhone} purpose="checkin" onReset={() => setVerificationToken(null)} onVerified={verified => { setVerificationToken(verified); void submitSearch(verified); }} />
+                  {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+                  {verificationToken && <button type="button" onClick={() => submitSearch(verificationToken)} disabled={busy} className="w-full rounded-lg border p-3">예약 다시 확인</button>}
+                  {candidates?.map(c => <button type="button" key={c.rsvpId} onClick={() => { setPicked(c); setParty(c.expectedPartySize); setError(null); }} className="w-full rounded-lg border p-3">{c.displayName}님 · {c.expectedPartySize}명 · 예약 확인</button>)}
+                </div>
               ) : windowBlocked ? (
                 <WindowNotice state={windowState} />
               ) : (
@@ -280,6 +279,7 @@ export default function CheckinPage() {
                   onSubmit={submitCommon}
                   onReset={() => {
                     setPicked(null);
+                    setVerificationToken(null);
                     setCandidates(null);
                     setError(null);
                   }}

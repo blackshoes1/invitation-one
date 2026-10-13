@@ -1,3 +1,4 @@
+import { collectionGuard } from "@/lib/privacy";
 import { after } from "next/server";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
 import { drainNotifications } from "@/lib/notifyOutbox";
@@ -32,6 +33,8 @@ import type { TimeSlot } from "@/lib/wedding";
 const RIDERS = ["신랑", "신부", "신랑+신부"] as const;
 
 export async function POST(req: Request) {
+  const closed = collectionGuard();
+  if (closed) return closed;
   if (!isAdminConfigured || !supabaseAdmin)
     return json({ error: "server_not_configured" }, 503);
 

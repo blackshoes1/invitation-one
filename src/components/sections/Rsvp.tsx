@@ -7,6 +7,8 @@ import QRCode from "qrcode";
 import { formatPhone, isValidPhone } from "@/lib/wedding";
 import FadeIn from "@/components/FadeIn";
 
+import PhoneVerification from "@/components/PhoneVerification";
+
 type Eating = "yes" | "no" | "undecided";
 
 interface FormState {
@@ -34,6 +36,7 @@ const initial: FormState = {
 };
 
 export default function Rsvp({ submitToken }: { submitToken: string | null }) {
+  const [verificationToken, setVerificationToken] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(initial);
   // 허니팟 — 사람은 보지도 채우지도 않는 필드 (봇 차단, §11)
   const [website, setWebsite] = useState("");
@@ -47,13 +50,17 @@ export default function Rsvp({ submitToken }: { submitToken: string | null }) {
   const [copied, setCopied] = useState(false);
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
-    setForm((f) => ({ ...f, [key]: value }));
+    {
+      if (key === "name" || key === "phone") setVerificationToken(null);
+      setForm((f) => ({ ...f, [key]: value }));
+    }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (form.name.trim().length < 2) return setError("성함을 2자 이상 입력해 주세요.");
     if (!isValidPhone(form.phone))
       return setError("연락처를 010-0000-0000 형식으로 입력해 주세요.");
+    if (!verificationToken) return setError("전화번호 문자 인증을 완료해주세요.");
     setError(null);
     setSending(true);
 
@@ -63,6 +70,7 @@ export default function Rsvp({ submitToken }: { submitToken: string | null }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           submitToken,
+          verificationToken,
           website,
           name: form.name.trim(),
           phone: form.phone.trim(),
@@ -168,6 +176,8 @@ export default function Rsvp({ submitToken }: { submitToken: string | null }) {
                   className="rsvp-input"
                 />
               </Field>
+
+              <PhoneVerification name={form.name} phone={form.phone} purpose="rsvp" onVerified={setVerificationToken} onReset={() => setVerificationToken(null)} />
 
               <Field label="구분">
                 <div className="grid grid-cols-2 gap-4">
@@ -290,7 +300,7 @@ export default function Rsvp({ submitToken }: { submitToken: string | null }) {
 
               <button
                 type="submit"
-                disabled={sending}
+                disabled={sending || !verificationToken}
                 className="w-full py-3.5 bg-sage-700 text-white font-light tracking-[0.2em] hover:bg-sage-700/90 transition-colors text-xs disabled:opacity-60"
               >
                 {sending ? "보내는 중…" : "참석 의사 전하기"}

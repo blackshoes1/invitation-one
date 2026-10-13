@@ -1,5 +1,6 @@
 "use client";
 
+import PrivacyNotice from "@/components/PrivacyNotice";
 import { useRef, useState } from "react";
 import type { InvitePrefill } from "@/lib/invite";
 import type { PickedName } from "@/lib/roster";
@@ -193,6 +194,7 @@ export default function JoinForm({
 
       {error && <p className="text-sm text-delivery-dark text-center">{error}</p>}
 
+      <PrivacyNotice />
       <div className="flex gap-3">
         <button
           type="button"

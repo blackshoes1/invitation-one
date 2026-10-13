@@ -1,3 +1,4 @@
+import { collectionGuard } from "@/lib/privacy";
 import { after } from "next/server";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
 import { drainNotifications } from "@/lib/notifyOutbox";
@@ -23,6 +24,8 @@ import { inviteMayJoin } from "@/lib/orderKind";
  * 그룹의 주문으로 넘어가는 것** 하나뿐이다 (`inviteMayJoin`).
  */
 export async function POST(req: Request) {
+  const closed = collectionGuard();
+  if (closed) return closed;
   if (!isAdminConfigured || !supabaseAdmin)
     return json({ error: "server_not_configured" }, 503);
 

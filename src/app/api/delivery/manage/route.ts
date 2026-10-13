@@ -1,3 +1,5 @@
+import { collectionGuard } from "@/lib/privacy";
+import { privacyHash, recordAccess } from "@/lib/privacyAudit";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolveParticipantByToken } from "@/lib/manageToken";
@@ -30,10 +32,13 @@ async function authorize(req: Request, token: unknown) {
     return { err: json({ error: "too_many_requests" }, 429) };
   const pid = await resolveParticipantByToken(token);
   if (!pid) return { err: json({ error: "invalid_token" }, 401) };
+  if (!await recordAccess(req, req.method === "GET" ? "guest_manage_read" : "guest_manage_change", "allowed", privacyHash(`guest:${String(token)}`))) return { err: json({ error: "audit_unavailable" }, 503) };
   return { pid };
 }
 
 export async function GET(req: Request) {
+  const closed = collectionGuard();
+  if (closed) return closed;
   const t = new URL(req.url).searchParams.get("t");
   const a = await authorize(req, t);
   if ("err" in a) return a.err;
@@ -49,6 +54,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const closed = collectionGuard();
+  if (closed) return closed;
   const body = (await req.json().catch(() => null)) as
     | (Record<string, unknown> & { t?: unknown; action?: unknown })
     | null;

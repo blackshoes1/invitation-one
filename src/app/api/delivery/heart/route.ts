@@ -1,3 +1,4 @@
+import { collectionGuard } from "@/lib/privacy";
 import { after } from "next/server";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
 import { drainNotifications } from "@/lib/notifyOutbox";
@@ -17,6 +18,8 @@ const DISPLAY_MODES = ["name", "initial", "anon"] as const;
 const ATTENDANCES = ["yes", "maybe", "no"] as const;
 
 export async function POST(req: Request) {
+  const closed = collectionGuard();
+  if (closed) return closed;
   if (!isAdminConfigured || !supabaseAdmin)
     return json({ error: "server_not_configured" }, 503);
 

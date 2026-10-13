@@ -1,3 +1,4 @@
+import { collectionGuard } from "@/lib/privacy";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { rateLimitAllow, clientIp } from "@/lib/rateLimit";
@@ -31,6 +32,8 @@ const UNIFORM = {
 } as const;
 
 export async function POST(req: Request) {
+  const closed = collectionGuard();
+  if (closed) return closed;
   if (!supabaseAdmin)
     return NextResponse.json({ error: "server_not_configured" }, { status: 503, headers: NO_STORE });
 

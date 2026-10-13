@@ -9,6 +9,7 @@ import {
 } from "@/lib/adminAuth";
 import { rateLimitAllow, clientIp } from "@/lib/rateLimit";
 import { isAdminConfigured } from "@/lib/supabaseAdmin";
+import { privacyHash, recordAccess } from "@/lib/privacyAudit";
 
 /**
  * 관리자 로그인 — 브루트포스 방어 (P1-2):
@@ -34,12 +35,14 @@ export async function POST(req: Request) {
   if (!expected || !isAdminConfigured)
     return NextResponse.json({ error: "서버 설정이 필요합니다." }, { status: 503 });
 
-  const ip = clientIp(req);
+  const ip = privacyHash(`ip:${clientIp(req)}`);
+  if (!ip) return NextResponse.json({ error: "인증 설정을 확인해주세요." }, { status: 503 });
   const [okIp, okGlobal] = await Promise.all([
     rateLimitAllow(`admin-login:${ip}`, PER_IP.limit, PER_IP.windowSec),
     rateLimitAllow("admin-login:global", GLOBAL.limit, GLOBAL.windowSec),
   ]);
   if (!okIp || !okGlobal) {
+    await recordAccess(req, "admin_login", "denied");
     return NextResponse.json(
       { error: "시도가 너무 많습니다. 10분 후 다시 시도해주세요." },
       { status: 429 }
@@ -52,6 +55,7 @@ export async function POST(req: Request) {
   const password = body?.password;
 
   if (typeof password !== "string" || !safeEqual(password, expected)) {
+    await recordAccess(req, "admin_login", "denied");
     await sleep(400);
     return NextResponse.json(
       { error: "비밀번호가 올바르지 않습니다." },

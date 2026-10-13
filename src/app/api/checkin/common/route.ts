@@ -1,3 +1,5 @@
+import { collectionGuard } from "@/lib/privacy";
+import { checkinIdentity } from "@/lib/guestIdentity";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
 import {
   passJson,
@@ -12,10 +14,12 @@ import {
 /**
  * 공용 QR — 검색된 RSVP 체크인 (공개) — §4.4
  * 행사 키(?event=) 게이트 통과 후, search 로 받은 rsvpId + 전화번호
- * 뒤 4자리를 재검증한 뒤 개인 QR 과 동일한 규칙으로 체크인한다
+ * 문자 인증 권한과 뒤 4자리를 재검증한 뒤 개인 QR과 동일한 규칙으로 체크인한다
  * (source='common_qr'). rate limit 없음 — §11 단계적 방어 참고.
  */
 export async function POST(req: Request) {
+  const closed = collectionGuard();
+  if (closed) return closed;
   if (!isAdminConfigured || !supabaseAdmin)
     return passJson({ result: "server_not_configured" }, 503);
 
@@ -23,6 +27,7 @@ export async function POST(req: Request) {
     eventKey?: string;
     rsvpId?: string;
     last4?: string;
+    verificationToken?: string;
     actualPartySize?: number;
     mealCount?: number;
   };
@@ -34,6 +39,8 @@ export async function POST(req: Request) {
   const last4 = digits(String(body.last4 ?? ""));
   if (!isUuid(body.rsvpId) || last4.length !== 4)
     return passJson({ result: "invalid_pass" });
+
+  if (await checkinIdentity(body.verificationToken) !== body.rsvpId) return passJson({ result: "identity_required" }, 401);
 
   const { data: rsvp } = await supabaseAdmin
     .from("rsvp")

@@ -1,5 +1,6 @@
 "use client";
 
+import PrivacyNotice from "@/components/PrivacyNotice";
 import { useRef, useState, type FormEvent } from "react";
 import RegionPicker from "@/components/delivery/RegionPicker";
 
@@ -81,6 +82,7 @@ export default function CelebrationForm({ onSent }: { onSent: () => void }) {
           <RegionPicker sido={region.sido} sub={region.sub} onChange={(sido, sub) => setRegion({ sido, sub })} />
           <p className="text-[11px] text-neutral-500">공개 메시지는 지역을 선택하면 축하 지도에도 표시돼요.</p>
         </div>}
+        <PrivacyNotice />
         <button type="submit" disabled={sending || !name.trim() || !message.trim()}
           className="w-full rounded-lg bg-sage-600 px-4 py-3 text-sm font-medium text-white disabled:opacity-50">
           {sending ? "마음 전하는 중…" : "축하 남기기"}

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 전체 DB 백업 — 모든 테이블을 backups/<날짜시각>/<테이블>.json 으로 덤프.
+ * 전체 DB 백업 — 모든 테이블을 backups/<날짜시각>/<테이블>.json.enc 으로 덤프.
  *
  * 사용법:  npm run backup
  * 필요:    .env.local 의 NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY
@@ -8,9 +8,11 @@
  * ※ 사진 파일은 포함하지 않음 — NAS 직접 저장은 별도 설치 필요
  *   (docs/NAS_DIRECT_UPLOAD.md), 기존 Storage 사진은 필요 시 Supabase
  *   대시보드 → Storage 에서 수동 다운로드.
+ * AES-256-GCM; BACKUP_ENCRYPTION_KEY must be stored separately.
  * ※ 새 테이블을 만들면 아래 TABLES 에 추가할 것.
  */
 import { createClient } from "@supabase/supabase-js";
+import { backupKey, encryptBackup } from "./backup-crypto.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -31,7 +33,9 @@ if (!url || !key) {
   process.exit(1);
 }
 
+const encryptionKey = backupKey(process.env.BACKUP_ENCRYPTION_KEY ?? env.BACKUP_ENCRYPTION_KEY);
 const TABLES = [
+  "guest_memories",
   "rsvp",
   "deliveries",
   "participants",
@@ -49,9 +53,14 @@ const TABLES = [
 ];
 
 const supabase = createClient(url, key);
+const { data: privacy, error: privacyError } = await supabase.from("privacy_state").select("retention_until,purged_at").single();
+if (privacyError || !privacy || (Date.now() >= Date.parse(privacy.retention_until) && !privacy.purged_at)) {
+  console.error("Backup blocked: confirm privacy purge before making new copies after the retention deadline.");
+  process.exit(1);
+}
 const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 const dir = path.join(root, "backups", stamp);
-fs.mkdirSync(dir, { recursive: true });
+fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
 
 let total = 0;
 let failed = 0;
@@ -67,7 +76,7 @@ for (const table of TABLES) {
     }
     rows.push(...data);
     if (data.length < 1000) {
-      fs.writeFileSync(path.join(dir, `${table}.json`), JSON.stringify(rows, null, 2));
+      fs.writeFileSync(path.join(dir, `${table}.json.enc`), encryptBackup(rows, table, encryptionKey), { mode: 0o600 });
       console.log(`✅ ${table}: ${rows.length}행`);
       total += rows.length;
       break;

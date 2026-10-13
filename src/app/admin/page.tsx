@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Group } from "@/lib/supabase";
 import FieldOps from "@/components/admin/FieldOps";
 import OrdersTab from "@/components/admin/OrdersTab";
@@ -11,6 +11,7 @@ import MessagesTab from "@/components/admin/MessagesTab";
 import SnapTab from "@/components/admin/SnapTab";
 import ContentTab from "@/components/admin/ContentTab";
 import GroupsTab from "@/components/admin/GroupsTab";
+import PrivacyTab from "@/components/admin/PrivacyTab";
 import AdminShell from "@/components/admin/AdminShell";
 import { Metric } from "@/components/admin/ui";
 import { type AdminStats, type Totals, type View } from "@/app/admin/shared";
@@ -73,7 +74,7 @@ export default function AdminPage() {
   // 쿠키 세션으로 인증 — 비밀번호는 로그인 시 1회만 전송.
   // 401(세션 만료)은 여기서 중앙 감지해 어느 탭에서든 로그인 화면으로 되돌린다
   // (탭별 로더가 만료를 빈 목록으로 오인해 "0건"을 표시하던 문제 방지).
-  const api = async (path: string, init?: RequestInit) => {
+  const api = useCallback(async (path: string, init?: RequestInit) => {
     const res = await fetch(path, {
       ...init,
       headers: {
@@ -86,7 +87,7 @@ export default function AdminPage() {
       setError("세션이 만료되었습니다. 다시 로그인해주세요.");
     }
     return res;
-  };
+  }, []);
 
   const loadGroups = async () => {
     try {
@@ -290,6 +291,7 @@ export default function AdminPage() {
 
         {/* ===== 현장 운영 (체크인 v2) ===== */}
         {view === "field" && <FieldOps />}
+        {view === "privacy" && <PrivacyTab api={api} />}
 
         {/* ===== 대시보드 (요약) ===== */}
         {view === "dashboard" && stats && (

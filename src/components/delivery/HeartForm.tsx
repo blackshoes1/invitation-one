@@ -1,5 +1,6 @@
 "use client";
 
+import PrivacyNotice from "@/components/PrivacyNotice";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
@@ -362,6 +363,7 @@ export default function HeartForm({
       </div>
 
       {error && <p className="text-sm text-delivery-dark text-center">{error}</p>}
+      <PrivacyNotice />
       <button
         type="button"
         onClick={submit}

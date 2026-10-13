@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { collectionGuard } from "@/lib/privacy";
 import { issueUploadToken, UPLOAD_TOKEN_TTL_SEC } from "@/lib/signedToken";
 import { rateLimitAllow, clientIp } from "@/lib/rateLimit";
 import { isAdminConfigured } from "@/lib/supabaseAdmin";
@@ -12,6 +13,8 @@ const INVITATION_KEY = process.env.NEXT_PUBLIC_INVITATION_KEY ?? "";
  * 실질 권한 제어는 업로드 API 의 토큰·rate limit 이 담당한다.
  */
 export async function GET(req: Request) {
+  const closed = collectionGuard();
+  if (closed) return closed;
   if (!isAdminConfigured)
     return NextResponse.json({ error: "server_not_configured" }, { status: 503 });
   const key = new URL(req.url).searchParams.get("key") ?? "";

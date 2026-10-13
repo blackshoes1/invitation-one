@@ -87,11 +87,11 @@ export async function sendSms(to: string, text: string): Promise<SendResult> {
       }),
     });
     if (!res.ok) {
-      const body = await res.text();
-      return { ok: false, error: `Solapi ${res.status}: ${body}` };
+      // 공급자 오류 본문에는 번호·메시지가 포함될 수 있어 원문을 전달하지 않는다.
+      return { ok: false, error: `Solapi ${res.status}: 문자 발송이 거절됐습니다.` };
     }
     return { ok: true };
-  } catch (e) {
-    return { ok: false, error: String(e) };
+  } catch {
+    return { ok: false, error: "Solapi: 문자 서비스에 연결하지 못했습니다." };
   }
 }

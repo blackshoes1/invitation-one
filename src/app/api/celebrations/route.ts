@@ -1,3 +1,4 @@
+import { collectionGuard } from "@/lib/privacy";
 import { after } from "next/server";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
 import { rateLimitAllow, clientIp } from "@/lib/rateLimit";
@@ -7,6 +8,8 @@ import { REGIONS, OVERSEAS, joinRegion } from "@/lib/regions";
 
 /** Main-page guestbook: no delivery, contact, attendance or invitation identity claims. */
 export async function POST(req: Request) {
+  const closed = collectionGuard();
+  if (closed) return closed;
   if (!isAdminConfigured || !supabaseAdmin) return json({ error: "server_not_configured" }, 503);
   // Share the existing heart endpoint's quota so switching forms cannot bypass it.
   if (!(await rateLimitAllow(`heart:create:${clientIp(req)}`, 20, 600)))

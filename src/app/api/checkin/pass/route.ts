@@ -1,3 +1,4 @@
+import { collectionGuard } from "@/lib/privacy";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
 import {
   passJson,
@@ -43,6 +44,8 @@ async function findByToken(token: string): Promise<PassRsvp | null> {
 }
 
 export async function GET(req: Request) {
+  const closed = collectionGuard();
+  if (closed) return closed;
   if (!isAdminConfigured || !supabaseAdmin)
     return passJson({ valid: false, error: "server_not_configured" }, 503);
 
@@ -79,6 +82,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const closed = collectionGuard();
+  if (closed) return closed;
   if (!isAdminConfigured || !supabaseAdmin)
     return passJson({ result: "server_not_configured" }, 503);
 

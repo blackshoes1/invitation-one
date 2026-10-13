@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { supabaseAdmin, isAdminConfigured } from "@/lib/supabaseAdmin";
 import { clientIp } from "@/lib/rateLimit";
+import { privacyHash, recordAccess } from "@/lib/privacyAudit";
 
 /**
  * 관리자 인증 (서버 전용, P1-1).
@@ -15,6 +16,15 @@ import { clientIp } from "@/lib/rateLimit";
  */
 export const ADMIN_COOKIE = "admin_session";
 export const ADMIN_SESSION_TTL_SEC = 60 * 60 * 8;
+
+export function verifyAdminPassword(value: unknown): boolean {
+  const expected = process.env.ADMIN_PASSWORD;
+  if (!expected || typeof value !== "string") return false;
+  return crypto.timingSafeEqual(
+    crypto.createHash("sha256").update(value).digest(),
+    crypto.createHash("sha256").update(expected).digest(),
+  );
+}
 
 const TOKEN_RE = /^[0-9a-f]{64}$/;
 const hashToken = (raw: string) =>
@@ -44,11 +54,15 @@ export async function createAdminSession(req: Request): Promise<string | null> {
   const { error } = await supabaseAdmin.from("admin_sessions").insert({
     token_hash: hashToken(raw),
     expires_at: new Date(Date.now() + ADMIN_SESSION_TTL_SEC * 1000).toISOString(),
-    ip: clientIp(req),
-    user_agent: (req.headers.get("user-agent") ?? "").slice(0, 200),
+    ip: privacyHash(`ip:${clientIp(req)}`),
+    user_agent: null,
   });
   if (error) {
     console.error("[adminAuth] session insert failed:", error.message);
+    return null;
+  }
+  if (!await recordAccess(req, "admin_login", "success", privacyHash(`session:${raw}`))) {
+    await supabaseAdmin.from("admin_sessions").delete().eq("token_hash", hashToken(raw));
     return null;
   }
   return raw;
@@ -58,11 +72,12 @@ export async function createAdminSession(req: Request): Promise<string | null> {
 export async function revokeAdminSession(req: Request): Promise<void> {
   const raw = cookieToken(req);
   if (!raw || !supabaseAdmin) return;
-  await supabaseAdmin
+  const { error } = await supabaseAdmin
     .from("admin_sessions")
     .update({ revoked_at: new Date().toISOString() })
     .eq("token_hash", hashToken(raw))
     .is("revoked_at", null);
+  await recordAccess(req, "admin_logout", error ? "failure" : "success");
 }
 
 export async function checkAdmin(req: Request): Promise<boolean> {
@@ -92,7 +107,13 @@ export async function adminGuard(req: Request): Promise<NextResponse | null> {
       { error: "Supabase service role key 가 설정되지 않았습니다." },
       { status: 503 }
     );
-  if (!(await checkAdmin(req)))
+  if (!(await checkAdmin(req))) {
+    await recordAccess(req, "admin_access", "denied");
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  const exportRequest = /\/(export|rsvp-export)$/.test(new URL(req.url).pathname);
+  const action = exportRequest ? "export_request" : req.method === "GET" ? "read_request" : "change_request";
+  if (!(await recordAccess(req, action, "allowed")))
+    return NextResponse.json({ error: "접근 이력을 기록하지 못했습니다. 잠시 후 다시 시도해주세요." }, { status: 503 });
   return null;
 }
