@@ -30,7 +30,9 @@ const KAKAO_JS_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_KEY;
  * 카카오 SDK 로 대표 사진·이름·날짜·[청첩장 보기] 버튼이 담긴 피드 카드를 전송.
  * 키 미설정/SDK 실패 시 링크 복사로 폴백.
  */
-export default function ShareButton() {
+export default function ShareButton({ url: customUrl, title, description, label = "청첩장 공유하기", linkLabel = "청첩장 보기" }: {
+  url?: string; title?: string; description?: string; label?: string; linkLabel?: string;
+} = {}) {
   const [ready, setReady] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [manualLink, setManualLink] = useState<string | null>(null);
@@ -63,6 +65,7 @@ export default function ShareButton() {
   };
 
   const shareLink = () => {
+    if (customUrl) return customUrl;
     const url = `${window.location.origin}/${
       INVITATION_KEY ? `?key=${INVITATION_KEY}` : ""
     }`;
@@ -73,21 +76,21 @@ export default function ShareButton() {
     const url = shareLink();
     setManualLink(null);
     setToast(null);
-    const desc = `${formatFullDate()} ${formatTime()} · 서울 ${venue.name}`;
+    const desc = description ?? `${formatFullDate()} ${formatTime()} · 서울 ${venue.name}`;
     // 카카오 SDK 준비되면 피드 카드, 아니면 링크 복사 폴백
-    if (!copyOnly && isMobileShareDevice() && ready && window.Kakao?.Share) {
+    if (!copyOnly && (customUrl || isMobileShareDevice()) && ready && window.Kakao?.Share) {
       try {
         window.Kakao.Share.sendDefault({
           objectType: "feed",
           content: {
-            title: `${groom.name} ♥ ${bride.name} 결혼합니다`,
+            title: title ?? `${groom.name} ♥ ${bride.name} 결혼합니다`,
             description: desc,
             imageUrl: `${window.location.origin}/pic/wedding_main.jpg`,
             link: { mobileWebUrl: url, webUrl: url },
           },
           buttons: [
             {
-              title: "청첩장 보기",
+              title: linkLabel,
               link: { mobileWebUrl: url, webUrl: url },
             },
           ],
@@ -111,9 +114,9 @@ export default function ShareButton() {
         className="inline-flex items-center gap-1.5 px-4 py-2 border border-wedding-gold/30 text-xs text-sage-700 tracking-wide hover:bg-sage-50 transition-colors"
       >
         <Share2 size={13} className="text-wedding-gold" />
-        청첩장 공유하기
+        {label}
       </button>
-      <button type="button" onClick={() => onShare(true)} className="text-xs text-sage-700 underline underline-offset-2 py-2">청첩장 링크 복사</button>
+      <button type="button" onClick={() => onShare(true)} className="text-xs text-sage-700 underline underline-offset-2 py-2">{customUrl ? "개인 안내 링크 복사" : "청첩장 링크 복사"}</button>
       {toast && (
         <span role="status" className="text-xs text-sage-600">
           {toast}

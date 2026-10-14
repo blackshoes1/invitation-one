@@ -80,7 +80,7 @@ export default function RootLayout({
         {ANALYTICS && (
           <>
             <Script id="vercel-analytics-queue" strategy="afterInteractive">
-              {"window.va=window.va||function(){(window.vaq=window.vaq||[]).push(arguments)};"}
+              {"window.va=window.va||function(){(window.vaq=window.vaq||[]).push(arguments)};window.va('beforeSend',function(e){return new URL(e.url,location.origin).pathname==='/guest-guide'?null:e});"}
             </Script>
             <Script src="/_vercel/insights/script.js" strategy="afterInteractive" />
           </>

@@ -44,6 +44,7 @@ interface SendResult {
   ok: boolean;
   skipped?: boolean;
   error?: string;
+  unknown?: boolean;
 }
 
 export async function sendSms(to: string, text: string): Promise<SendResult> {
@@ -78,6 +79,7 @@ export async function sendSms(to: string, text: string): Promise<SendResult> {
   try {
     const res = await fetch("https://api.solapi.com/messages/v4/send", {
       method: "POST",
+      signal: AbortSignal.timeout(15_000),
       headers: {
         "Content-Type": "application/json",
         Authorization: `HMAC-SHA256 apiKey=${API_KEY}, date=${date}, salt=${salt}, signature=${signature}`,
@@ -88,10 +90,10 @@ export async function sendSms(to: string, text: string): Promise<SendResult> {
     });
     if (!res.ok) {
       // 공급자 오류 본문에는 번호·메시지가 포함될 수 있어 원문을 전달하지 않는다.
-      return { ok: false, error: `Solapi ${res.status}: 문자 발송이 거절됐습니다.` };
+      return { ok: false, unknown: res.status >= 500, error: `Solapi ${res.status}: 문자 발송 요청을 확인하지 못했습니다.` };
     }
     return { ok: true };
   } catch {
-    return { ok: false, error: "Solapi: 문자 서비스에 연결하지 못했습니다." };
+    return { ok: false, unknown: true, error: "Solapi: 문자 서비스 응답을 확인하지 못했습니다." };
   }
 }

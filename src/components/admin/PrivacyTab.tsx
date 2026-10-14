@@ -18,7 +18,7 @@ const copies = {
   admin_messages: "텔레그램·카카오 알림에 남은 이름·배송지와 대화 사본 삭제",
 };
 const labels: Record<string, string> = { group_members: "그룹 명단", groups: "그룹", participants: "신청자", deliveries: "배송 신청", rsvp: "참석 신청", checkins: "체크인", waiting_list: "대기 신청", identity_challenges: "문자 인증 요청", identity_tickets: "본인 확인 권한", consents: "확인 기록", guest_photos_preserved: "보존할 하객 사진", memories_preserved: "보존할 메시지 기록" };
-const actions: Record<string, string> = { read_request: "조회 요청", change_request: "변경 요청", export_request: "내려받기 요청", admin_access: "관리자 접근", admin_login: "로그인", admin_logout: "로그아웃", data_insert: "기록 추가", data_update: "기록 수정", data_delete: "기록 삭제", privacy_purge: "개인정보 파기", identity_code_request: "인증 문자 요청", identity_code_verify: "인증번호 확인", identity_sms: "인증 문자 발송", privacy_purge_reauthentication: "파기 재인증" };
+const actions: Record<string, string> = { guest_guide_load: "사전 안내 조회", guest_guide_confirm: "사전 안내 확인 요청", guest_guide_sms_accepted: "사전 안내 문자 접수", guest_guide_sms_failed: "사전 안내 문자 실패", guest_guide_sms_unknown: "사전 안내 문자 결과 미확인", read_request: "조회 요청", change_request: "변경 요청", export_request: "내려받기 요청", admin_access: "관리자 접근", admin_login: "로그인", admin_logout: "로그아웃", data_insert: "기록 추가", data_update: "기록 수정", data_delete: "기록 삭제", privacy_purge: "개인정보 파기", identity_code_request: "인증 문자 요청", identity_code_verify: "인증번호 확인", identity_sms: "인증 문자 발송", privacy_purge_reauthentication: "파기 재인증" };
 const outcomes: Record<string, string> = { allowed: "요청 허용", denied: "거절", success: "완료", failure: "실패" };
 
 export default function PrivacyTab({ api }: { api: AdminApi }) {

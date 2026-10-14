@@ -91,6 +91,7 @@ export type View =
   | "content"
   | "snap"
   | "field"
+  | "guide-notices"
   | "privacy";
 
 export interface AdminStats {

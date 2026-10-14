@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import { LayoutDashboard, Package, CalendarDays, Route, Users, Clock3, MessageSquare,
-  Camera, MapPin, PanelsTopLeft, Menu, X, ArrowUpRight, Sparkles, ShieldCheck } from "lucide-react";
+  Camera, MapPin, PanelsTopLeft, Menu, X, ArrowUpRight, Sparkles, ShieldCheck, Send } from "lucide-react";
 import type { View } from "@/app/admin/shared";
 
 const sections: { label: string; items: { id: View; label: string; icon: typeof Package; description: string }[] }[] = [
@@ -16,6 +16,7 @@ const sections: { label: string; items: { id: View; label: string; icon: typeof 
     { id: "groups", label: "그룹", icon: Users, description: "모임별 명단과 개인 초대를 한곳에서 관리하세요." },
     { id: "waiting", label: "대기자", icon: Clock3, description: "청첩장을 기다리는 분들을 확인하세요." },
     { id: "field", label: "현장운영", icon: MapPin, description: "예식 당일 체크인과 좌석을 관리하세요." },
+    { id: "guide-notices", label: "사전 안내", icon: Send, description: "참석자에게 개인 안내를 보내고 확인 여부를 관리하세요." },
   ] },
   { label: "청첩장 관리", items: [
     { id: "messages", label: "방명록", icon: MessageSquare, description: "하객들이 남겨주신 축하의 마음을 확인하세요." },

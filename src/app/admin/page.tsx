@@ -12,6 +12,7 @@ import SnapTab from "@/components/admin/SnapTab";
 import ContentTab from "@/components/admin/ContentTab";
 import GroupsTab from "@/components/admin/GroupsTab";
 import PrivacyTab from "@/components/admin/PrivacyTab";
+import GuideNoticesTab from "@/components/admin/GuideNoticesTab";
 import AdminShell from "@/components/admin/AdminShell";
 import { Metric } from "@/components/admin/ui";
 import { type AdminStats, type Totals, type View } from "@/app/admin/shared";
@@ -292,6 +293,7 @@ export default function AdminPage() {
         {/* ===== 현장 운영 (체크인 v2) ===== */}
         {view === "field" && <FieldOps />}
         {view === "privacy" && <PrivacyTab api={api} />}
+        {view === "guide-notices" && <GuideNoticesTab api={api} />}
 
         {/* ===== 대시보드 (요약) ===== */}
         {view === "dashboard" && stats && (

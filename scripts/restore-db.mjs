@@ -54,6 +54,11 @@ const restoredRows = new Map(tables.map(t => {
   const file = path.join(dir, `${t}.json.enc`);
   if (!/^[a-z_]+$/.test(t)) throw new Error("Invalid table name");
   const rows = decryptBackup(fs.readFileSync(file, "utf8"), t, encryptionKey);
+  // Do not revive personal guide links or make a previously attempted SMS look unsent.
+  if (t === "rsvp") for (const row of rows) {
+    row.guide_token_hash = null; row.guide_issued_at = null; row.guide_sms_request_id = null;
+    if (row.guide_sms_status) row.guide_sms_status = "unknown";
+  }
   if ((privacy.purged_at || Date.now() >= Date.parse(privacy.retention_until)) && t === "guest_photos") for (const row of rows) row.name = null;
   return [t, rows];
 }));
