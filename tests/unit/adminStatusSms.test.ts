@@ -53,11 +53,11 @@ function query(data: unknown, error: unknown = null) {
   return q;
 }
 
-const patchStatus = (status: string) =>
+const patchStatus = (status: string, notify?: unknown) =>
   PATCH(
     new Request("https://example.invalid/api/admin/deliveries/d1", {
       method: "PATCH",
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, notify }),
     }),
     { params: Promise.resolve({ id: "d1" }) }
   );
@@ -69,6 +69,54 @@ beforeEach(() => {
 });
 
 describe("상태 변경 문자", () => {
+  it("문자 없이 확정하면 상태만 저장하고 연락처 조회나 발송은 하지 않는다", async () => {
+    const order = query({ ...DELIVERY, status: "확정" });
+    mocks.from.mockReturnValueOnce(order);
+    const res = await patchStatus("확정", false);
+    expect(res.status).toBe(200);
+    expect(order.update).toHaveBeenCalledWith({ status: "확정" });
+    expect((await res.json()).sms).toBeNull();
+    expect(mocks.from).toHaveBeenCalledTimes(1);
+    expect(mocks.sendSms).not.toHaveBeenCalled();
+  });
+
+  it("발송을 선택하면 연결된 명단 번호를 사용하고 기존 주문 번호는 우선한다", async () => {
+    mocks.from
+      .mockReturnValueOnce(query({ ...DELIVERY, status: "확정" }))
+      .mockReturnValueOnce(query([
+        { name: "명단연결", phone: null, group_member: { phone: "010-1111-2222" } },
+        { name: "기존번호", phone: "010-3333-4444", group_member: { phone: "010-5555-6666" } },
+        { name: "미등록", phone: null, group_member: null },
+      ]))
+      .mockReturnValueOnce(query({ value: "" }));
+    const res = await patchStatus("확정", true);
+    expect(res.status).toBe(200);
+    expect(mocks.sendSms.mock.calls.map(([phone]) => phone)).toEqual(["010-1111-2222", "010-3333-4444"]);
+    expect((await res.json()).sms).toMatchObject({ count: 2, sent: 2 });
+  });
+
+  it("이미 확정된 주문을 재요청해도 문자를 보내지 않는다", async () => {
+    mocks.from.mockReturnValueOnce(query(null)).mockReturnValueOnce(query({ ...DELIVERY, status: "확정" }));
+    expect((await patchStatus("확정", true)).status).toBe(200);
+    expect(mocks.sendSms).not.toHaveBeenCalled();
+    expect(mocks.from).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["false", null, 0])("잘못된 발송 선택은 상태를 저장하기 전에 거절한다: %j", async notify => {
+    expect((await patchStatus("확정", notify)).status).toBe(400);
+    expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.sendSms).not.toHaveBeenCalled();
+  });
+
+  it("연락처 조회 실패를 발송 성공으로 표시하지 않는다", async () => {
+    mocks.from.mockReturnValueOnce(query({ ...DELIVERY, status: "확정" }))
+      .mockReturnValueOnce(query(null, { message: "lookup failed" }));
+    const res = await patchStatus("확정", true);
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toContain("주문은 확정됐지만");
+    expect(mocks.sendSms).not.toHaveBeenCalled();
+  });
+
   it("확정이면 참여자에게 보낸다", async () => {
     mocks.from
       .mockReturnValueOnce(query({ ...DELIVERY, status: "확정" })) // deliveries update

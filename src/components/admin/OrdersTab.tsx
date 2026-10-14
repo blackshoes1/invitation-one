@@ -98,7 +98,7 @@ export default function OrdersTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const changeStatus = async (id: string, status: DeliveryStatus) => {
+  const changeStatus = async (id: string, status: DeliveryStatus, notify = true) => {
     if (acting) return; // 진행 중 연타 방지 — SMS 중복 발송 가드
     const restoring = status === "대기중";
     if (restoring && !confirm("취소된 주문을 대기중으로 복구할까요? 숨김도 해제됩니다. 안내 문자는 보내지 않습니다.")) return;
@@ -107,16 +107,20 @@ export default function OrdersTab({
     try {
       const res = await api(`/api/admin/deliveries/${id}`, {
         method: "PATCH",
-        body: JSON.stringify(restoring ? { action: "restore" } : { status }),
+        body: JSON.stringify(restoring ? { action: "restore" } : { status, ...(status === "확정" ? { notify } : {}) }),
       });
       const j = await res.json();
       if (!res.ok) return setError(j.error ?? "변경 실패");
       if (restoring) {
         setNotice("대기중으로 복구하고 숨김을 해제했습니다. 안내 문자는 보내지 않았어요.");
       } else if (status === "확정") {
-        // 한 건이라도 못 보냈으면 초록 알림이 아니라 빨간 오류다 (smsResult 참고)
-        const r = describeSms(j.sms as SmsOutcome | null, "확정 처리");
-        (r.ok ? setNotice : setError)(r.text);
+        if (!notify) {
+          setNotice("확정 처리됐습니다. 안내 문자는 보내지 않았습니다.");
+        } else {
+          // 한 건이라도 못 보냈으면 초록 알림이 아니라 빨간 오류다 (smsResult 참고)
+          const r = describeSms(j.sms as SmsOutcome | null, "확정 처리");
+          (r.ok ? setNotice : setError)(r.text);
+        }
       } else if (status === "취소") {
         // 취소는 문자를 보내지 않는다 — "연락처가 없어 미발송" 처럼 들리면 안 된다.
         setNotice("취소 처리됐습니다. 안내 문자는 보내지 않았어요 — 필요하면 직접 연락해주세요.");

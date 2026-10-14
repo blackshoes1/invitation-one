@@ -40,7 +40,7 @@ export default function OrderCard({
   setMergeSource: (id: string | null) => void;
   editSched: EditSched | null;
   setEditSched: Dispatch<SetStateAction<EditSched | null>>;
-  onChangeStatus: (id: string, status: DeliveryStatus) => void;
+  onChangeStatus: (id: string, status: DeliveryStatus, notify?: boolean) => void;
   onChangeStage: (id: string, stage: TrackingStage) => void;
   onMerge: (targetId: string) => void;
   onSaveSchedule: () => void;
@@ -55,6 +55,7 @@ export default function OrderCard({
   const [removing, setRemoving] = useState<string | null>(null);
   const removeLock = useRef(false);
   const [memberError, setMemberError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const removeMember = async (id: string, name: string, owner: boolean) => {
     if (removeLock.current) return;
     const detail = r.participants.length === 1 && ["대기중", "확정"].includes(r.status)
@@ -128,7 +129,7 @@ export default function OrderCard({
               <span>
                 {p.is_owner ? "👑" : "👤"} {p.name}
               </span>
-              <span className="text-neutral-400">{p.phone}</span>
+              <span className="text-neutral-400">{p.phone || "연락처 미등록"}</span>
               {p.review_rating != null && (
                 <span className="ml-auto text-amber-500">
                   {"⭐".repeat(p.review_rating)}
@@ -285,14 +286,29 @@ export default function OrderCard({
           )}
           {nextAction && (
             <button
-              onClick={() => onChangeStatus(r.id, nextAction)}
+              onClick={() => nextAction === "확정" ? setConfirmOpen(true) : onChangeStatus(r.id, nextAction)}
               disabled={acting !== null}
               className="px-3 py-1.5 text-xs bg-sage-600 text-white tracking-wide disabled:opacity-40"
             >
               {acting === r.id ? "처리 중…" : `${nextAction}으로 변경`}
-              {acting !== r.id && nextAction === "확정" ? " (SMS)" : ""}
             </button>
           )}
+        </div>
+      )}
+      {confirmOpen && nextAction === "확정" && (
+        <div role="group" aria-label="주문 확정 문자 선택" className="space-y-3 border border-sage-200 bg-sage-50 p-3">
+          <p className="text-xs text-sage-700">주문 확정 안내 문자를 보낼까요?</p>
+          <p className="text-[11px] text-neutral-500">문자 발송을 선택하면 연락처가 있는 주문 참여자에게 안내합니다.</p>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={acting !== null}
+              onClick={() => { setConfirmOpen(false); onChangeStatus(r.id, "확정", true); }}
+              className="min-h-10 rounded border border-sage-600 bg-sage-600 px-3 text-xs text-white disabled:opacity-40">문자 보내고 확정</button>
+            <button type="button" disabled={acting !== null}
+              onClick={() => { setConfirmOpen(false); onChangeStatus(r.id, "확정", false); }}
+              className="min-h-10 rounded border border-sage-300 bg-white px-3 text-xs text-sage-700 disabled:opacity-40">문자 없이 확정</button>
+            <button type="button" onClick={() => setConfirmOpen(false)}
+              className="min-h-10 px-3 text-xs text-neutral-500">닫기</button>
+          </div>
         </div>
       )}
     </div>

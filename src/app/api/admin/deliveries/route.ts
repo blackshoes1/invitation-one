@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminGuard } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import type { Participant } from "@/lib/supabase";
 import {
   slotsForDate,
   TIME_SLOTS,
@@ -24,7 +25,7 @@ export async function GET(req: Request) {
   // 참여 시스템: 주문 + 참여자 목록을 함께 조회
   let query = supabaseAdmin!
     .from("deliveries")
-    .select("*, participants!delivery_id(*)")
+    .select("*, participants!delivery_id(*, group_member:group_members!group_member_id(phone))")
     .order("date", { ascending: true });
   if (status) query = query.eq("status", status);
   if (groupId) query = query.eq("group_id", groupId);
@@ -34,7 +35,17 @@ export async function GET(req: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  return NextResponse.json({ deliveries: data });
+  // 주문 등록 뒤 명단에 추가한 연락처도 표시한다. 이름으로 추측하지 않고 연결된 명단만 참조한다.
+  const deliveries = (data ?? []).map((delivery) => ({
+    ...delivery,
+    participants: delivery.participants.map(({ group_member, ...participant }: Participant & {
+      group_member: { phone: string | null } | null;
+    }) => ({
+      ...participant,
+      phone: participant.phone?.trim() ? participant.phone : group_member?.phone ?? null,
+    })),
+  }));
+  return NextResponse.json({ deliveries });
 }
 
 /**

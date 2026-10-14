@@ -33,10 +33,12 @@ export async function PATCH(
     date?: string;
     time_slot?: string;
     location?: string;
-    notify?: boolean; // 일정 변경 시 참여자 SMS 안내 여부 (기본 true)
+    notify?: boolean; // 확정·일정 변경 시 참여자 SMS 안내 여부 (기본 true)
     /** 표시 전용 숨김 — DB 는 보존하고 관리자 목록에서만 감춘다 */
     hidden?: boolean;
   };
+  if (body.notify !== undefined && typeof body.notify !== "boolean")
+    return NextResponse.json({ error: "문자 발송 여부를 다시 선택해주세요." }, { status: 400 });
 
   if (body.action === "restore") {
     const { data, error } = await supabaseAdmin!.rpc("admin_restore_order_v1", { p_delivery: id });
@@ -224,12 +226,13 @@ export async function PATCH(
   // **확정에서만 문자를 보낸다.** 취소는 보내지 않는다 (2026-09-09).
   // 취소 안내는 사정을 설명해야 하는 연락인데, 자동 문자는 "취소되었습니다"만
   // 남기고 끝나 하객을 더 당황하게 한다. 취소는 신랑신부가 직접 연락한다.
-  if (statusChanged && patch.status === "확정") {
-    const { data: parts } = await supabaseAdmin!
+  if (statusChanged && patch.status === "확정" && body.notify !== false) {
+    const { data: parts, error: partsError } = await supabaseAdmin!
       .from("participants")
-      .select("name, phone")
-      .eq("delivery_id", id)
-      .not("phone", "is", null);
+      .select("name, phone, group_member:group_members!group_member_id(phone)")
+      .eq("delivery_id", id);
+    if (partsError)
+      return NextResponse.json({ error: "주문은 확정됐지만 연락처를 조회하지 못해 문자를 보내지 못했습니다." }, { status: 503 });
 
     // 확정 감사 문자 커스텀 템플릿 (LC-2) — 관리자가 콘텐츠 탭에서 설정, 없으면 기본
     let confirmTpl = "";
@@ -250,7 +253,10 @@ export async function PATCH(
         .replace(/\{장소\}/g, data.location ?? "")
         .replace(/\{청첩장\}/g, invitationUrl);
 
-    const targets = (parts ?? []) as { name: string; phone: string }[];
+    const targets = ((parts ?? []) as unknown as {
+      name: string; phone: string | null; group_member: { phone: string | null } | null;
+    }[]).map((p) => ({ name: p.name, phone: p.phone?.trim() ? p.phone : p.group_member?.phone }))
+      .filter((p): p is { name: string; phone: string } => !!p.phone?.trim());
     const results = await Promise.all(
       targets.map((p) => {
         const text = confirmTpl
