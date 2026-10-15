@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 const KEY = process.env.NEXT_PUBLIC_INVITATION_KEY ?? "ci-dummy-key";
 
-// 키 없는 잠금 화면(/?view=photos — 하객 안내 공개 이후 / 는 안내 화면)과 사진 청첩장
+// 키 없이 여는 /?view=photos(공개 전엔 잠금 화면, 공개 이후엔 사진 청첩장 — 둘 다 축하 폼이 있다)와 키로 연 사진 청첩장
 for (const path of ["/?view=photos", `/?key=${KEY}&view=photos`]) {
   test(`메인 ${path}에서 이름과 메시지만으로 축하를 남긴다`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
