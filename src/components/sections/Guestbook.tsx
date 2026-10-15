@@ -53,10 +53,13 @@ function regionStats(celebrations: Celebration[]) {
 export default function Guestbook({
   qrEntry = false,
   mapOnly = false,
+  villageOnly = false,
 }: {
   qrEntry?: boolean;
   /** 공개 전 화면에서는 공개 지도만 표시하고 관리자 실명 조회는 하지 않는다. */
   mapOnly?: boolean;
+  /** 하객 안내 첫 화면 하단에서는 도트 마을만 표시한다. */
+  villageOnly?: boolean;
 }) {
   const [celebrations, setCelebrations] = useState<Celebration[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -129,7 +132,7 @@ export default function Guestbook({
 
   // 관리자 세션이면 실명 매핑을 받아둔다 (하객은 401 → null 유지)
   useEffect(() => {
-    if (mapOnly) return;
+    if (mapOnly || villageOnly) return;
     let alive = true;
     fetch("/api/admin/celebrations", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
@@ -142,7 +145,7 @@ export default function Guestbook({
     return () => {
       alive = false;
     };
-  }, [mapOnly, refresh]);
+  }, [mapOnly, villageOnly, refresh]);
 
   const count = celebrations.length;
   const empty = loaded && count === 0;
@@ -152,7 +155,7 @@ export default function Guestbook({
     <section
       id="guestbook"
       aria-label="우리를 축하해준 사람들"
-      className={`relative ${mapOnly ? "py-8" : "px-6 py-12"} bg-wedding-cream border-t border-wedding-gold/10`}
+      className={`relative ${villageOnly ? "rounded-[15px] px-4 py-6 text-sage-800" : mapOnly ? "py-8" : "px-6 py-12"} bg-wedding-cream border-t border-wedding-gold/10`}
     >
       {liveToast && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-sage-700 text-white text-xs px-4 py-2 rounded-full shadow-md animate-pulse">
@@ -165,7 +168,7 @@ export default function Guestbook({
             CELEBRATION
           </p>
           <h2 className="font-serif text-2xl font-light tracking-widest text-sage-700">
-            우리를 축하해준 사람들
+            {villageOnly ? "도트 방명록" : "우리를 축하해준 사람들"}
           </h2>
           {!empty && !loadFailed && (
             <p className="text-sm text-neutral-500">
@@ -181,9 +184,9 @@ export default function Guestbook({
           )}
         </FadeIn>
 
-        {!mapOnly && <CelebrationForm onSent={() => setRefresh((value) => value + 1)} />}
+        {!mapOnly && !villageOnly && <CelebrationForm onSent={() => setRefresh((value) => value + 1)} />}
 
-        {!mapOnly && (
+        {!mapOnly && !villageOnly && (
           <FadeIn>
             <div role="group" aria-label="방명록 보기 방식" className="flex w-full bg-white rounded-full p-1 border border-wedding-gold/20">
               <ToggleBtn active={mode === "map"} onClick={() => setMode("map")}>
@@ -263,7 +266,7 @@ export default function Guestbook({
         {mapOnly && <CelebrationForm onSent={() => setRefresh((value) => value + 1)} />}
 
         {/* 본인 확인 + 뱃지 — 종이 QR 진입자에게만 노출 */}
-        {qrEntry && !mapOnly && (
+        {qrEntry && !mapOnly && !villageOnly && (
           <FadeIn className="pt-2">
             <VerifyBadge onVerified={(id) => setMineId(id)} />
           </FadeIn>

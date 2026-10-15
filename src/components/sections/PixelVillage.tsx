@@ -256,9 +256,17 @@ function drawBubble(ctx: CanvasRenderingContext2D, t: TextMetrics, w: Walker, in
   lines.forEach((l, i) => ctx.fillText(l, x + padX, y + padY + lineH * (i + 1)));
 }
 
-/** 신랑·신부를 두 번째 눌렀을 때 — 갤러리 섹션으로 스크롤(없으면 아무 일도 하지 않는다) */
+/** 신랑·신부를 두 번째 눌렀을 때 — 현재 갤러리로 스크롤하거나 사진 청첩장으로 이동한다. */
 function scrollToGallery(reduced: boolean): void {
-  document.getElementById("gallery")?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+  const gallery = document.getElementById("gallery");
+  if (gallery) {
+    gallery.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+    return;
+  }
+  const url = new URL(window.location.href);
+  url.searchParams.set("view", "photos");
+  url.hash = "gallery";
+  window.location.assign(url.href);
 }
 
 /**

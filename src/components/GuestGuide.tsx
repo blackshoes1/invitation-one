@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, ArrowUpRight, ChevronRight, Images, ParkingCircl
 import { AccountDetails } from "@/components/sections/Account";
 import ParkingRouteMap from "@/components/ParkingRouteMap";
 import ShareButton from "@/components/ShareButton";
+import Guestbook from "@/components/sections/Guestbook";
 import { bride, groom, parkingLot, venue, formatFullDate, formatTime } from "@/lib/wedding";
 
 const actionClass = "flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-sage-100 px-4 py-3 text-sm font-medium text-sage-800 transition-colors hover:bg-sage-200";
@@ -60,6 +61,9 @@ export default function GuestGuide({
           <Link href={{ pathname: "/", query: { ...query, view: "photos" } }} prefetch={false} className="mt-4 flex min-h-12 items-center justify-center gap-3 rounded-full bg-[#ffffff24] px-4 py-3 text-base transition-colors hover:bg-white/20">
             모바일 청첩장 보러가기 <ArrowRight size={22} aria-hidden="true" />
           </Link>
+          <div className="mt-8">
+            <Guestbook villageOnly />
+          </div>
         </div>
       </div>
     );

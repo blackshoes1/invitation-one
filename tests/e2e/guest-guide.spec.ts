@@ -21,7 +21,9 @@ test.describe("하객 안내 공개 이후", () => {
   test("첫 안내에서 필수 정보를 보여주고 사진은 열기 전까지 받지 않는다", async ({ page }) => {
     const photoRequests: string[] = [];
     page.on("request", request => {
-      if (request.url().includes("/_next/image") || request.url().includes("/pic/")) photoRequests.push(request.url());
+      const path = new URL(request.url()).pathname;
+      const villageAsset = path === "/pic/village-bg.webp" || path === "/pic/village-sprites.webp";
+      if (path === "/_next/image" || (path.startsWith("/pic/") && !villageAsset)) photoRequests.push(request.url());
     });
     await page.goto(HOME);
     await expect(page.locator("header").getByText(`${groom.name} · ${bride.name}`, { exact: true })).toBeVisible();

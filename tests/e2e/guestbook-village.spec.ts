@@ -1,7 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
+import { GUEST_GUIDE_START } from "../../src/lib/wedding";
 
 const KEY = process.env.NEXT_PUBLIC_INVITATION_KEY ?? "ci-dummy-key";
 const HOME = `/?key=${encodeURIComponent(KEY)}&view=photos`;
+const GUIDE = `/?key=${encodeURIComponent(KEY)}&via=qr`;
+const GUIDE_ACTIVE = process.env.VERCEL_ENV === "preview" || Date.now() >= GUEST_GUIDE_START.getTime();
 
 async function openEmptyGuestbook(page: Page, url = HOME) {
   // DB 설정 여부와 관계없이 빈 방명록을 검증하며 운영 데이터는 읽지 않는다.
@@ -21,6 +24,29 @@ async function openEmptyGuestbook(page: Page, url = HOME) {
   const canvas = section.getByRole("img", { name: /^축하해 주신 0명의 도트 마을/ });
   await expect(canvas).toBeVisible();
   await expect(section.getByText("마을을 불러오지 못했어요", { exact: true })).toHaveCount(0);
+  return { section, canvas };
+}
+
+async function openGuideVillage(page: Page) {
+  const adminRequests: string[] = [];
+  page.on("request", request => {
+    if (new URL(request.url()).pathname === "/api/admin/celebrations") adminRequests.push(request.url());
+  });
+  await page.route("**/rest/v1/rpc/get_celebrations", route => route.fulfill({ json: [] }));
+  const [background, sprites] = await Promise.all([
+    page.waitForResponse(response => new URL(response.url()).pathname === "/pic/village-bg.webp"),
+    page.waitForResponse(response => new URL(response.url()).pathname === "/pic/village-sprites.webp"),
+    page.goto(GUIDE),
+  ]);
+  expect(background.status()).toBe(200);
+  expect(sprites.status()).toBe(200);
+  await Promise.all([background.finished(), sprites.finished()]);
+  const section = page.locator("#guestbook");
+  await section.scrollIntoViewIfNeeded();
+  const canvas = section.getByRole("img", { name: /^축하해 주신 0명의 도트 마을/ });
+  await expect(canvas).toBeVisible();
+  await expect(section.getByRole("heading", { name: "도트 방명록", exact: true })).toBeVisible();
+  expect(adminRequests).toEqual([]);
   return { section, canvas };
 }
 
@@ -69,4 +95,42 @@ test("동작 줄이기에서도 신랑을 두 번 누르면 사진 갤러리로 
   } finally {
     await context.close();
   }
+});
+
+test.describe("첫 안내의 도트 방명록", () => {
+  test.skip(!GUIDE_ACTIVE, "하객 안내 공개 이후 동작 검증");
+
+  for (const width of [320, 390]) {
+    test(`${width}px 큰 글씨에서 안내 맨 아래에 마을만 보인다`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      const { section } = await openGuideVillage(page);
+      await expect(page.getByRole("button", { name: "작은 글씨로 보기" })).toHaveAttribute("aria-pressed", "true");
+      await expect(section.getByRole("form")).toHaveCount(0);
+      await expect(section.getByRole("group", { name: "방명록 보기 방식" })).toHaveCount(0);
+      await expect(page.locator("main section").last()).toHaveAttribute("id", "guestbook");
+      const villageBounds = await section.boundingBox();
+      const linkBounds = await page.getByRole("link", { name: "모바일 청첩장 보러가기", exact: true }).boundingBox();
+      expect(villageBounds).not.toBeNull();
+      expect(linkBounds).not.toBeNull();
+      expect(villageBounds!.y).toBeGreaterThanOrEqual(linkBounds!.y + linkBounds!.height);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    });
+  }
+
+  test("안내의 신랑을 두 번 누르면 접근 키와 QR 경로를 유지하며 사진으로 이동한다", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const { canvas } = await openGuideVillage(page);
+    const bounds = await canvas.boundingBox();
+    expect(bounds).not.toBeNull();
+    const position = { x: bounds!.width * 162 / 384, y: bounds!.height * 190 / 457 };
+    await canvas.click({ position });
+    expect(new URL(page.url()).searchParams.get("view")).toBeNull();
+    await canvas.click({ position });
+    await expect(page).toHaveURL(/view=photos.*#gallery$/);
+    const url = new URL(page.url());
+    expect(url.searchParams.get("key")).toBe(KEY);
+    expect(url.searchParams.get("via")).toBe("qr");
+    expect(url.hash).toBe("#gallery");
+    await expect(page.locator("#gallery")).toBeInViewport();
+  });
 });
