@@ -47,7 +47,7 @@ function AccountRow({ acc }: { acc: Acct }) {
     <div className="text-left py-1 space-y-2.5">
       {/* 계좌번호는 자기 줄을 통째로 쓴다. 예전엔 은행명·번호·복사 버튼을 한 줄에
           넣어서, 좁은 화면(특히 큰 글씨·하객 안내 카드 안)에서 번호가 중간에 끊기고
-          복사 버튼이 카드 밖으로 밀려 잘렸다. 버튼은 줄어들지 않게 고정한다. */}
+          복사 버튼이 카드 밖으로 밀려 잘렸다. 버튼은 auto 칸이라 줄어들지 않는다. */}
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1">
         <p className="text-[11px] text-wedding-gold font-medium tracking-wider">
           {/* 좁으면 이름만 다음 줄로 — "신랑" / "계좌정보 성근영" 처럼 끊기지 않게 */}
@@ -58,14 +58,16 @@ function AccountRow({ acc }: { acc: Acct }) {
           type="button"
           onClick={handleCopy}
           aria-label={`${acc.name} 계좌번호 복사`}
-          className="row-span-2 shrink-0 min-h-11 min-w-[64px] px-3 border border-wedding-gold/25 text-xs text-neutral-600 hover:text-wedding-gold hover:border-wedding-gold transition-all tracking-wide bg-white whitespace-nowrap"
+          className="row-span-2 min-h-11 min-w-[64px] px-3 border border-wedding-gold/25 text-xs text-neutral-600 hover:text-wedding-gold hover:border-wedding-gold transition-all tracking-wide bg-white whitespace-nowrap"
         >
           복사
         </button>
         <p className="text-sm font-light tracking-wide text-sage-700">{acc.bank}</p>
-        <p className="col-span-2 font-mono text-sm tracking-tight text-neutral-600 whitespace-nowrap">
+        {/* <p> 가 아니라 <div> 인 이유: globals.css 의 `.invitation-content p { text-wrap: pretty }`
+            가 레이어 밖 규칙이라 p 에 붙인 whitespace-nowrap 을 덮어써 번호가 다시 끊긴다. */}
+        <div className="col-span-2 font-mono text-sm tracking-tight text-neutral-600 whitespace-nowrap">
           {acc.number}
-        </p>
+        </div>
       </div>
 
       {acc.kakaoPayUrl && (
