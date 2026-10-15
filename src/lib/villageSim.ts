@@ -32,6 +32,7 @@ export const CHAIR_AREAS = [
 export const WALK_SPEED = 48; // px/s
 const SPACE_X = 32;
 const SPACE_Y = 28;
+const MIN_SPACE_SQ = 0.8 ** 2; // 좁은 통로에서도 서로 지나갈 여유를 남긴다.
 const SPAWN_CANDIDATES = 48;
 /** 새 하객이 걸어 들어오기 시작하는 발 위치 — 화면 아래 바깥(몸이 막 가려지는 높이) */
 const ENTER_Y = WORLD_H + BOX_H;
@@ -195,7 +196,7 @@ export function stepWalker(w: Walker, dt: number, rng: Rng, frozen = false, neig
     }
     if (neighbors.length > 0 && (n.x !== w.x || n.y !== w.y)) {
       const gap = nearestSpace(n.x, n.y, neighbors, w.id);
-      if (gap < 1 && gap < nearestSpace(w.x, w.y, neighbors, w.id)) {
+      if (gap < MIN_SPACE_SQ && gap < nearestSpace(w.x, w.y, neighbors, w.id)) {
         // 붐비는 쪽으로 더 파고들지 않되, 이미 가까운 하객에게서 멀어지는 이동은 허용한다.
         n.x = w.x;
         n.y = w.y;

@@ -388,6 +388,8 @@ describe("하객 사이의 간격", () => {
     const rng = makeRng(seed + 100);
     const unawareRng = makeRng(seed + 100);
     const movedIds = new Set<string>();
+    const lateMovedIds = new Set<string>();
+    let lateDistance = 0;
     let violations = 0;
     let spacedPairs = 0;
     let unawarePairs = 0;
@@ -395,7 +397,12 @@ describe("하객 사이의 간격", () => {
       for (let i = 0; i < walkers.length; i++) {
         const prev = walkers[i];
         const next = stepWalker(prev, DT, rng, false, walkers);
-        if (next.x !== prev.x || next.y !== prev.y) movedIds.add(next.id);
+        const distance = Math.hypot(next.x - prev.x, next.y - prev.y);
+        if (distance > 0) movedIds.add(next.id);
+        if (frame >= 50 * 30 && distance > 0) {
+          lateMovedIds.add(next.id);
+          lateDistance += distance;
+        }
         if (
           !Number.isFinite(next.x) || !Number.isFinite(next.y) || overlapsChair(next) ||
           next.x < AREA.x0 || next.x > AREA.x1 || next.y < AREA.y0 || next.y > AREA.y1
@@ -410,6 +417,8 @@ describe("하객 사이의 간격", () => {
     }
     expect(violations).toBe(0);
     expect(movedIds.size).toBeGreaterThanOrEqual(24);
+    expect(lateMovedIds.size).toBeGreaterThanOrEqual(13);
+    expect(lateDistance / walkers.length).toBeGreaterThanOrEqual(24);
     expect(spacedPairs).toBeLessThan(unawarePairs * 0.75);
   });
 });
