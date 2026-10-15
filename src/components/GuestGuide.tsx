@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, ArrowUpRight, ChevronRight, Images, ParkingCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, ChevronRight, Images, ParkingCircle, Phone } from "lucide-react";
 import { AccountDetails } from "@/components/sections/Account";
 import ParkingRouteMap from "@/components/ParkingRouteMap";
 import ShareButton from "@/components/ShareButton";
@@ -83,14 +83,16 @@ export default function GuestGuide({
           )}
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-sage-600">
-          {view === "accounts" ? "현장 축의대는 운영하지 않습니다. 마음을 전하실 분들을 위해 계좌를 안내드립니다." : `${venue.name} 야외예식장`}
+          {view === "accounts" ? (
+            <>현장 축의대는 운영하지 않습니다.<br />마음을 전하실 분들을 위해 계좌를 안내드립니다.</>
+          ) : `${venue.name} 야외예식장`}
         </p>
       </header>
 
       {view === "accounts" ? (
         <div className="space-y-4">
           <AccountDetails />
-          <p className="text-sm leading-relaxed text-sage-600">화환은 둘 곳이 없어 정중히 사양합니다. 마음만 감사히 받겠습니다.</p>
+          <p className="text-sm leading-relaxed text-sage-600">화환은 둘 곳이 없어 정중히 사양합니다.<br />마음만 감사히 받겠습니다.</p>
         </div>
       ) : (
         <section aria-label="예식장 교통 및 주차 후 이동 안내" className="space-y-5">
@@ -103,7 +105,11 @@ export default function GuestGuide({
               <a href={venue.nav.kakaoWeb} aria-label="카카오맵 예식장 위치 보기" target="_blank" rel="noopener noreferrer" className={mapActionClass}>카카오맵</a>
               <a href={venue.nav.naverWeb} aria-label="네이버 지도 예식장 위치 보기" target="_blank" rel="noopener noreferrer" className={mapActionClass}>네이버 지도</a>
             </div>
-            <a href={`tel:${venue.tel}`} className="mt-3 inline-flex min-h-11 items-center text-sm text-sage-700 underline underline-offset-4">예식장 문의 · {venue.tel}</a>
+            {groom.phone && (
+              <a href={`tel:${groom.phone.replaceAll("-", "")}`} className="mt-3 flex min-h-12 items-center justify-center gap-2 rounded-xl bg-sage-700 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-sage-800">
+                <Phone size={16} aria-hidden="true" /> 신랑에게 전화하기
+              </a>
+            )}
           </article>
           <article className="rounded-2xl border border-sage-200 bg-white p-4">
             <p className="mb-2 text-sm text-sage-600">자차 · 주차 위치</p>

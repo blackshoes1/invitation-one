@@ -32,6 +32,7 @@ export const groom: Person = {
   name: "성근영",
   mother: "김도윤",
   relation: "외아들",
+  phone: "010-6600-8145",
 };
 
 export const bride: Person = {

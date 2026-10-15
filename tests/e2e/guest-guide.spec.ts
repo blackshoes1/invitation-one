@@ -79,6 +79,8 @@ test.describe("하객 안내 공개 이후", () => {
     await expect(page.getByRole("link", { name: "주차장 위치 보기" })).toHaveAttribute("href", parkingLot.nav.naverWeb);
     await expect(page.getByRole("link", { name: "카카오맵 예식장 위치 보기" })).toHaveAttribute("href", venue.nav.kakaoWeb);
     await expect(page.getByRole("link", { name: "네이버 지도 예식장 위치 보기" })).toHaveAttribute("href", venue.nav.naverWeb);
+    await expect(page.getByRole("link", { name: "신랑에게 전화하기", exact: true })).toHaveAttribute("href", `tel:${groom.phone?.replaceAll("-", "")}`);
+    await expect(page.getByRole("link", { name: /예식장 문의/ })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "네이버 도보 길찾기" })).toHaveAttribute("href", parkingLot.walkNav.naverWeb);
     await expect(page.getByRole("link", { name: "카카오맵 길찾기" })).toHaveAttribute("href", parkingLot.walkNav.kakaoWeb);
   });
