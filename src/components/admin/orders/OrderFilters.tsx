@@ -56,7 +56,7 @@ export default function OrderFilters({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="이름 · 연락처 검색"
-          className="flex-1 p-2.5 text-sm border border-wedding-gold/20 bg-white rounded-none focus:outline-none focus:border-sage-600"
+          className="flex-1 min-w-0 p-2.5 text-sm border border-wedding-gold/20 bg-white rounded-none focus:outline-none focus:border-sage-600"
         />
         <a
           href="/api/admin/export"

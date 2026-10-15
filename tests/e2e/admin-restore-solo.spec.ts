@@ -27,7 +27,9 @@ test("cancelled order can be edited without SMS, then restored", async ({ page }
   expect(patches[0]).toMatchObject({ notify: false, location: "서울 강남구 역 1번 출구" });
   page.on("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "대기중으로 복구" }).click();
-  await expect(page.getByRole("button", { name: "확정으로 변경 (SMS)" })).toBeVisible();
+  // 확정 문자는 이제 확정 버튼을 누른 뒤 따로 고른다 — 버튼 이름에 (SMS) 가 붙지 않는다
+  await expect(page.getByRole("button", { name: "확정으로 변경", exact: true })).toBeVisible();
+  await expect(page.getByText("대기중으로 복구하고 숨김을 해제했습니다. 안내 문자는 보내지 않았어요.")).toBeVisible();
   expect(patches[1]).toEqual({ action: "restore" });
 });
 

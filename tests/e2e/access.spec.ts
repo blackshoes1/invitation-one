@@ -6,6 +6,8 @@ import { GUEST_GUIDE_START } from "../../src/lib/wedding";
  * NEXT_PUBLIC_INVITATION_KEY 는 빌드 타임 상수 — 빌드와 같은 값을 써야 한다.
  */
 const KEY = process.env.NEXT_PUBLIC_INVITATION_KEY ?? "ci-dummy-key";
+// page.tsx 와 같은 조건 — 미리보기 배포이거나 10월 15일 0시(KST) 이후면 하객 안내가 먼저 열린다
+const GUIDE_ACTIVE = process.env.VERCEL_ENV === "preview" || Date.now() >= GUEST_GUIDE_START.getTime();
 
 test("키 없이 접근하면 기본 정보와 공개 축하 지도 영역이 보인다", async ({ page }) => {
   await page.goto("/");
@@ -23,10 +25,11 @@ test("잘못된 키로 접근하면 잠금 화면이 보인다", async ({ page }
 
 test("정상 키로 접근하면 공개 일정에 맞는 청첩장이 열린다", async ({ page }) => {
   await page.goto(`/?key=${encodeURIComponent(KEY)}`);
-  if (Date.now() >= GUEST_GUIDE_START.getTime()) {
-    await expect(page.getByRole("link", { name: "계좌 확인하기" })).toBeVisible();
+  if (GUIDE_ACTIVE) {
+    await expect(page.getByRole("link", { name: "축의금 계좌 안내", exact: true })).toBeVisible();
     await expect(page.getByAltText(/웨딩 사진/)).toHaveCount(0);
-    await page.getByRole("link", { name: "사진 보기", exact: true }).click();
+    await page.getByRole("link", { name: "모바일 청첩장 보러가기", exact: true }).click();
+    await expect(page).toHaveURL(/view=photos/);
   }
   await expect(page.getByAltText(/웨딩 사진/)).toBeVisible();
   await expect(page.getByText("아직 공개 전이에요")).toHaveCount(0);
@@ -38,9 +41,10 @@ test("한 번 열어본 기기는 키 없이 다시 들어와도 열린다", asy
   // 링크를 잃어버리고 주소만 다시 여는 상황
   await page.goto("/");
   await expect(page.getByText("아직 공개 전이에요")).toHaveCount(0);
-  if (Date.now() >= GUEST_GUIDE_START.getTime()) {
-    await expect(page.getByRole("link", { name: "계좌 확인하기" })).toBeVisible();
-    await page.getByRole("link", { name: "사진 보기", exact: true }).click();
+  if (GUIDE_ACTIVE) {
+    await expect(page.getByRole("link", { name: "축의금 계좌 안내", exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "모바일 청첩장 보러가기", exact: true }).click();
+    await expect(page).toHaveURL(/view=photos/);
   }
   await expect(page.getByAltText(/웨딩 사진/)).toBeVisible();
 });

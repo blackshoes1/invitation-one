@@ -62,12 +62,17 @@ for (const mode of ["desktop", "blocked", "mobile-error", "mobile-cancel"] as co
   });
 }
 
-test("청첩장 공유도 PC에서 복사하고 실패하면 주소를 남긴다", async ({ page }) => {
-  await mockSharing(page, "desktop");
-  await page.goto(`/?key=${KEY}`);
-  await page.getByRole("button", { name: "청첩장 공유하기", exact: true }).click();
-  expect(await page.evaluate(() => Reflect.get(window, "testCopied"))).toEqual([new URL(`/?key=${KEY}`, page.url()).href]);
-  await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => { throw new Error("denied"); } } }));
-  await page.getByRole("button", { name: "청첩장 링크 복사", exact: true }).click();
-  await expect(page.getByRole("textbox", { name: "직접 복사할 공유 링크" })).toHaveValue(new RegExp(`key=${KEY}`));
-});
+// 하객 안내 공개(10/15) 이후 첫 화면(/?key=)은 안내 카드뿐이고 공유 버튼은 사진 청첩장(view=photos)과
+// 안내 세부 화면(view=accounts) 하단에 있다. 공개 전에는 두 주소 모두 같은 청첩장이 열리므로 날짜와 무관하다.
+for (const view of ["photos", "accounts"]) {
+  test(`청첩장 공유도 PC에서 복사하고 실패하면 주소를 남긴다 (view=${view})`, async ({ page }) => {
+    await mockSharing(page, "desktop");
+    await page.goto(`/?key=${KEY}&view=${view}`);
+    await page.getByRole("button", { name: "청첩장 공유하기", exact: true }).click();
+    // 보고 있는 view 주소가 아니라 키가 담긴 첫 화면 주소를 공유한다
+    expect(await page.evaluate(() => Reflect.get(window, "testCopied"))).toEqual([new URL(`/?key=${KEY}`, page.url()).href]);
+    await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => { throw new Error("denied"); } } }));
+    await page.getByRole("button", { name: "청첩장 링크 복사", exact: true }).click();
+    await expect(page.getByRole("textbox", { name: "직접 복사할 공유 링크" })).toHaveValue(new RegExp(`key=${KEY}`));
+  });
+}
