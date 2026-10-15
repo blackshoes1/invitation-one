@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Children, isValidElement } from "react";
+import { Children, isValidElement, type ReactElement } from "react";
 import Home from "@/app/page";
 import GuestGuide from "@/components/GuestGuide";
 import Hero from "@/components/sections/Hero";
+import LockedGate from "@/components/LockedGate";
+import RememberInvitationKey from "@/components/RememberInvitationKey";
 
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: () => undefined }),
@@ -61,11 +63,44 @@ describe("하객 안내 공개 일정", () => {
     expect(types).not.toContain(GuestGuide);
   });
 
-  it("공개 후에도 유효한 접근 키가 필요하다", async () => {
+  it("키로 연 안내는 기억 쿠키와 공유 버튼을 준다", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-15T00:00:00+09:00"));
-    const page = await Home({ searchParams: Promise.resolve({ key: "wrong-key" }) });
-    expect(page.type).not.toBe(GuestGuide);
-    expect(page.type).not.toBe("main");
+    const page = await Home({ searchParams: Promise.resolve({ key: "schedule-test-key", view: "accounts" }) });
+    const children = Children.toArray(page.props.children).filter(isValidElement);
+    expect(children.map(child => child.type)).toContain(RememberInvitationKey);
+    const guide = children.find(child => child.type === GuestGuide) as ReactElement<{ shareable: boolean; query: object }>;
+    expect(guide.props.shareable).toBe(true);
+    expect(guide.props.query).toEqual({ key: "schedule-test-key" });
+  });
+
+  // 공개 후엔 주소만 치고 들어온 하객도 안내를 본다. 사진 청첩장만 키가 있어야 열린다.
+  it.each([undefined, "wrong-key"])("공개 후에는 키가 %s 여도 안내가 열리지만 기억 쿠키·공유 버튼·틀린 키는 넘기지 않는다", async (key) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-15T00:00:00+09:00"));
+    for (const view of [undefined, "accounts", "route"]) {
+      const page = await Home({ searchParams: Promise.resolve({ key, view }) });
+      const children = Children.toArray(page.props.children).filter(isValidElement);
+      expect(children.map(child => child.type)).not.toContain(RememberInvitationKey);
+      const guide = children.find(child => child.type === GuestGuide) as ReactElement<{ shareable: boolean; query: object }>;
+      expect(guide.props.shareable).toBe(false);
+      expect(guide.props.query).toEqual({});
+    }
+  });
+
+  it("공개 후에도 사진 청첩장은 유효한 접근 키가 필요하다", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-15T00:00:00+09:00"));
+    for (const key of [undefined, "wrong-key"]) {
+      const page = await Home({ searchParams: Promise.resolve({ key, view: "photos" }) });
+      expect(page.type).toBe(LockedGate);
+    }
+  });
+
+  it.each([undefined, "accounts", "route", "guest-snap", "photos"])("공개 전에는 키가 없으면 view=%s 도 잠금이다", async (view) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-14T23:59:59.999+09:00"));
+    const page = await Home({ searchParams: Promise.resolve({ key: "wrong-key", view }) });
+    expect(page.type).toBe(LockedGate);
   });
 });
