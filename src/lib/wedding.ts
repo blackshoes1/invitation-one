@@ -4,6 +4,8 @@
    - 요일/디데이는 날짜로부터 자동 계산하므로 직접 적지 않습니다(오타 방지).
    ========================================================================== */
 
+import { groomPhoneFormatted } from "@/lib/groomContact";
+
 export interface Person {
   name: string;
   father?: string;
@@ -44,7 +46,6 @@ export const bride: Person = {
 export const venue = {
   name: "용산가족공원",
   address: "서울 용산구 서빙고로 185 (용산가족공원 야외예식장)",
-  tel: "02-792-5661",
   /** 주차 안내 (잠금 화면·오시는 길에 노출) */
   parking: "주차는 국립중앙박물관 주차장을 이용해주세요",
   // 용산가족공원 야외예식장 POI (카카오 장소검색 좌표, 용산동6가 93-6)
@@ -339,8 +340,9 @@ export function weddingIcs(): string {
 
 /**
  * 예식 연락처 .vcf (연락처에 저장용, vCard 3.0).
- * 신랑·신부 이름을 한 장의 카드로 저장하고, 전화는 등록된 번호만 넣습니다.
- * (개인 번호가 없으면 예식장 대표번호를 폴백으로 사용)
+ * 신랑·신부 이름을 한 장의 카드로 저장하고, 전화는 신랑 번호를 넣습니다.
+ * 번호는 하객이 버튼을 눌러 받는 파일에만 들어간다 — 페이지에는 안 나온다
+ * (src/lib/groomContact.ts). 브라우저에서만 부른다.
  */
 export function weddingVcard(): string {
   const esc = (s: string) => s.replace(/([,;\\])/g, "\\$1").replace(/\n/g, "\\n");
@@ -352,14 +354,7 @@ export function weddingVcard(): string {
     `FN:${esc(title)}`,
     `ORG:${esc(`${groom.name} ♥ ${bride.name} 결혼식`)}`,
   ];
-  // 개인 번호가 있으면 각각, 없으면 예식장 대표번호
-  const phones: { label: string; num: string }[] = [];
-  if (groom.phone) phones.push({ label: `신랑 ${groom.name}`, num: groom.phone });
-  if (bride.phone) phones.push({ label: `신부 ${bride.name}`, num: bride.phone });
-  if (phones.length === 0) phones.push({ label: venue.name, num: venue.tel });
-  for (const p of phones) {
-    lines.push(`TEL;TYPE=CELL:${p.num}`);
-  }
+  lines.push(`TEL;TYPE=CELL:${groomPhoneFormatted()}`);
   lines.push(
     `ADR;TYPE=WORK:;;${esc(venue.address)};;;;`,
     `NOTE:${esc(`${formatFullDate()} ${formatTime()} · ${venue.name}`)}`,

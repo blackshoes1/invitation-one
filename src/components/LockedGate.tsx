@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import GroomCallButton from "@/components/GroomCallButton";
 import Link from "next/link";
 import Guestbook from "@/components/sections/Guestbook";
 import {
@@ -97,12 +98,7 @@ export default function LockedGate() {
             </p>
             <p className="font-serif text-base text-sage-700">{venue.name}</p>
             <p className="text-xs text-neutral-500">{venue.address}</p>
-            <a
-              href={`tel:${venue.tel}`}
-              className="inline-block text-xs text-wedding-gold underline underline-offset-2"
-            >
-              {venue.tel}
-            </a>
+            <GroomCallButton className="mt-1 text-xs text-wedding-gold underline underline-offset-2" />
           </div>
           <div className="border-t border-wedding-gold/10 pt-3">
             <p className="text-[11px] text-neutral-500 leading-relaxed">

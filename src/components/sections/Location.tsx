@@ -1,8 +1,9 @@
 "use client";
 
-import { Phone, Navigation, CalendarPlus, UserPlus, CircleParking } from "lucide-react";
+import { Navigation, CalendarPlus, UserPlus, CircleParking } from "lucide-react";
 import { venue, parkingLot, weddingIcs, weddingVcard } from "@/lib/wedding";
 import FadeIn from "@/components/FadeIn";
+import GroomCallButton from "@/components/GroomCallButton";
 import KakaoMap from "@/components/KakaoMap";
 import ParkingRouteMap from "@/components/ParkingRouteMap";
 
@@ -76,11 +77,8 @@ export default function Location() {
             {venue.name}
           </p>
           <p className="text-neutral-500 text-xs">{venue.address}</p>
-          <div className="flex justify-center items-center gap-1 text-xs text-wedding-gold mt-2">
-            <Phone size={11} />
-            <a href={`tel:${venue.tel}`} className="underline underline-offset-2">
-              {venue.tel}
-            </a>
+          <div className="flex justify-center mt-2">
+            <GroomCallButton className="px-4 py-2 border border-wedding-gold/30 text-xs text-sage-700 tracking-wide hover:bg-sage-50 transition-colors" />
           </div>
           <div className="mt-3 flex justify-center gap-2">
             <button
