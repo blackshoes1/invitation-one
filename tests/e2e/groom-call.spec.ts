@@ -21,7 +21,8 @@ async function captureTel(page: Page) {
 }
 
 test("청첩장 HTML 어디에도 신랑 번호·예식장 번호가 없다 (잠금 화면 · 본문)", async ({ page }) => {
-  for (const url of ["/", "/?key=ci-dummy-key"]) {
+  // 10/15 하객 안내 공개 이후 /?key= 는 안내 첫 화면이라, 버튼이 있는 사진 청첩장·오시는 길 화면도 훑는다
+  for (const url of ["/", "/?key=ci-dummy-key", "/?key=ci-dummy-key&view=photos", "/?key=ci-dummy-key&view=route"]) {
     await page.goto(url);
     await page.waitForLoadState("networkidle");
     const html = await page.content();
@@ -50,14 +51,18 @@ test("빌드된 JS 번들에도 번호 문자열이 없다", () => {
   }
 });
 
-test("본문 '오시는 길'의 버튼을 누르면 신랑 번호로 전화가 걸린다", async ({ page }) => {
-  await captureTel(page);
-  await page.goto("/?key=ci-dummy-key");
-  await page.getByRole("button", { name: /신랑 .*에게 전화하기/ }).first().click();
-  await expect(page.locator("html")).toHaveAttribute("data-dialed", `tel:${DIGITS}`);
-  // 누른 뒤에도 전화 링크가 화면(DOM)에 남지 않는다
-  expect(await page.content()).not.toContain('href="tel:');
-});
+// photos = 사진 청첩장 본문 '오시는 길', route = 하객 안내 '예식장 오시는 길'.
+// 공개 전에는 둘 다 사진 청첩장이 열리므로 날짜와 상관없이 버튼이 있다.
+for (const view of ["photos", "route"]) {
+  test(`'오시는 길'(view=${view})의 버튼을 누르면 신랑 번호로 전화가 걸린다`, async ({ page }) => {
+    await captureTel(page);
+    await page.goto(`/?key=ci-dummy-key&view=${view}`);
+    await page.getByRole("button", { name: /신랑 .*에게 전화하기/ }).first().click();
+    await expect(page.locator("html")).toHaveAttribute("data-dialed", `tel:${DIGITS}`);
+    // 누른 뒤에도 전화 링크가 화면(DOM)에 남지 않는다
+    expect(await page.content()).not.toContain('href="tel:');
+  });
+}
 
 test("잠금 화면에서도 신랑에게 전화할 수 있다", async ({ page }) => {
   await captureTel(page);
