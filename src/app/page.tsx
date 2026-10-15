@@ -59,6 +59,8 @@ async function fetchHeroImage(): Promise<string | null> {
  *
  * 접근 제어: ?key=xxxx — QR을 찍어야 열리는 컨셉이 핵심이므로
  * 키가 일치할 때만 공개. 환경변수 미설정 시에도 잠금(fail-closed).
+ * 단, 하객 안내(계좌·오시는 길·베스트샷)는 공개일부터 키 없이도 연다 — 주소만 치고
+ * 들어온 하객도 볼 수 있게. 사진 청첩장(view=photos)은 계속 키가 있어야 열린다.
  * QR 진입: ?via=qr → 본인 확인·뱃지 UI 노출
  */
 export default async function Home({
@@ -77,18 +79,22 @@ export default async function Home({
   // 유효한 키로 한 번 들어온 기기는 쿠키로 기억 — 링크를 다시 찾지 않아도 열린다
   const remembered =
     (await cookies()).get(INVITATION_COOKIE)?.value === INVITATION_KEY;
-  if (!INVITATION_KEY || (key !== INVITATION_KEY && !remembered)) {
-    return <LockedGate />;
-  }
-
-  const query = { ...(key ? { key } : {}), ...(via ? { via } : {}) };
+  const unlocked = Boolean(INVITATION_KEY) && (key === INVITATION_KEY || remembered);
   // 미리보기 배포에서는 즉시 공개하고, 운영은 요청 시각을 기준으로 공개한다.
   // eslint-disable-next-line react-hooks/purity
   const guideActive = process.env.VERCEL_ENV === "preview" || Date.now() >= GUEST_GUIDE_START.getTime();
-  if (guideActive && view !== "photos") {
+  const showGuide = Boolean(INVITATION_KEY) && guideActive && view !== "photos";
+  if (!unlocked && !showGuide) {
+    return <LockedGate />;
+  }
+
+  // 틀린 키는 안내 링크에 실어 나르지 않는다
+  const query = { ...(key === INVITATION_KEY ? { key } : {}), ...(via ? { via } : {}) };
+  if (showGuide) {
     return (
       <main className="invitation-content min-h-screen bg-wedding-cream text-sage-800 font-sans antialiased">
-        <RememberInvitationKey />
+        {/* 키 없이 연 안내에서 기억 쿠키를 남기면 다음부터 사진 청첩장까지 열린다 */}
+        {unlocked && <RememberInvitationKey />}
         <TextSizeToggle />
         {view === "guest-snap" ? (
           <>
@@ -100,7 +106,7 @@ export default async function Home({
             <GuestSnap uploadToken={issueUploadToken()} />
           </>
         ) : (
-          <GuestGuide view={view} query={query} />
+          <GuestGuide view={view} query={query} shareable={unlocked} />
         )}
       </main>
     );

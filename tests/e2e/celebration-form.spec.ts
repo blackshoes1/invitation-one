@@ -1,7 +1,8 @@
 import { test, expect } from "@playwright/test";
 const KEY = process.env.NEXT_PUBLIC_INVITATION_KEY ?? "ci-dummy-key";
 
-for (const path of ["/", `/?key=${KEY}&view=photos`]) {
+// 키 없는 잠금 화면(/?view=photos — 하객 안내 공개 이후 / 는 안내 화면)과 사진 청첩장
+for (const path of ["/?view=photos", `/?key=${KEY}&view=photos`]) {
   test(`메인 ${path}에서 이름과 메시지만으로 축하를 남긴다`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.route("**/rest/v1/**", (route) => route.fulfill({ json: [] }));
@@ -31,7 +32,7 @@ test("저장 실패 시 내용을 보존하고 비공개로 재시도한다", as
     expect(route.request().postDataJSON()).toMatchObject({ visibility: "private" });
     return route.fulfill({ status: attempts === 1 ? 503 : 200, json: { ok: attempts > 1 } });
   });
-  await page.goto("/");
+  await page.goto("/?view=photos");
   const form = page.getByRole("form", { name: "축하 한마디 남기기" });
   await form.getByRole("textbox", { name: "이름", exact: true }).fill("홍길동");
   await form.getByRole("textbox", { name: "축하 한마디", exact: true }).fill("둘에게만 전해요");

@@ -27,7 +27,8 @@ test.describe("공개 전 축하 지도", () => {
     test(`${width}px에서 지도와 공개 버블을 바로 보고 필터링할 수 있다`, async ({ page }) => {
       await page.setViewportSize({ width, height: 844 });
       const adminReads = await mockPublicMap(page);
-      await page.goto("/");
+      // 하객 안내 공개 이후 / 는 안내 화면이라, 잠금 화면(공개 축하 지도)은 view=photos 로 연다
+      await page.goto("/?view=photos");
       const section = page.getByRole("region", { name: "우리를 축하해준 사람들" });
       await section.scrollIntoViewIfNeeded();
       await expect(section.getByText(/지금까지 2명이/)).toBeVisible();
@@ -90,7 +91,7 @@ test.describe("공개 전 축하 지도", () => {
     await page.route("**/rest/v1/rpc/get_celebrations", route => failing
       ? route.fulfill({ status: 503, json: { message: "temporarily unavailable" } })
       : route.fulfill({ json: [] }));
-    await page.goto("/?key=wrong-key");
+    await page.goto("/?key=wrong-key&view=photos");
     const section = page.getByRole("region", { name: "우리를 축하해준 사람들" });
     await expect(section.getByRole("status")).toContainText("잠시 불러오지 못했어요");
     await expect(section.getByText(/첫 손님을 기다리고/)).toHaveCount(0);
