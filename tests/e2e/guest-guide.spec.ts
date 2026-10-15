@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { accounts, GUEST_GUIDE_START, parkingLot, venue } from "../../src/lib/wedding";
+import { accounts, bride, formatFullDate, formatTime, groom, GUEST_GUIDE_START, parkingLot, venue } from "../../src/lib/wedding";
 
 const KEY = process.env.NEXT_PUBLIC_INVITATION_KEY ?? "ci-dummy-key";
 const HOME = `/?key=${encodeURIComponent(KEY)}&via=qr`;
@@ -24,6 +24,8 @@ test.describe("하객 안내 공개 이후", () => {
       if (request.url().includes("/_next/image") || request.url().includes("/pic/")) photoRequests.push(request.url());
     });
     await page.goto(HOME);
+    await expect(page.locator("header").getByText(`${groom.name} · ${bride.name}`, { exact: true })).toBeVisible();
+    await expect(page.locator("header").getByText(`${venue.name} 야외예식장`, { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "축의금 계좌 안내" })).toBeVisible();
     await expect(page.getByText("현장 축의대는 운영하지 않습니다.", { exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "예식장 오시는 길" })).toBeVisible();
@@ -46,6 +48,7 @@ test.describe("하객 안내 공개 이후", () => {
     expect(new URL(page.url()).searchParams.get("key")).toBe(KEY);
     expect(new URL(page.url()).searchParams.get("via")).toBe("qr");
     await expect(page.locator("#guest-snap").getByRole("heading", { name: "하객 스냅" })).toBeInViewport();
+    await expect(page.locator("#guest-snap").getByText("첫 업로드와 베스트샷에 선물을 드려요.", { exact: false })).toBeVisible();
     await expect(page.getByRole("button", { name: "앨범에서 고르기" })).toBeVisible();
     await expect(page.getByAltText(/웨딩 사진/)).toHaveCount(0);
     await page.getByRole("link", { name: "하객 안내로", exact: true }).click();
@@ -74,8 +77,23 @@ test.describe("하객 안내 공개 이후", () => {
     await expect(page.getByRole("heading", { name: parkingLot.name, exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: `${venue.name} 야외예식장`, exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "주차장 위치 보기" })).toHaveAttribute("href", parkingLot.nav.naverWeb);
+    await expect(page.getByRole("link", { name: "카카오맵 예식장 위치 보기" })).toHaveAttribute("href", venue.nav.kakaoWeb);
+    await expect(page.getByRole("link", { name: "네이버 지도 예식장 위치 보기" })).toHaveAttribute("href", venue.nav.naverWeb);
     await expect(page.getByRole("link", { name: "네이버 도보 길찾기" })).toHaveAttribute("href", parkingLot.walkNav.naverWeb);
     await expect(page.getByRole("link", { name: "카카오맵 길찾기" })).toHaveAttribute("href", parkingLot.walkNav.kakaoWeb);
+  });
+
+  test("큰 글씨를 전환하면 날짜와 카드 설명도 확대되고 선택이 유지된다", async ({ page }) => {
+    await page.goto(HOME);
+    const date = page.locator("header").getByText(`${formatFullDate()} · ${formatTime()}`, { exact: true });
+    const description = page.getByText("현장 축의대는 운영하지 않습니다.", { exact: true });
+    const largeDate = await date.evaluate(element => parseFloat(getComputedStyle(element).fontSize));
+    const largeDescription = await description.evaluate(element => parseFloat(getComputedStyle(element).fontSize));
+    await page.getByRole("button", { name: "작은 글씨로 보기" }).click();
+    expect(await date.evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeLessThan(largeDate);
+    expect(await description.evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeLessThan(largeDescription);
+    await page.reload();
+    await expect(page.getByRole("button", { name: "큰 글씨로 보기" })).toHaveAttribute("aria-pressed", "false");
   });
 
   for (const width of [320, 390]) {

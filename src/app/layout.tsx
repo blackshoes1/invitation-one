@@ -66,7 +66,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" className={`${notoSerif.variable} h-full antialiased`}>
+    <html lang="ko" className={`${notoSerif.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full bg-wedding-cream">
         {/* Pretendard 다이나믹 서브셋 — CSS @import 대신 head 링크로 로드해
             HTML 파싱 시점에 preconnect·병렬 다운로드 (React 19 가 head 로 호이스팅) */}

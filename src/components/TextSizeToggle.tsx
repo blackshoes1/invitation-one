@@ -59,7 +59,7 @@ export default function TextSizeToggle() {
         onClick={toggle}
         aria-pressed={big}
         aria-label={big ? "작은 글씨로 보기" : "큰 글씨로 보기"}
-        className={`fixed top-3 right-3 z-40 flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-medium shadow-sm backdrop-blur-sm border transition-colors ${
+        className={`fixed top-3 right-3 z-40 flex min-h-11 items-center gap-1 px-3 py-2 rounded-full text-xs font-medium shadow-sm backdrop-blur-sm border transition-colors ${
           big
             ? "bg-sage-700 text-white border-sage-700"
             : "bg-white/85 text-sage-700 border-wedding-gold/30"

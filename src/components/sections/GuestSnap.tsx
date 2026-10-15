@@ -266,13 +266,17 @@ export default function GuestSnap({
     >
       <div className="max-w-sm mx-auto space-y-6 text-center">
         <FadeIn className="space-y-2">
-          <p className="font-serif tracking-[0.3em] text-[11px] text-wedding-gold">
+          <p className="font-serif tracking-[0.3em] text-xs text-sage-600">
             GUEST SNAP
           </p>
           <h2 className="font-serif text-2xl font-light tracking-widest text-sage-700">
             하객 스냅
           </h2>
-          <p className="text-xs text-neutral-500 leading-relaxed pt-1">
+          <p className="rounded-xl bg-sage-50 px-4 py-3 text-sm font-medium leading-relaxed text-sage-800">
+            오늘의 베스트샷을 찾습니다!<br />
+            첫 업로드와 베스트샷에 선물을 드려요.
+          </p>
+          <p className="text-sm text-neutral-500 leading-relaxed pt-1">
             오늘 담아주신 순간을 함께 나눠요 📸
             <br />
             지금 찍으셔도, 앨범에 있던 사진을 고르셔도 좋아요
@@ -294,7 +298,7 @@ export default function GuestSnap({
                   type="button"
                   onClick={() => pickMission(m)}
                   disabled={uploading}
-                  className={`text-[11px] px-2.5 py-1.5 rounded-full border transition-colors disabled:opacity-60 ${
+                  className={`min-h-11 text-xs px-2.5 py-1.5 rounded-full border transition-colors disabled:opacity-60 ${
                     active
                       ? "bg-sage-700 text-white border-sage-700"
                       : done
@@ -309,7 +313,7 @@ export default function GuestSnap({
             })}
           </div>
           {mission && (
-            <p className="text-[11px] text-sage-600">
+            <p className="text-xs text-sage-600">
               「{mission}」 미션 사진을 올려주세요 🙌
             </p>
           )}
@@ -317,6 +321,7 @@ export default function GuestSnap({
 
         <FadeIn className="space-y-3">
           <input
+            aria-label="이름 (선택)"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="이름 (선택)"
@@ -475,7 +480,7 @@ export default function GuestSnap({
 
               {/* 여러 장 중 첫 장만 미리보기로 표시 */}
               {pendingFiles.length > 1 && (
-                <p className="px-4 pt-2 text-[11px] text-neutral-500 text-center">
+                <p className="px-4 pt-2 text-xs text-neutral-500 text-center">
                   첫 장 미리보기예요 · 선택한 {pendingFiles.length}장을 원본으로 저장해요
                 </p>
               )}
@@ -485,13 +490,13 @@ export default function GuestSnap({
               {error && (
                 <p
                   role="status"
-                  className="px-4 pt-2 text-[11px] text-red-600 text-center"
+                  className="px-4 pt-2 text-xs text-red-600 text-center"
                 >
                   {error}
                 </p>
               )}
 
-              <p className="px-4 py-3 text-[11px] text-neutral-500 text-center">
+              <p className="px-4 py-3 text-xs text-neutral-500 text-center">
                 한 장당 최대 20MB · 압축과 프레임 없이 원본으로 저장해요.
                 사진에 포함된 위치정보 등 메타데이터도 유지돼요.
               </p>

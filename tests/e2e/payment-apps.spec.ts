@@ -28,8 +28,9 @@ test("account keeps copying and links each configured KakaoPay recipient", async
   await expect(page.locator("html")).toHaveAttribute("data-copied-account", "3333-28-8939945");
   await expect(page.getByText("복사한 계좌번호로 이체해주세요.", { exact: true })).toHaveCount(1);
   const order = await page.locator("section").filter({ has: page.getByRole("button", { name: "마음 전하기", exact: true }) }).innerText();
-  expect(order.indexOf("신랑 계좌정보")).toBeLessThan(order.indexOf("신부 계좌정보"));
-  expect(order.indexOf("신부 계좌정보")).toBeLessThan(order.indexOf("복사한 계좌번호로 이체해주세요."));
+  for (const account of accounts) expect(order).toContain(account.number);
+  expect(order.indexOf(accounts[0].number)).toBeLessThan(order.indexOf(accounts[1].number));
+  expect(order.indexOf(accounts[1].number)).toBeLessThan(order.indexOf("복사한 계좌번호로 이체해주세요."));
   await expect(page).toHaveURL(/\?key=ci-dummy-key/);
 });
 

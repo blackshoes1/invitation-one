@@ -116,15 +116,15 @@ export default function ParkingRouteMap() {
             {parkingLot.name} → {venue.name}
           </p>
           <p className="text-xs text-neutral-500">{parkingLot.address}</p>
-          <p className="text-[10px] text-neutral-500 mt-1 tracking-wide">
+          <p className="text-xs leading-relaxed text-neutral-500 mt-1">
             아래 버튼으로 도보 길찾기를 이용해 주세요
           </p>
         </div>
       )}
 
-      <div className="absolute bottom-3 right-3 bg-sage-700/85 backdrop-blur-sm text-white px-2 py-0.5 rounded-[2px] text-[10px] tracking-widest flex items-center gap-1 font-light">
+      {!showFallback && <div className="absolute bottom-3 right-3 bg-sage-700/85 backdrop-blur-sm text-white px-2 py-0.5 rounded-[2px] text-xs flex items-center gap-1 font-light">
         <MapPin size={10} /> 주차장 → 예식장
-      </div>
+      </div>}
     </div>
   );
 }

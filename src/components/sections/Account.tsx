@@ -34,7 +34,7 @@ function AccountRow({ acc }: { acc: Acct }) {
 
   const flash = (msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast(null), 1800);
+    setTimeout(() => setToast(null), 4000);
   };
 
   const handleCopy = async () => {
@@ -44,28 +44,26 @@ function AccountRow({ acc }: { acc: Acct }) {
   };
 
   return (
-    <div className="text-left py-1 space-y-2.5">
-      <div className="flex justify-between items-center">
-        <div className="space-y-1">
-          <p className="text-[11px] text-wedding-gold font-medium tracking-wider">
-            {acc.role} 계좌정보
-            <span className="text-sage-700 font-light ml-1">{acc.name}</span>
-          </p>
-          <p className="text-sm font-light tracking-wide text-sage-700">
-            {acc.bank}
-            <span className="text-xs font-mono tracking-tighter text-neutral-500 ml-1">
-              {acc.number}
-            </span>
-          </p>
-        </div>
+    <div className="text-left py-3 space-y-2.5">
+      <div className="flex justify-between items-center gap-3">
+        <p className="text-base text-sage-800 font-medium">
+          {acc.role}
+          <span className="ml-2">{acc.name}</span>
+        </p>
         <button
           type="button"
           onClick={handleCopy}
           aria-label={`${acc.name} 계좌번호 복사`}
-          className="min-w-[64px] px-3 py-1.5 border border-wedding-gold/25 text-[11px] text-neutral-500 hover:text-wedding-gold hover:border-wedding-gold transition-all tracking-wide bg-white"
+          className="min-h-11 min-w-16 shrink-0 px-3 py-2 border border-sage-300 text-sm text-sage-700 hover:bg-sage-50 transition-colors bg-white"
         >
           복사
         </button>
+      </div>
+      <div className="space-y-1">
+        <p className="text-sm text-sage-700">{acc.bank}</p>
+        <p className="text-[0.9375rem] font-mono tracking-tight text-sage-800">
+          <span className="whitespace-nowrap">{acc.number}</span>
+        </p>
       </div>
 
       {acc.kakaoPayUrl && (
@@ -79,14 +77,24 @@ function AccountRow({ acc }: { acc: Acct }) {
           >
             카카오페이 송금하기
           </a>
-          <p className="text-[11px] text-neutral-500 text-center">카카오페이 머니로 전달됩니다.</p>
+          <p className="text-xs text-neutral-500 text-center">카카오페이 머니로 전달됩니다.</p>
         </div>
       )}
 
       {/* 복사 완료 등 짧은 안내 — 스크린리더에도 전달되도록 라이브 영역으로 둔다 */}
-      <p className="text-[11px] text-sage-600 text-center" role="status">
+      <p className="text-xs text-sage-600 text-center" role="status">
         {toast && <span className="fade-in-soft inline-block">{toast}</span>}
       </p>
+    </div>
+  );
+}
+
+export function AccountDetails() {
+  return (
+    <div className="border border-wedding-gold/15 bg-white px-4 py-2 divide-y divide-wedding-gold/10">
+      {accounts.map((acc) => (
+        <AccountRow key={acc.number} acc={acc} />
+      ))}
     </div>
   );
 }
