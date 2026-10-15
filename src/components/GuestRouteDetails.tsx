@@ -11,7 +11,7 @@ export default function GuestRouteDetails() {
       <article className="rounded-2xl border border-sage-200 bg-white p-4">
         <p className="mb-2 text-sm text-sage-600">대중교통 · 예식장 위치</p>
         <h2 className="text-lg font-medium">{venue.name} 야외예식장</h2>
-        <p className="mt-2 text-sm leading-relaxed text-sage-600">{venue.address}</p>
+        <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-sage-600">{venue.address.replace(" (", "\n(")}</p>
         <p className="mt-3 text-sm leading-relaxed text-sage-600">가급적 대중교통 이용을 권장드립니다. 지도에서 출발지를 설정해 대중교통 경로를 확인해 주세요.</p>
         <div className="mt-4 grid grid-cols-2 gap-2">
           <a href={venue.nav.kakaoWeb} aria-label="카카오맵 예식장 위치 보기" target="_blank" rel="noopener noreferrer" className={mapActionClass}>카카오맵</a>
