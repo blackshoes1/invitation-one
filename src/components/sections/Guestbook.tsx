@@ -164,12 +164,16 @@ export default function Guestbook({
       )}
       <div className="max-w-sm mx-auto space-y-6 text-center">
         <FadeIn className="space-y-2">
-          <p className="font-serif tracking-[0.3em] text-[11px] text-wedding-gold">
-            CELEBRATION
-          </p>
-          <h2 className="font-serif text-2xl font-light tracking-widest text-sage-700">
-            {villageOnly ? "도트 방명록" : "우리를 축하해준 사람들"}
-          </h2>
+          {!villageOnly && (
+            <>
+              <p className="font-serif tracking-[0.3em] text-[11px] text-wedding-gold">
+                CELEBRATION
+              </p>
+              <h2 className="font-serif text-2xl font-light tracking-widest text-sage-700">
+                우리를 축하해준 사람들
+              </h2>
+            </>
+          )}
           {!empty && !loadFailed && (
             <p className="text-sm text-neutral-500">
               {loaded ? (

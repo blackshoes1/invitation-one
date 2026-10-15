@@ -45,7 +45,8 @@ async function openGuideVillage(page: Page) {
   await section.scrollIntoViewIfNeeded();
   const canvas = section.getByRole("img", { name: /^축하해 주신 0명의 도트 마을/ });
   await expect(canvas).toBeVisible();
-  await expect(section.getByRole("heading", { name: "도트 방명록", exact: true })).toBeVisible();
+  await expect(section.getByText("CELEBRATION", { exact: true })).toHaveCount(0);
+  await expect(section.getByRole("heading", { name: "도트 방명록", exact: true })).toHaveCount(0);
   expect(adminRequests).toEqual([]);
   return { section, canvas };
 }
