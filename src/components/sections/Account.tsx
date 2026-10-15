@@ -45,27 +45,29 @@ function AccountRow({ acc }: { acc: Acct }) {
 
   return (
     <div className="text-left py-1 space-y-2.5">
-      <div className="flex justify-between items-center">
-        <div className="space-y-1">
-          <p className="text-[11px] text-wedding-gold font-medium tracking-wider">
-            {acc.role} 계좌정보
-            <span className="text-sage-700 font-light ml-1">{acc.name}</span>
-          </p>
-          <p className="text-sm font-light tracking-wide text-sage-700">
-            {acc.bank}
-            <span className="text-xs font-mono tracking-tighter text-neutral-500 ml-1">
-              {acc.number}
-            </span>
-          </p>
-        </div>
+      {/* 계좌번호는 자기 줄을 통째로 쓴다. 예전엔 은행명·번호·복사 버튼을 한 줄에
+          넣어서, 좁은 화면(특히 큰 글씨·하객 안내 카드 안)에서 번호가 중간에 끊기고
+          복사 버튼이 카드 밖으로 밀려 잘렸다. 버튼은 auto 칸이라 줄어들지 않는다. */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1">
+        <p className="text-[11px] text-wedding-gold font-medium tracking-wider">
+          {/* 좁으면 이름만 다음 줄로 — "신랑" / "계좌정보 성근영" 처럼 끊기지 않게 */}
+          <span className="whitespace-nowrap">{acc.role} 계좌정보</span>{" "}
+          <span className="text-sage-700 font-light">{acc.name}</span>
+        </p>
         <button
           type="button"
           onClick={handleCopy}
           aria-label={`${acc.name} 계좌번호 복사`}
-          className="min-w-[64px] px-3 py-1.5 border border-wedding-gold/25 text-[11px] text-neutral-500 hover:text-wedding-gold hover:border-wedding-gold transition-all tracking-wide bg-white"
+          className="row-span-2 min-h-11 min-w-[64px] px-3 border border-wedding-gold/25 text-xs text-neutral-600 hover:text-wedding-gold hover:border-wedding-gold transition-all tracking-wide bg-white whitespace-nowrap"
         >
           복사
         </button>
+        <p className="text-sm font-light tracking-wide text-sage-700">{acc.bank}</p>
+        {/* <p> 가 아니라 <div> 인 이유: globals.css 의 `.invitation-content p { text-wrap: pretty }`
+            가 레이어 밖 규칙이라 p 에 붙인 whitespace-nowrap 을 덮어써 번호가 다시 끊긴다. */}
+        <div className="col-span-2 font-mono text-sm tracking-tight text-neutral-600 whitespace-nowrap">
+          {acc.number}
+        </div>
       </div>
 
       {acc.kakaoPayUrl && (
@@ -91,7 +93,7 @@ function AccountRow({ acc }: { acc: Acct }) {
   );
 }
 
-function AccountAccordion({ title, accounts, initiallyOpen }: { title: string; accounts: Acct[]; initiallyOpen: boolean }) {
+function AccountAccordion({ title, accounts, initiallyOpen, embedded }: { title: string; accounts: Acct[]; initiallyOpen: boolean; embedded: boolean }) {
   const [open, setOpen] = useState(initiallyOpen);
   // 펼친 영역과 버튼을 aria-controls 로 이어 준다 (스크린리더가 관계를 읽도록)
   const panelId = useId();
@@ -121,7 +123,7 @@ function AccountAccordion({ title, accounts, initiallyOpen }: { title: string; a
         }`}
       >
         <div className="min-h-0 overflow-hidden">
-          <div className="px-6 py-5 space-y-4 divide-y divide-wedding-gold/10">
+          <div className={`${embedded ? "px-4" : "px-6"} py-5 space-y-4 divide-y divide-wedding-gold/10`}>
             {accounts.map((acc, i) => (
               <AccountRow key={i} acc={acc} />
             ))}
@@ -133,9 +135,22 @@ function AccountAccordion({ title, accounts, initiallyOpen }: { title: string; a
   );
 }
 
-export default function Account({ initiallyOpen = true }: { initiallyOpen?: boolean }) {
+/**
+ * `embedded` — 하객 안내(`view=accounts`)처럼 이미 테두리 카드 안에 들어갈 때.
+ * 여백이 페이지·카드·섹션·아코디언으로 네 겹 쌓이면 휴대폰에서 계좌번호가 들어갈
+ * 자리가 없어진다. 그때만 안쪽 여백을 줄인다.
+ */
+export default function Account({
+  initiallyOpen = true,
+  embedded = false,
+}: {
+  initiallyOpen?: boolean;
+  embedded?: boolean;
+}) {
   return (
-    <section className="px-6 py-12 bg-wedding-cream border-t border-wedding-gold/10">
+    <section
+      className={`${embedded ? "px-4 py-8" : "px-6 py-12 border-t border-wedding-gold/10"} bg-wedding-cream`}
+    >
       <div className="max-w-sm mx-auto space-y-10 text-center">
         <FadeIn className="space-y-3">
           <p className="font-serif tracking-[0.3em] text-[11px] text-wedding-gold">
@@ -168,7 +183,12 @@ export default function Account({ initiallyOpen = true }: { initiallyOpen?: bool
 
         <FadeIn className="space-y-3">
           {/* 신랑·신부 계좌를 아코디언 하나로 안내 */}
-          <AccountAccordion title="마음 전하기" accounts={accounts} initiallyOpen={initiallyOpen} />
+          <AccountAccordion
+            title="마음 전하기"
+            accounts={accounts}
+            initiallyOpen={initiallyOpen}
+            embedded={embedded}
+          />
         </FadeIn>
       </div>
     </section>
