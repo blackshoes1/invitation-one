@@ -32,6 +32,7 @@ const BUBBLE_MS = 4000;
 const AUTO_BUBBLE_S = 6;
 /** 탭 복귀 직후 순간이동을 막는 프레임 시간 상한(초) */
 const MAX_DT = 0.05;
+const GUEST_SCALE = 0.85;
 const TAG_MAX_CHARS = 7;
 /** 이름표·말풍선 글씨는 도트 배율이 아니라 화면 해상도로 그린다 — 기준 크기(css px) */
 const FONT_CSS = 11;
@@ -102,9 +103,12 @@ function drawBackground(ctx: CanvasRenderingContext2D, bg: HTMLImageElement | nu
 function drawWalker(ctx: CanvasRenderingContext2D, w: Walker, sheet: HTMLImageElement, row: number): void {
   const { frame } = spriteFor(w);
   const { sx, sy, sw, sh } = frameRect(row, frame);
-  const dx = Math.round(w.x - SPRITE_W / 2);
-  const dy = Math.round(w.y - SPRITE_H);
-  ctx.drawImage(sheet, sx, sy, sw, sh, dx, dy, SPRITE_W, SPRITE_H);
+  const scale = w.fixed ? 1 : GUEST_SCALE;
+  const width = SPRITE_W * scale;
+  const height = SPRITE_H * scale;
+  const dx = Math.round(w.x - width / 2);
+  const dy = Math.round(w.y - height);
+  ctx.drawImage(sheet, sx, sy, sw, sh, dx, dy, width, height);
 }
 
 /** 화면 해상도(캔버스 픽셀) 좌표계에서 그리는 글씨 설정 — s: 도트 배율, fp: 글자 크기(px) */
@@ -219,7 +223,8 @@ function drawBubble(ctx: CanvasRenderingContext2D, t: TextMetrics, w: Walker, in
   const cw = WORLD_W * t.s;
   const x = Math.round(Math.min(cw - bw - 3, Math.max(3, w.x * t.s - bw / 2)));
   // 꼬리 끝이 머리 바로 위에 닿게 한다(시트 위쪽 투명 여백 때문에 SPRITE_H 가 아니라 실측 머리 높이를 쓴다)
-  const y = Math.max(3, Math.round((w.y - SPRITE_HEAD_H - 4) * t.s - bh - t.fp * 0.6));
+  const headHeight = SPRITE_HEAD_H * (w.fixed ? 1 : GUEST_SCALE);
+  const y = Math.max(3, Math.round((w.y - headHeight - 4) * t.s - bh - t.fp * 0.6));
   const tail = Math.round(t.fp * 0.6);
   const radius = Math.round(t.fp * 0.9);
   const border = Math.max(1, Math.round(t.ratio));
