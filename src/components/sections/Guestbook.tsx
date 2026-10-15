@@ -61,7 +61,7 @@ export default function Guestbook({
   const [celebrations, setCelebrations] = useState<Celebration[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [mode, setMode] = useState<ViewMode>("messages");
+  const [mode, setMode] = useState<ViewMode>("village");
   const [mineId, setMineId] = useState<string | null>(null);
   const [liveToast, setLiveToast] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);

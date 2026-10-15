@@ -54,6 +54,7 @@ test("공개 메시지 저장 후 피드가 즉시 갱신된다", async ({ page 
   }] : [] }));
   await page.route("**/api/celebrations", (route) => { saved = true; return route.fulfill({ json: { ok: true } }); });
   await page.goto(`/?key=${KEY}&view=photos`);
+  await page.getByRole("button", { name: "💬 메시지", exact: true }).click();
   const form = page.getByRole("form", { name: "축하 한마디 남기기" });
   await form.getByRole("textbox", { name: "이름", exact: true }).fill("홍길동");
   await form.getByRole("textbox", { name: "축하 한마디", exact: true }).fill("새 축하 메시지");
