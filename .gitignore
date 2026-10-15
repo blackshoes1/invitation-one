@@ -49,3 +49,6 @@ next-env.d.ts
 
 # DB 백업 덤프 (scripts/backup-db.mjs 출력)
 backups/
+
+# 도트 마당 원본 시트(ChatGPT) — 커밋 금지
+village-src/

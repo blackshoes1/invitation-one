@@ -1,0 +1,81 @@
+import { test, expect, type Page } from "@playwright/test";
+
+const KEY = process.env.NEXT_PUBLIC_INVITATION_KEY ?? "ci-dummy-key";
+const HOME = `/?key=${encodeURIComponent(KEY)}&view=photos`;
+
+async function openEmptyGuestbook(page: Page, url = HOME) {
+  // DB 설정 여부와 관계없이 빈 방명록을 검증하며 운영 데이터는 읽지 않는다.
+  await page.route("**/rest/v1/rpc/get_celebrations", route => route.fulfill({ json: [] }));
+  await page.route("**/api/admin/celebrations", route => route.fulfill({ status: 401, json: {} }));
+  await page.goto(url);
+  const section = page.getByRole("region", { name: "우리를 축하해준 사람들" });
+  await section.scrollIntoViewIfNeeded();
+  await expect(section.getByText("첫 손님을 기다리고 있어요 🛵", { exact: false })).toBeVisible();
+  return section;
+}
+
+async function openVillage(page: Page) {
+  const section = page.getByRole("region", { name: "우리를 축하해준 사람들" });
+  const [background, sprites] = await Promise.all([
+    page.waitForResponse(response => new URL(response.url()).pathname === "/pic/village-bg.webp"),
+    page.waitForResponse(response => new URL(response.url()).pathname === "/pic/village-sprites.webp"),
+    section.getByRole("button", { name: "🏘️ 마을", exact: true }).click(),
+  ]);
+  expect(background.status()).toBe(200);
+  expect(sprites.status()).toBe(200);
+  await Promise.all([background.finished(), sprites.finished()]);
+  const canvas = section.getByRole("img", { name: /^축하해 주신 0명의 도트 마을/ });
+  await expect(canvas).toBeVisible();
+  await expect(section.getByText("마을을 불러오지 못했어요", { exact: true })).toHaveCount(0);
+  return canvas;
+}
+
+for (const width of [320, 390]) {
+  test(`${width}px 큰 글씨에서 빈 도트 마을을 열고 메시지로 돌아올 수 있다`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    const section = await openEmptyGuestbook(page);
+    await expect(page.getByRole("button", { name: "작은 글씨로 보기" })).toHaveAttribute("aria-pressed", "true");
+    const village = section.getByRole("button", { name: "🏘️ 마을", exact: true });
+    const messages = section.getByRole("button", { name: "💬 메시지", exact: true });
+    const canvas = await openVillage(page);
+
+    await expect(village).toHaveAttribute("aria-pressed", "true");
+    await expect(messages).toHaveAttribute("aria-pressed", "false");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+    await messages.click();
+    await expect(messages).toHaveAttribute("aria-pressed", "true");
+    await expect(village).toHaveAttribute("aria-pressed", "false");
+    await expect(canvas).toHaveCount(0);
+    await expect(section.getByText("첫 손님을 기다리고 있어요 🛵", { exact: false })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+    await village.click();
+    await expect(canvas).toBeVisible();
+    await expect(village).toHaveAttribute("aria-pressed", "true");
+  });
+}
+
+test("동작 줄이기에서도 신랑을 두 번 누르면 사진 갤러리로 이동한다", async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ reducedMotion: "reduce", viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  try {
+    await openEmptyGuestbook(page, `${baseURL}${HOME}`);
+    expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(true);
+    const canvas = await openVillage(page);
+    await canvas.scrollIntoViewIfNeeded();
+    const gallery = page.locator("#gallery");
+    await expect(gallery).not.toBeInViewport();
+    const bounds = await canvas.boundingBox();
+    expect(bounds).not.toBeNull();
+    // 논리 세계 384×457에서 신랑(162, 발 222)의 몸통을 누른다.
+    const position = { x: bounds!.width * 162 / 384, y: bounds!.height * 190 / 457 };
+    await canvas.click({ position });
+    await expect(gallery).not.toBeInViewport();
+    await canvas.click({ position });
+    await expect(gallery).toBeInViewport();
+    await expect.poll(() => gallery.evaluate(element => Math.abs(element.getBoundingClientRect().top))).toBeLessThan(2);
+  } finally {
+    await context.close();
+  }
+});

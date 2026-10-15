@@ -8,9 +8,10 @@ import FadeIn from "@/components/FadeIn";
 import MessageFeed, { buildFeed } from "@/components/sections/MessageFeed";
 import JourneyMap from "@/components/sections/JourneyMap";
 import VerifyBadge from "@/components/sections/VerifyBadge";
+import PixelVillage from "@/components/sections/PixelVillage";
 import CelebrationForm from "@/components/sections/CelebrationForm";
 
-type ViewMode = "map" | "messages";
+type ViewMode = "map" | "messages" | "village";
 
 // 예식지(서울 용산) 기준 위치 — '가장 먼 곳' 계산용
 const SEOUL = SIDO_POS["서울"];
@@ -149,6 +150,7 @@ export default function Guestbook({
 
   return (
     <section
+      id="guestbook"
       aria-label="우리를 축하해준 사람들"
       className={`relative ${mapOnly ? "py-8" : "px-6 py-12"} bg-wedding-cream border-t border-wedding-gold/10`}
     >
@@ -181,11 +183,27 @@ export default function Guestbook({
 
         {!mapOnly && <CelebrationForm onSent={() => setRefresh((value) => value + 1)} />}
 
+        {!mapOnly && (
+          <FadeIn>
+            <div role="group" aria-label="방명록 보기 방식" className="flex w-full bg-white rounded-full p-1 border border-wedding-gold/20">
+              <ToggleBtn active={mode === "map"} onClick={() => setMode("map")}>
+                🗺️ 지도
+              </ToggleBtn>
+              <ToggleBtn active={mode === "messages"} onClick={() => setMode("messages")}>
+                💬 메시지
+              </ToggleBtn>
+              <ToggleBtn active={mode === "village"} onClick={() => setMode("village")}>
+                🏘️ 마을
+              </ToggleBtn>
+            </div>
+          </FadeIn>
+        )}
+
         {loadFailed && count === 0 ? (
           <p role="status" className="text-sm text-neutral-500 py-8">
             축하 소식을 잠시 불러오지 못했어요. 잠시 후 자동으로 다시 확인할게요.
           </p>
-        ) : empty ? (
+        ) : empty && (mapOnly || mode !== "village") ? (
           <FadeIn>
             <p className="text-sm text-neutral-500 py-8">
               첫 손님을 기다리고 있어요 🛵
@@ -195,25 +213,10 @@ export default function Guestbook({
           </FadeIn>
         ) : (
           <>
-            {/* 뷰 전환 */}
-            {!mapOnly && (
-              <FadeIn>
-                <div className="inline-flex bg-white rounded-full p-1 border border-wedding-gold/20">
-                  <ToggleBtn active={mode === "map"} onClick={() => setMode("map")}>
-                    🗺️ 지도
-                  </ToggleBtn>
-                  <ToggleBtn
-                    active={mode === "messages"}
-                    onClick={() => setMode("messages")}
-                  >
-                    💬 메시지
-                  </ToggleBtn>
-                </div>
-              </FadeIn>
-            )}
-
             <FadeIn>
-              {mapOnly || mode === "map" ? (
+              {!mapOnly && mode === "village" ? (
+                <PixelVillage items={feed} highlightId={mineId} />
+              ) : mapOnly || mode === "map" ? (
                 <>
                   {(() => {
                     const st = regionStats(celebrations);
@@ -282,8 +285,9 @@ function ToggleBtn({
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
-      className={`px-5 py-2 text-sm rounded-full transition-colors ${
+      className={`min-h-11 min-w-0 flex-1 px-2 whitespace-nowrap py-2 text-sm rounded-full transition-colors ${
         active ? "bg-sage-600 text-white font-bold" : "text-neutral-500"
       }`}
     >

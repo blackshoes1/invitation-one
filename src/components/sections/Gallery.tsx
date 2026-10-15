@@ -59,7 +59,7 @@ export default function Gallery() {
   );
 
   return (
-    <section className="px-6 pt-5 pb-10 bg-white">
+    <section id="gallery" className="px-6 pt-5 pb-10 bg-white">
       <div className="max-w-sm mx-auto space-y-8 text-center">
         <FadeIn className="space-y-2">
           <h2 className="font-serif text-2xl font-light tracking-widest text-sage-700">
