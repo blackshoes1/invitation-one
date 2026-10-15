@@ -10,9 +10,12 @@ const actionClass = "flex min-h-12 w-full items-center justify-center gap-2 roun
 export default function GuestGuide({
   view,
   query,
+  shareable,
 }: {
   view?: string;
   query: { key?: string; via?: string };
+  /** 키로 연 사람만 — 공유 버튼은 키가 담긴 청첩장 주소를 건넨다 */
+  shareable: boolean;
 }) {
   const detail = view === "accounts" || view === "route";
 
@@ -124,7 +127,7 @@ export default function GuestGuide({
       <footer className="pt-7 text-center">
         <p className="font-serif text-sm text-sage-700">{groom.name} · {bride.name}</p>
         <p className="mt-2 text-xs leading-relaxed text-sage-600">{formatFullDate()} {formatTime()}<br />{venue.name} 야외예식장</p>
-        <div className="mt-6"><ShareButton /></div>
+        {shareable && <div className="mt-6"><ShareButton /></div>}
       <a href="/privacy" className="mt-3 inline-block text-xs underline underline-offset-2">개인정보 처리 안내</a>
       </footer>
     </div>
