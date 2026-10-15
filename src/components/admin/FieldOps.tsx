@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useFieldOps } from "./fieldops/useFieldOps";
-import CheckinWindowCard from "./fieldops/CheckinWindowCard";
 import WalkinForm from "./fieldops/WalkinForm";
 import RsvpList from "./fieldops/RsvpList";
 import SeatingTab from "./fieldops/SeatingTab";
@@ -12,7 +11,7 @@ import { FILTERS, type Filter } from "./fieldops/types";
 /**
  * 관리자 — 현장 운영 탭 (docs/CHECKIN_SEATING_SPEC.md §6, §5.2, §13)
  * 예식 당일 안내데스크·관리자용: 통계 / 검색·필터 / 수동 체크인 / 인원 수정 /
- * 취소 / 현장 등록 / 좌석 배정 / QR 재발급 / CSV.
+ * 취소 / 현장 등록 / 좌석 배정 / CSV.
  * 모바일 우선 · 검색창 상단 고정 · 15초 자동 새로고침.
  */
 export default function FieldOps() {
@@ -20,9 +19,7 @@ export default function FieldOps() {
     tables,
     stats,
     busy,
-    setBusy,
     notice,
-    commonUrl,
     flash,
     act,
     tableName,
@@ -31,7 +28,6 @@ export default function FieldOps() {
     manualCheckin,
     editParty,
     cancelCheckin,
-    issuePass,
     assignSeat,
   } = useFieldOps();
   const [filter, setFilter] = useState<Filter>("all");
@@ -77,9 +73,6 @@ export default function FieldOps() {
         </div>
       )}
 
-      {/* ===== 체크인 운영 시간 (§10) ===== */}
-      <CheckinWindowCard busy={busy} setBusy={setBusy} flash={flash} />
-
       {/* ===== 보기 전환 + CSV ===== */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex gap-1.5">
@@ -97,26 +90,8 @@ export default function FieldOps() {
           </button>
         </div>
         <div className="flex gap-1.5">
-          {commonUrl && (
-            <button
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(commonUrl);
-                  flash("공용 QR 링크를 복사했어요 (인쇄용)");
-                } catch {
-                  prompt("공용 QR 링크", commonUrl);
-                }
-              }}
-              className="px-3 py-1.5 text-[11px] border border-wedding-gold/25 text-neutral-500 bg-white"
-            >
-              공용 QR 링크
-            </button>
-          )}
           <a href="/api/admin/rsvp-export?type=full" className="px-3 py-1.5 text-[11px] border border-wedding-gold/25 text-neutral-500 bg-white">
             CSV
-          </a>
-          <a href="/api/admin/rsvp-export?type=pass" className="px-3 py-1.5 text-[11px] border border-wedding-gold/25 text-neutral-500 bg-white">
-            QR 발송 목록
           </a>
         </div>
       </div>
@@ -162,7 +137,6 @@ export default function FieldOps() {
             editParty={editParty}
             cancelCheckin={cancelCheckin}
             assignSeat={assignSeat}
-            issuePass={issuePass}
           />
         </>
       ) : (

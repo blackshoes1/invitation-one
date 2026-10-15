@@ -84,7 +84,6 @@ npm run lint && npx tsc --noEmit && npm test && npm run build
 | `NEXT_PUBLIC_INVITATION_KEY` | 공개(QR 링크 `?key=`) | 청첩장 열람 게이트. **비밀값이 아님** — 권한은 서버 토큰이 담당 |
 | `ADMIN_PASSWORD` | **서버 전용** | `/admin` 로그인. 세션은 DB 무작위 토큰(`admin_sessions`) |
 | `APP_SIGNING_SECRET` | **서버 전용**(선택) | 단기 HMAC 토큰(사진 업로드 권한) 서명 키. 없으면 서버 시크릿에서 파생 |
-| `CHECKIN_EVENT_KEY` | **서버 전용** | 예식장 공용 체크인 QR 의 행사 키 |
 | `SOLAPI_API_KEY/SECRET/SENDER` | **서버 전용**(선택) | SMS. 미설정 시 발송 skip |
 | `KAKAO_REST_API_KEY` / `KAKAO_REFRESH_TOKEN` | **서버 전용**(선택) | 관리자 카카오 알림. refresh token 은 DB(`site_settings`)에 자동 회전 저장 |
 | `CRON_SECRET` | **서버 전용**(선택) | Vercel Cron → `/api/notify` GET 안전망 |

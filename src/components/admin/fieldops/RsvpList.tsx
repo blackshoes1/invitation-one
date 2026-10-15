@@ -16,7 +16,6 @@ export default function RsvpList({
   editParty,
   cancelCheckin,
   assignSeat,
-  issuePass,
 }: {
   attending: RsvpRow[];
   walkins: CheckinRow[];
@@ -27,7 +26,6 @@ export default function RsvpList({
   editParty: (c: CheckinRow) => void;
   cancelCheckin: (c: CheckinRow, label: string) => void;
   assignSeat: (r: RsvpRow) => void;
-  issuePass: (r: RsvpRow) => void;
 }) {
   const list = useMemo(() => {
     const q = search.trim();
@@ -97,9 +95,6 @@ export default function RsvpList({
                     ) : (
                       <span className="text-neutral-400">미도착</span>
                     )}
-                    {!r.checkin_token_active && r.attending && (
-                      <span className="text-red-400"> · QR 비활성</span>
-                    )}
                   </p>
                 </div>
                 <div className="flex gap-1 shrink-0">
@@ -116,7 +111,6 @@ export default function RsvpList({
                     </>
                   )}
                   <ActionBtn onClick={() => assignSeat(r)}>좌석</ActionBtn>
-                  <ActionBtn onClick={() => issuePass(r)}>QR</ActionBtn>
                 </div>
               </div>
             </div>

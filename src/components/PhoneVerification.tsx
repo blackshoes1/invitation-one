@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { PRIVACY_POLICY_VERSION, PRIVACY_RETENTION_LABEL } from "@/lib/privacy";
 import type { VerifyResultV2 } from "@/lib/supabase";
 
-export default function PhoneVerification({ name, phone, purpose, rsvpId, onVerified, onReset }: {
-  name: string; phone: string; purpose: "badge" | "rsvp" | "checkin"; rsvpId?: string;
+export default function PhoneVerification({ name, phone, purpose, onVerified, onReset }: {
+  name: string; phone: string; purpose: "badge" | "rsvp";
   onVerified: (token: string, result: VerifyResultV2 | null) => void;
   onReset?: () => void;
 }) {
@@ -15,7 +15,7 @@ export default function PhoneVerification({ name, phone, purpose, rsvpId, onVeri
   const [verifiedScope, setVerifiedScope] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const scope = `${purpose}|${name.trim()}|${phone.replace(/\D/g, "")}|${rsvpId ?? ""}`;
+  const scope = `${purpose}|${name.trim()}|${phone.replace(/\D/g, "")}`;
   const activeScope = useRef<string | null>(scope);
   useEffect(() => { activeScope.current = scope; return () => { activeScope.current = null; }; }, [scope]);
   const currentChallenge = challenge?.scope === scope ? challenge.id : null;
@@ -26,7 +26,7 @@ export default function PhoneVerification({ name, phone, purpose, rsvpId, onVeri
     setBusy(true); setError(null);
     try {
       const res = await fetch("/api/identity/request", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, phone, purpose, rsvpId, consent: PRIVACY_POLICY_VERSION }) });
+        body: JSON.stringify({ name, phone, purpose, consent: PRIVACY_POLICY_VERSION }) });
       const data = await res.json();
       if (activeScope.current !== scope) return;
       if (!res.ok) return setError(data.error ?? "인증 문자를 요청하지 못했습니다.");

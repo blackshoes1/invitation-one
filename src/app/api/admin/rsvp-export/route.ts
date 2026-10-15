@@ -6,7 +6,6 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 /**
  * 관리자 — 체크인 v2 CSV (§15)
  * GET ?type=full : RSVP·체크인 통합 CSV (토큰·패스 URL 미포함)
- * GET ?type=pass : QR 발송 목록 CSV (패스 URL 포함 — 관리자 전용 별도 내보내기)
  */
 
 const SIDE_LABEL: Record<string, string> = {
@@ -41,34 +40,16 @@ export async function GET(req: Request) {
   const bad = await adminGuard(req);
   if (bad) return bad;
 
-  const type = new URL(req.url).searchParams.get("type") ?? "full";
+  if (new URL(req.url).searchParams.get("type") === "pass")
+    return NextResponse.json({ error: "self_checkin_disabled" }, { status: 410, headers: { "Cache-Control": "no-store, private" } });
 
   const { data: rsvps, error } = await supabaseAdmin!
     .from("rsvp")
     .select(
-      "id, name, phone, side, attending, companion_count, kids_meal, eating, table_id, checkin_token, checkin_token_active, qr_issued_at, created_at"
+      "id, name, phone, side, attending, companion_count, kids_meal, eating, table_id, created_at"
     )
     .order("created_at", { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  if (type === "pass") {
-    // QR 발송 목록 — 참석 + 활성 토큰만
-    const origin = new URL(req.url).origin;
-    const rows = (rsvps ?? [])
-      .filter((r) => r.attending && r.checkin_token)
-      .map((r) => [
-        r.name,
-        r.phone ?? "",
-        `${origin}/checkin?t=${r.checkin_token}`,
-        r.qr_issued_at ? new Date(r.qr_issued_at).toLocaleString("ko-KR") : "",
-        r.checkin_token_active ? "활성" : "비활성",
-      ]);
-    return csvResponse(
-      ["이름", "연락처", "패스 URL", "QR 발급 시각", "토큰 활성 상태"],
-      rows,
-      "checkin-pass-list.csv"
-    );
-  }
 
   // 통합 CSV — 토큰·패스 URL 제외 (§15)
   const [{ data: checkins }, { data: tables }] = await Promise.all([

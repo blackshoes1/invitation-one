@@ -191,24 +191,23 @@ test.describe("E2E-5 관리자 세션", () => {
   });
 });
 
-test.describe("E2E-6 체크인 운영 시간", () => {
+test.describe("E2E-6 하객 셀프 체크인 종료", () => {
   test.skip(!DB || !EVENT_KEY, "E2E_DB + CHECKIN_EVENT_KEY 필요");
 
-  test("checkin disabled 상태에서는 올바른 행사 키로도 검색이 차단된다", async ({ request }) => {
-    // 시드 기본값: site_settings.checkin_enabled = false (v24)
+  test("올바른 예전 행사 키로도 셀프 체크인 검색이 종료된다", async ({ request }) => {
     const res = await request.post("/api/checkin/search", {
       data: { eventKey: EVENT_KEY, name: "홍길동", last4: "1234" },
     });
-    expect(res.status()).toBe(403);
-    expect((await res.json()).error).toBe("window");
+    expect(res.status()).toBe(410);
+    expect((await res.json()).error).toBe("self_checkin_disabled");
   });
 
-  test("행사 키가 틀리면 운영 시간과 무관하게 403 event_key", async ({ request }) => {
+  test("잘못된 행사 키도 동일한 종료 응답을 받는다", async ({ request }) => {
     const res = await request.post("/api/checkin/search", {
       data: { eventKey: "wrong-key", name: "홍길동", last4: "1234" },
     });
-    expect(res.status()).toBe(403);
-    expect((await res.json()).error).toBe("event_key");
+    expect(res.status()).toBe(410);
+    expect((await res.json()).error).toBe("self_checkin_disabled");
   });
 });
 

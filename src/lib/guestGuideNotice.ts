@@ -25,5 +25,5 @@ export function guideReviewToken(row: GuideRecipient): string | null {
   return privacyHash(`guide-review:${JSON.stringify([row.id,row.name,row.phone?.replace(/\D/g,""),row.guide_token_hash,row.guide_sms_request_id,row.guide_sms_status,row.guide_confirmed_at])}`);
 }
 export function guideNotice(name: string, url: string): string {
-  return `[성근영·김아영 결혼식 안내]\n${name}님, 예식 전 안내를 확인해주세요.\n10월 15일부터 아래 개인 링크에서 사전 안내 체크인을 하면 축의금 계좌·주차장부터 예식장까지 오시는 길을 볼 수 있어요.\n${url}\n예식: 10월 18일(일) 오전 11시\n이 링크는 ${name}님 전용입니다.`;
+  return `[성근영·김아영 결혼식 안내]\n${name}님, 예식 전 안내드립니다.\n예식: 10월 18일(일) 오전 11시\n현장 축의대는 운영하지 않습니다. 마음을 전하실 분은 안내 페이지의 계좌를 이용해주세요.\n가급적 대중교통 이용을 부탁드립니다. 국립중앙박물관 주차장에서 예식장까지 오시는 길도 안내해 드려요.\n${url}\n안내를 읽으신 뒤 ‘안내 확인했어요’ 버튼을 눌러주세요.\n이 링크는 ${name}님 전용입니다.`;
 }

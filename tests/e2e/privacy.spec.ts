@@ -34,26 +34,13 @@ for (const width of [320, 390, 1280]) {
   });
 }
 
-test("common checkin requires SMS before revealing a reservation", async ({ page }) => {
-  let searches = 0;
-  const ticket = "a".repeat(32);
-  await page.route("**/api/identity/request", route => route.fulfill({ json: { challengeId: "10000000-0000-4000-8000-000000000001" } }));
-  await page.route("**/api/identity/verify", route => route.fulfill({ json: { verified: true, purpose: "checkin", verificationToken: ticket, result: null } }));
-  await page.route("**/api/checkin/search", async route => {
-    searches++; expect(route.request().postDataJSON().verificationToken).toBe(ticket);
-    await route.fulfill({ json: { candidates: [{ rsvpId: "r1", displayName: "인증하객", expectedPartySize: 2 }] } });
-  });
+test("old common checkin links do not collect identity or reveal reservations", async ({ page }) => {
+  let requests = 0;
+  page.on("request", req => { if (/\/api\/(identity|checkin)\//.test(new URL(req.url()).pathname)) requests++; });
   await page.goto("/checkin?event=ui-test-event");
-  await page.getByLabel("성함", { exact: true }).fill("인증하객");
-  await page.getByLabel("전체 전화번호").fill("01011112222");
-  expect(searches).toBe(0); await expect(page.getByText("예약 확인", { exact: false })).toHaveCount(0);
-  await page.getByRole("checkbox").check();
-  await page.getByRole("button", { name: "인증 문자 받기" }).click();
-  await page.getByLabel("문자 인증번호").fill("123456");
-  await page.getByRole("button", { name: "인증번호 확인" }).click();
-  await expect(page.getByText("인증하객님, 환영합니다")).toBeVisible();
-  await expect(page.getByRole("button", { name: "2명 체크인하기" })).toBeVisible();
-  expect(searches).toBe(1);
+  await expect(page.getByRole("heading", { name: "예식 안내", exact: true })).toBeVisible();
+  await expect(page.locator("input")).toHaveCount(0);
+  expect(requests).toBe(0);
 });
 
 test("public notice explains preserved photos and messages", async ({ page }) => {

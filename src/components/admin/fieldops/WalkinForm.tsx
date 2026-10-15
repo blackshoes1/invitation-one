@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { SIDE_LABEL, type Act, type Flash } from "./types";
 
-/** 현장 등록 (QR 없이 방문한 하객) */
+/** 현장 하객 등록 */
 export default function WalkinForm({
   busy,
   act,
@@ -47,7 +47,7 @@ export default function WalkinForm({
         onClick={() => setWOpen((o) => !o)}
         className="w-full py-2.5 text-xs text-sage-700 font-medium"
       >
-        {wOpen ? "▲ 닫기" : "＋ 현장 하객 등록 (QR 없이 방문)"}
+        {wOpen ? "▲ 닫기" : "＋ 현장 하객 등록"}
       </button>
       {wOpen && (
         <div className="p-3 pt-0 space-y-2">

@@ -5,7 +5,7 @@ import type { Act, CheckinRow, RsvpRow, Stats, TableRow } from "./types";
 
 /**
  * 현장 운영 탭 — 데이터 로드(15초 자동 새로고침) · busy/notice · 공용 액션
- * (수동 체크인 / 인원 수정 / 취소 / QR 재발급 / 좌석 배정)
+ * (수동 체크인 / 인원 수정 / 취소 / 좌석 배정)
  */
 export function useFieldOps() {
   const [rsvps, setRsvps] = useState<RsvpRow[]>([]);
@@ -14,7 +14,6 @@ export function useFieldOps() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [commonUrl, setCommonUrl] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/checkins");
@@ -24,7 +23,6 @@ export function useFieldOps() {
     setCheckins(j.checkins ?? []);
     setTables(j.tables ?? []);
     setStats(j.stats ?? null);
-    setCommonUrl(j.commonCheckinUrl ?? null);
   }, []);
 
   useEffect(() => {
@@ -115,29 +113,6 @@ export function useFieldOps() {
     );
   };
 
-  const issuePass = async (r: RsvpRow) => {
-    if (r.checkin && !confirm("이미 체크인한 하객입니다.\nQR 을 재발급해도 기존 체크인 기록은 유지됩니다.\n재발급할까요?"))
-      return;
-    if (busy) return;
-    setBusy(`pass-${r.id}`);
-    try {
-      const res = await fetch(`/api/admin/rsvp/${r.id}/issue-pass`, { method: "POST" });
-      const j = await res.json().catch(() => ({}));
-      if (res.ok && j.passUrl) {
-        const abs = `${window.location.origin}${j.passUrl}`;
-        try {
-          await navigator.clipboard.writeText(abs);
-          flash("새 QR 링크를 복사했어요 (기존 링크는 무효화됨)");
-        } catch {
-          prompt("새 QR 링크 (기존 링크는 무효화됨)", abs);
-        }
-        await load();
-      } else flash(`⚠ ${j.error ?? "재발급 실패"}`);
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const assignSeat = (r: RsvpRow) => {
     const activeTables = tables.filter((t) => t.active);
     if (activeTables.length === 0) return flash("⚠ 먼저 테이블을 만들어 주세요");
@@ -173,9 +148,7 @@ export function useFieldOps() {
     tables,
     stats,
     busy,
-    setBusy,
     notice,
-    commonUrl,
     flash,
     act,
     tableName,
@@ -184,7 +157,6 @@ export function useFieldOps() {
     manualCheckin,
     editParty,
     cancelCheckin,
-    issuePass,
     assignSeat,
   };
 }

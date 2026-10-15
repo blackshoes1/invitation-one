@@ -73,3 +73,10 @@ it("stops collection at exactly the retention deadline", async () => {
   expect((await verifyIdentityCode(req({ challengeId: id, code: "123456" }))).status).toBe(410);
   expect(mocks.rpc).not.toHaveBeenCalled();
 });
+
+it("rejects retired guest checkin verification without creating a challenge or SMS", async () => {
+  const res = await requestIdentityCode(req({ ...body, purpose: "checkin", rsvpId: id }));
+  expect(res.status).toBe(400);
+  expect(mocks.rpc).not.toHaveBeenCalled(); expect(mocks.sms).not.toHaveBeenCalled();
+  expect(tasks).toHaveLength(0);
+});

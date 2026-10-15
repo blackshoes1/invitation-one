@@ -4,11 +4,11 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { privacyHash, recordAccess } from "@/lib/privacyAudit";
 import { collectionGuard, PRIVACY_POLICY_VERSION } from "@/lib/privacy";
 import { rateLimitAllow, clientIp } from "@/lib/rateLimit";
-import { hashManageToken, isManageTokenFormat } from "@/lib/manageToken";
+import { hashManageToken } from "@/lib/manageToken";
 import { smsConfigProblem, sendSms } from "@/lib/sms";
 import { isUuid } from "@/lib/checkinServer";
 
-export type IdentityPurpose = "badge" | "rsvp" | "checkin";
+export type IdentityPurpose = "badge" | "rsvp";
 const reply = (body: unknown, status = 200) => Response.json(body, {
   status, headers: { "Cache-Control": "no-store, private", "Referrer-Policy": "no-referrer" },
 });
@@ -25,9 +25,8 @@ export async function requestIdentityCode(req: Request): Promise<Response> {
   const phone = typeof body?.phone === "string" ? body.phone.replace(/\D/g, "") : "";
   const purpose = body?.purpose as IdentityPurpose;
   if (name.length < 2 || name.length > 40 || !/^01\d{8,9}$/.test(phone)
-      || !["badge", "rsvp", "checkin"].includes(purpose)
-      || body?.consent !== PRIVACY_POLICY_VERSION
-      || (purpose === "checkin" && body.rsvpId != null && !isUuid(body.rsvpId))) return reply({ error: "성함·전체 전화번호와 개인정보 안내 확인이 필요합니다." }, 400);
+      || !["badge", "rsvp"].includes(purpose)
+      || body?.consent !== PRIVACY_POLICY_VERSION) return reply({ error: "성함·전체 전화번호와 개인정보 안내 확인이 필요합니다." }, 400);
   const nameHash = identityNameHash(name), phoneHash = identityPhoneHash(phone);
   const ipHash = privacyHash(`identity-ip:${clientIp(req)}`);
   if (!nameHash || !phoneHash || !ipHash) return reply({ error: "인증 설정을 확인해주세요." }, 503);
@@ -44,7 +43,7 @@ export async function requestIdentityCode(req: Request): Promise<Response> {
   const { data: recipient, error } = await supabaseAdmin.rpc("create_guest_identity_challenge_v1", {
     p_id: id, p_purpose: purpose, p_name: name, p_phone: phone,
     p_name_hash: nameHash, p_phone_hash: phoneHash, p_code_hash: identityCodeHash(id, code),
-    p_rsvp_id: purpose === "checkin" ? body.rsvpId ?? null : null,
+    p_rsvp_id: null,
   });
   if (error) return reply({ error: "인증 요청을 처리하지 못했습니다." }, 503);
   // Send after the uniform response so provider latency cannot reveal a matching record.
@@ -81,12 +80,4 @@ export async function verifyIdentityCode(req: Request): Promise<Response> {
   if (error) return reply({ error: "인증을 확인하지 못했습니다." }, 503);
   if (!data?.ok) return reply({ error: "인증번호가 맞지 않거나 만료됐습니다. 다시 요청해주세요." }, 401);
   return reply({ verified: true, verificationToken: ticket, purpose: data.purpose, result: data.result });
-}
-
-export async function checkinIdentity(token: unknown): Promise<string | null> {
-  if (!isManageTokenFormat(token) || !supabaseAdmin) return null;
-  const { data, error } = await supabaseAdmin.from("guest_identity_tickets")
-    .select("rsvp_id").eq("token_hash", hashManageToken(token)).eq("purpose", "checkin")
-    .gt("expires_at", new Date().toISOString()).is("used_at", null).maybeSingle();
-  return !error ? data?.rsvp_id ?? null : null;
 }

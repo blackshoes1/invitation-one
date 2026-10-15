@@ -18,7 +18,7 @@ export async function GET(req: Request) {
     supabaseAdmin!
       .from("rsvp")
       .select(
-        "id, name, phone, side, attending, companion_count, companion_names, children, kids_meal, eating, memo, table_id, checkin_token_active, qr_issued_at, created_at, updated_at"
+        "id, name, phone, side, attending, companion_count, companion_names, children, kids_meal, eating, memo, table_id, created_at, updated_at"
       )
       .order("created_at", { ascending: true }),
     supabaseAdmin!
@@ -77,10 +77,6 @@ export async function GET(req: Request) {
   const kidsMealTeams = attending.filter((r) => r.kids_meal).length;
   const mealActual = active.reduce((s, c) => s + (c.meal_count ?? 0), 0);
 
-  // 공용 QR 인쇄·안내용 링크 (행사 키 포함 — 관리자 응답에만 노출)
-  const eventKey = process.env.CHECKIN_EVENT_KEY;
-  const origin = new URL(req.url).origin;
-
   return NextResponse.json({
     rsvps: rsvps.map((r) => ({
       ...r,
@@ -89,9 +85,6 @@ export async function GET(req: Request) {
     })),
     checkins,
     tables: tblRes.data ?? [],
-    commonCheckinUrl: eventKey
-      ? `${origin}/checkin?event=${encodeURIComponent(eventKey)}`
-      : null,
     stats: {
       expectedTeams,
       expectedPeople,

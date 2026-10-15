@@ -13,7 +13,7 @@ import { isValidPhone } from "@/lib/wedding";
  * - 허니팟 필드(website): 채워져 있으면 저장 없이 성공 흉내.
  * - 총량 상한: RSVP 행 수가 상한을 넘으면 접수 중단 (스팸 폭주 회로 차단기).
  *
- * 토큰 반환 정책: 신규 제출(inserted)만 passToken 일회 반환. 기존 수정은 null.
+ * 하객용 입장 QR 은 반환하지 않는다.
  */
 
 import { collectionGuard } from "@/lib/privacy";
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
   // 허니팟 — 봇에게는 성공한 것처럼 응답하고 저장하지 않는다
   if (String(body.website ?? "").trim() !== "")
     return NextResponse.json(
-      { result: "updated", passToken: null, passUrl: null },
+      { result: "updated" },
       { headers: PASS_HEADERS }
     );
 
@@ -134,7 +134,7 @@ export async function POST(req: Request) {
   }
 
   const row = (Array.isArray(data) ? data[0] : data) as
-    | { result: string; rsvp_id: string; pass_token: string | null }
+    | { result: string; rsvp_id: string }
     | undefined;
   if (!row)
     return NextResponse.json(
@@ -142,13 +142,9 @@ export async function POST(req: Request) {
       { status: 500, headers: PASS_HEADERS }
     );
 
-  // 신규 + 참석만 토큰 일회 반환
-  const passToken = row.result === "inserted" ? row.pass_token : null;
   return NextResponse.json(
     {
       result: row.result,
-      passToken,
-      passUrl: passToken ? `/checkin?t=${passToken}` : null,
     },
     { headers: PASS_HEADERS }
   );

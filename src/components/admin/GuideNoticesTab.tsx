@@ -69,7 +69,7 @@ export default function GuideNoticesTab({ api }: { api: AdminApi }) {
   return <div className="space-y-5">
     <section className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-5">
       <h2 className="text-lg font-semibold">참석자에게 사전 안내 보내기</h2>
-      <p className="text-sm leading-7">참석 등록 명단의 참석자에게 개인 링크를 보냅니다. 하객이 10월 15일 0시 이후 사전 안내 체크인 버튼을 누르면 확인 시각을 저장하고 새 안내 청첩장으로 이동합니다.</p>
+      <p className="text-sm leading-7">참석 등록 명단의 참석자에게 개인 링크를 보냅니다. 하객은 10월 15일 0시 이후 계좌·교통·주차 안내를 먼저 읽고, 마지막의 ‘안내 확인했어요’ 버튼을 눌러 확인을 기록합니다.</p>
       <p className="text-xs leading-6 text-neutral-500">참석 등록의 대표 연락처로 보냅니다. 동반자의 개별 확인 기록은 만들지 않습니다. 발송은 아래 버튼을 누를 때 실행하며, 확인 기록은 현장 도착·식수에 반영하지 않습니다. 개인 링크는 해당 하객에게만 보내주세요.</p>
       <div className="flex flex-wrap gap-2 text-sm">
         <button type="button" disabled={busy} onClick={() => choose(rows.filter(row => row.canSms && !row.confirmedAt && !row.smsStatus).map(row => row.id))} className="min-h-11 rounded-lg border px-3">미발송·미확인 참석자 선택</button>
@@ -86,7 +86,7 @@ export default function GuideNoticesTab({ api }: { api: AdminApi }) {
       {prepared.map(row => <article key={row.id} className="space-y-3 rounded-xl bg-neutral-50 p-4">
         <h3 className="font-semibold">{row.name}</h3><p className="whitespace-pre-wrap break-all text-sm leading-7">{row.message}</p>
         <button type="button" disabled={busy} onClick={async () => { if (await copyShareLink(row.message)) setNotice("카카오톡용 문구를 복사했습니다. 해당 하객에게 붙여넣어 보내주세요."); else setError("복사하지 못했습니다. 위 문구를 직접 선택해 복사해주세요."); }} className="min-h-11 rounded-lg border px-3 text-xs">카카오톡용 문구 복사</button>
-        <ShareButton url={row.url} title={`${row.name}님, 예식 전 안내를 확인해주세요`} description="10월 15일부터 사전 안내 체크인 후 계좌·오시는 길을 확인하실 수 있습니다." label="개인 안내 카카오톡 공유" linkLabel="사전 안내 확인" />
+        <ShareButton url={row.url} title={`${row.name}님, 예식 전 안내를 확인해주세요`} description="현장 축의대는 운영하지 않습니다. 대중교통 이용을 권장드리며, 계좌·주차 후 이동 안내를 읽고 확인 버튼을 눌러주세요." label="개인 안내 카카오톡 공유" linkLabel="사전 안내 확인" />
       </article>)}
       {needsResend && <label className="flex items-start gap-2 text-sm leading-7"><input type="checkbox" checked={resend} disabled={busy} onChange={e => setResend(e.target.checked)} className="mt-2" />발송 시도 이력이 있거나 이미 안내를 확인한 하객이 있습니다. 문자 서비스 내역을 확인했고 재발송을 요청합니다.</label>}
       <label className="flex items-start gap-2 text-sm leading-7"><input type="checkbox" checked={confirmed} disabled={busy} onChange={e => setConfirmed(e.target.checked)} className="mt-2" />선택한 하객과 문구를 확인했습니다. 문자 서비스에 수신 번호와 개인 안내 주소가 전달됩니다.</label>

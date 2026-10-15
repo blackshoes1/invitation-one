@@ -34,7 +34,6 @@ export interface RsvpRow {
   eating: string | null;
   kids_meal: boolean;
   table_id: string | null;
-  checkin_token_active: boolean;
   checkin: CheckinRow | null;
 }
 export interface TableRow {

@@ -16,8 +16,17 @@ it("invalidates the reviewed send request when the phone, confirmation or send a
   for (const patch of [{ phone: "01011119999" }, { guide_confirmed_at: "2026-10-15T00:00:00Z" }, { guide_sms_request_id: "request" }])
     expect(guideReviewToken({ ...row, ...patch })).not.toBe(original);
 });
-it("includes the opening date, the specific guest's address and venue time in the message", () => {
+it("puts essential guidance in the message and asks for confirmation after reading", () => {
   const message = guideNotice(row.name, "https://example.invalid/guest-guide?t=private-token");
-  expect(message).toContain("10월 15일"); expect(message).toContain("10월 18일(일) 오전 11시");
+  expect(message).toContain("10월 18일(일) 오전 11시");
+  expect(message).toContain("축의대");
+  expect(message).toContain("계좌");
+  expect(message).toContain("대중교통");
+  expect(message).toContain("국립중앙박물관 주차장");
+  expect(message).toContain("예식장");
+  expect(message).toContain("안내를 읽으신 뒤");
+  expect(message).toContain("안내 확인했어요");
+  expect(message).not.toContain("체크인");
+  expect(message).not.toContain("10월 15일부터");
   expect(message).toContain("테스트하객님 전용"); expect(message).toContain("?t=private-token");
 });
