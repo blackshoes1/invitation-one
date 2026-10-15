@@ -82,7 +82,7 @@ export default function GuestGuide({
 
       {view === "accounts" ? (
         <div className="overflow-hidden rounded-2xl border border-sage-200">
-          <Account initiallyOpen />
+          <Account initiallyOpen embedded />
         </div>
       ) : (
         <section aria-label="주차장부터 예식장까지 이동 안내" className="space-y-5">
