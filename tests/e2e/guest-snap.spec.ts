@@ -19,6 +19,28 @@ test("찍기와 앨범 고르기 두 경로가 모두 있다", async ({ page }) 
   ).toBeVisible();
 });
 
+test("삭제된 포토 미션은 표시하거나 완료 개수에 포함하지 않는다", async ({ page }) => {
+  const remaining = [
+    "신랑·신부와 셀카 🤳",
+    "우리 테이블 단체샷 👨‍👩‍👧‍👦",
+    "오늘의 하객 패션 👗",
+    "예쁜 꽃·장식 발견 💐",
+  ];
+  const removed = ["가장 맛있어 보이는 음식 🍽️", "웃긴 표정 챌린지 😜"];
+  await page.addInitScript((missions) => {
+    localStorage.setItem("snap-missions-done", JSON.stringify(missions));
+  }, [...remaining, ...removed]);
+  await page.goto(HOME);
+
+  await expect(page.getByText("📸 포토 미션 · 4/4 완료", { exact: true })).toBeVisible();
+  for (const mission of remaining) {
+    await expect(page.getByRole("button", { name: `✓ ${mission}`, exact: true })).toBeVisible();
+  }
+  for (const mission of removed) {
+    await expect(page.getByRole("button", { name: mission, exact: true })).toHaveCount(0);
+  }
+});
+
 test("앨범 버튼이 여는 input 에는 capture 가 없다 (사진 보관함이 열려야 한다)", async ({
   page,
 }) => {

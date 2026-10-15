@@ -413,8 +413,11 @@ export default function PixelVillage({
       }
       const frozenId = bubbleRef.current?.id;
       const next = new Map<string, Walker>();
-      for (const [id, w] of walkersRef.current) {
-        next.set(id, stepWalker(w, dt, rng, id === frozenId));
+      const neighbors = [...walkersRef.current.values()];
+      for (let i = 0; i < neighbors.length; i++) {
+        const w = neighbors[i];
+        neighbors[i] = stepWalker(w, dt, rng, w.id === frozenId, neighbors);
+        next.set(w.id, neighbors[i]);
       }
       walkersRef.current = next;
       draw();
@@ -511,7 +514,7 @@ export default function PixelVillage({
         text: ((it.kind === "직접배달" ? it.review : it.message) ?? "").trim(),
       });
       rowsRef.current.set(it.id, lookRowFromId(it.id));
-      next.set(it.id, prev.get(it.id) ?? spawnWalker(it.id, rng, entering));
+      next.set(it.id, prev.get(it.id) ?? spawnWalker(it.id, rng, entering, [...prev.values(), ...next.values()]));
     }
     for (const id of [...infoRef.current.keys()]) {
       if (ids.has(id)) continue;

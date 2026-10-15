@@ -3,7 +3,7 @@ import type { FrameName } from "@/lib/pixelSprite";
 /**
  * 도트 마당 이동 로직 — 렌더·DOM 과 무관한 순수 함수 모음. (바람의 나라식 탑뷰, 정원 예식장)
  * 좌표는 논리 해상도(384×457, 배경 그림 768×914 의 절반) 기준이고 (x, y) 는 캐릭터의 '발 밑 중앙'이다.
- * 캐릭터는 상·하·좌·우 한 방향씩만 걷는다(대각선 없음). 의자 구역은 피하고 캐릭터끼리는 겹칠 수 있다.
+ * 캐릭터는 상·하·좌·우 한 방향씩만 걷는다(대각선 없음). 의자를 피하고 가까운 하객과 간격을 둔다.
  * 신랑·신부처럼 `fixed` 인 캐릭터는 단상 위에 서서 움직이지 않는다.
  */
 
@@ -30,6 +30,9 @@ export const CHAIR_AREAS = [
 ] as const;
 
 export const WALK_SPEED = 48; // px/s
+const SPACE_X = 32;
+const SPACE_Y = 28;
+const SPAWN_CANDIDATES = 48;
 /** 새 하객이 걸어 들어오기 시작하는 발 위치 — 화면 아래 바깥(몸이 막 가려지는 높이) */
 const ENTER_Y = WORLD_H + BOX_H;
 
@@ -73,17 +76,43 @@ export function spawnNpc(id: string, x: number, y: number): Walker {
   return { id, x, y, dir: "down", mode: "idle", timer: 0, clock: 0, entering: false, fixed: true };
 }
 
-/** entering=true 면 화면 아래 가장자리 바깥에서 걸어 들어오며 등장, 아니면 영역 안 임의 위치에 서서 시작 */
-export function spawnWalker(id: string, rng: Rng, entering: boolean): Walker {
-  const x = AREA.x0 + rng() * (AREA.x1 - AREA.x0);
-  if (entering) {
-    return { id, x, y: ENTER_Y, dir: "up", mode: "walk", timer: 0, clock: 0, entering: true, fixed: false };
+/** 발 위치 간격 — 상하로 서 있는 원근감은 살리면서 얼굴이 한곳에 겹치는 것을 줄인다. */
+function nearestSpace(x: number, y: number, neighbors: readonly Walker[], id: string): number {
+  let gap = Infinity;
+  for (const other of neighbors) {
+    if (other.id === id) continue;
+    const dx = (x - other.x) / SPACE_X;
+    const dy = (y - other.y) / SPACE_Y;
+    gap = Math.min(gap, dx * dx + dy * dy);
   }
+  return gap;
+}
+
+/** 의자를 피한 후보 중 기존 하객과 가장 떨어진 곳에서 시작한다. 입장 중인 하객은 도착 지점으로 비교한다. */
+export function spawnWalker(id: string, rng: Rng, entering: boolean, neighbors: readonly Walker[] = []): Walker {
+  let x = AREA.x0 + rng() * (AREA.x1 - AREA.x0);
   const minY = CHAIR_AREAS.reduce<number>((min, chair) =>
     x + HALF_W > chair.x0 && x - HALF_W < chair.x1
       ? Math.max(min, chair.y1 + BOX_H)
       : min, AREA.y0);
-  const y = minY + rng() * (AREA.y1 - minY);
+  let y = minY + rng() * (AREA.y1 - minY);
+  const nearby = neighbors.map(w => w.entering ? { ...w, y: AREA.y1 } : w);
+  let bestGap = -1;
+  for (let i = 0; i < SPAWN_CANDIDATES; i++) {
+    const cx = AREA.x0 + rng() * (AREA.x1 - AREA.x0);
+    const cy = entering ? AREA.y1 : AREA.y0 + rng() * (AREA.y1 - AREA.y0);
+    if (CHAIR_AREAS.some(chair => cx + HALF_W > chair.x0 && cx - HALF_W < chair.x1 &&
+      cy > chair.y0 && cy - BOX_H < chair.y1)) continue;
+    const gap = nearestSpace(cx, cy, nearby, id);
+    if (gap > bestGap) {
+      x = cx;
+      y = cy;
+      bestGap = gap;
+    }
+  }
+  if (entering) {
+    return { id, x, y: ENTER_Y, dir: "up", mode: "walk", timer: 0, clock: 0, entering: true, fixed: false };
+  }
   return {
     id,
     x,
@@ -106,7 +135,7 @@ function pickDirExcept(rng: Rng, blocked: Dir): Dir {
  * 한 프레임 진행. 새 객체를 돌려주며 입력 w 는 바꾸지 않는다.
  * frozen=true(말풍선을 보는 중)면 영역 안에서는 멈춘다. 입장 중이면 영역에 닿을 때까지 계속 걷는다.
  */
-export function stepWalker(w: Walker, dt: number, rng: Rng, frozen = false): Walker {
+export function stepWalker(w: Walker, dt: number, rng: Rng, frozen = false, neighbors: readonly Walker[] = []): Walker {
   const n: Walker = { ...w, clock: w.clock + dt };
 
   if (n.fixed) return n;
@@ -164,7 +193,16 @@ export function stepWalker(w: Walker, dt: number, rng: Rng, frozen = false): Wal
         }
       }
     }
-    // 한 프레임에 의자 전체를 지나칠 만큼 이동해도 맞닿은 경계에서 방향을 바꾼다.
+    if (neighbors.length > 0 && (n.x !== w.x || n.y !== w.y)) {
+      const gap = nearestSpace(n.x, n.y, neighbors, w.id);
+      if (gap < 1 && gap < nearestSpace(w.x, w.y, neighbors, w.id)) {
+        // 붐비는 쪽으로 더 파고들지 않되, 이미 가까운 하객에게서 멀어지는 이동은 허용한다.
+        n.x = w.x;
+        n.y = w.y;
+        blocked = true;
+      }
+    }
+    // 영역·의자·하객에 막히면 다른 방향으로 걷는다.
     if (blocked) n.dir = pickDirExcept(rng, w.dir);
   }
 

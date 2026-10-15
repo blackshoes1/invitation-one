@@ -14,6 +14,7 @@ import {
   spawnWalker,
   spriteFor,
   stepWalker,
+  type Rng,
   type Walker,
 } from "@/lib/villageSim";
 
@@ -39,6 +40,41 @@ function base(over: Partial<Walker> = {}): Walker {
     fixed: false,
     ...over,
   };
+}
+
+/** 거의 같은 발 위치에 모여 서로를 가리는 쌍. 스프라이트 전체 사각형 겹침과는 구분한다. */
+function closePairs(walkers: readonly Walker[]): number {
+  let pairs = 0;
+  for (let i = 0; i < walkers.length; i++) {
+    for (let j = i + 1; j < walkers.length; j++) {
+      if (Math.hypot(walkers[i].x - walkers[j].x, walkers[i].y - walkers[j].y) < 24) pairs++;
+    }
+  }
+  return pairs;
+}
+
+/** 이전 배치의 대조군: x부터 고른 뒤 의자 아래의 좁은 띠에서 y를 고른다. */
+function crowdedSpawn(id: string, rng: Rng): Walker {
+  const x = AREA.x0 + rng() * (AREA.x1 - AREA.x0);
+  const minY = CHAIR_AREAS.reduce<number>((min, chair) =>
+    x + HALF_W > chair.x0 && x - HALF_W < chair.x1
+      ? Math.max(min, chair.y1 + BOX_H)
+      : min, AREA.y0);
+  return base({
+    id,
+    x,
+    y: minY + rng() * (AREA.y1 - minY),
+    dir: DIRS[Math.floor(rng() * DIRS.length)],
+    timer: 0.2 + rng() * 2,
+    clock: rng() * 10,
+  });
+}
+
+function spreadPopulation(seed: number): Walker[] {
+  const rng = makeRng(seed);
+  const walkers: Walker[] = [];
+  for (let i = 0; i < 26; i++) walkers.push(spawnWalker(`g${i}`, rng, false, walkers));
+  return walkers;
 }
 
 describe("makeRng", () => {
@@ -75,6 +111,23 @@ describe("spawnWalker", () => {
     expect(w.entering).toBe(true);
     expect(w.dir).toBe("up");
     expect(w.mode).toBe("walk");
+  });
+
+  it.each([7, 42, 2026, 6600])("26명을 기존보다 덜 겹치게 배치하고 의자는 비워 둔다 (seed %i)", (seed) => {
+    const walkers = spreadPopulation(seed);
+    const rng = makeRng(seed);
+    const crowded = Array.from({ length: 26 }, (_, i) => crowdedSpawn(`g${i}`, rng));
+    expect(closePairs(walkers)).toBeLessThan(closePairs(crowded) * 0.6);
+    expect(walkers.every((w) => !overlapsChair(w))).toBe(true);
+  });
+
+  it("같은 난수만 주어져도 의자를 피하는 유효한 위치를 고른다", () => {
+    const w = spawnWalker("constant", () => 0, false, [base()]);
+    expect(w.x).toBeGreaterThanOrEqual(AREA.x0);
+    expect(w.x).toBeLessThanOrEqual(AREA.x1);
+    expect(w.y).toBeGreaterThanOrEqual(AREA.y0);
+    expect(w.y).toBeLessThanOrEqual(AREA.y1);
+    expect(overlapsChair(w)).toBe(false);
   });
 });
 
@@ -296,6 +349,68 @@ describe("stepWalker — 걷기", () => {
     expect(moved).toBeGreaterThan(10000); // 걷기가 실제로 일어났다
     expect(dirsSeen).toEqual(new Set(DIRS)); // 네 방향 모두 쓰였다
     expect(ws.every((w) => !w.entering)).toBe(true); // 입장도 모두 끝났다
+  });
+});
+
+describe("하객 사이의 간격", () => {
+  it("가까운 하객 쪽으로 더 파고들지 않고, 반대쪽으로는 걸어 나갈 수 있다", () => {
+    const neighbor = base({ id: "neighbor", x: 192, y: 315 });
+    const approaching = base({ id: "moving", x: 168, y: 315, mode: "walk", dir: "right" });
+    const blocked = stepWalker(approaching, DT, makeRng(12), false, [approaching, neighbor]);
+    expect(blocked.x).toBe(approaching.x);
+    expect(blocked.y).toBe(approaching.y);
+    expect(blocked.dir).not.toBe("right");
+
+    const escaping = { ...approaching, dir: "left" as const };
+    const escaped = stepWalker(escaping, DT, makeRng(12), false, [escaping, neighbor]);
+    expect(escaped.x).toBeLessThan(escaping.x);
+    expect(escaped.y).toBe(escaping.y);
+    expect(overlapsChair(escaped)).toBe(false);
+  });
+
+  it("이웃이 가까워도 말풍선을 보는 하객과 단상의 신랑·신부는 움직이지 않는다", () => {
+    const frozen = base({ id: "frozen", x: 180, y: 310, mode: "walk" });
+    const groom = spawnNpc("groom", 162, 222);
+    const bride = spawnNpc("bride", 202, 222);
+    const neighbors = [frozen, groom, bride, base({ id: "nearby", x: 181, y: 311 })];
+    const rng = makeRng(13);
+    for (const w of [frozen, groom, bride]) {
+      const next = stepWalker(w, 1, rng, w.id === frozen.id, neighbors);
+      expect(next.x).toBe(w.x);
+      expect(next.y).toBe(w.y);
+      expect(next.mode).toBe("idle");
+    }
+  });
+
+  it.each([7, 42, 2026])("26명이 60초 동안 계속 움직이며 의자를 피하고 밀집을 줄인다 (seed %i)", (seed) => {
+    const walkers = spreadPopulation(seed);
+    let unaware = walkers.map((w) => ({ ...w }));
+    const rng = makeRng(seed + 100);
+    const unawareRng = makeRng(seed + 100);
+    const movedIds = new Set<string>();
+    let violations = 0;
+    let spacedPairs = 0;
+    let unawarePairs = 0;
+    for (let frame = 0; frame < 60 * 30; frame++) {
+      for (let i = 0; i < walkers.length; i++) {
+        const prev = walkers[i];
+        const next = stepWalker(prev, DT, rng, false, walkers);
+        if (next.x !== prev.x || next.y !== prev.y) movedIds.add(next.id);
+        if (
+          !Number.isFinite(next.x) || !Number.isFinite(next.y) || overlapsChair(next) ||
+          next.x < AREA.x0 || next.x > AREA.x1 || next.y < AREA.y0 || next.y > AREA.y1
+        ) violations++;
+        walkers[i] = next;
+      }
+      unaware = unaware.map((w) => stepWalker(w, DT, unawareRng));
+      if (frame >= 10 * 30 && frame % 30 === 0) {
+        spacedPairs += closePairs(walkers);
+        unawarePairs += closePairs(unaware);
+      }
+    }
+    expect(violations).toBe(0);
+    expect(movedIds.size).toBeGreaterThanOrEqual(24);
+    expect(spacedPairs).toBeLessThan(unawarePairs * 0.75);
   });
 });
 

@@ -88,9 +88,10 @@ export default function GuestSnap({
   useEffect(() => {
     try {
       const raw = localStorage.getItem("snap-missions-done");
+      const saved: unknown = raw ? JSON.parse(raw) : [];
       // SSR 과 클라이언트의 초기 렌더를 일치시키려 마운트 후 복원 (하이드레이션 mismatch 방지)
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (raw) setDoneMissions(JSON.parse(raw));
+      if (Array.isArray(saved)) setDoneMissions(PHOTO_MISSIONS.filter((m) => saved.includes(m)));
     } catch {
       /* 무시 */
     }

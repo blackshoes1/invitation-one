@@ -209,9 +209,7 @@ export const newlywedNews: NewsPost[] = [
 export const PHOTO_MISSIONS: string[] = [
   "신랑·신부와 셀카 🤳",
   "우리 테이블 단체샷 👨‍👩‍👧‍👦",
-  "가장 맛있어 보이는 음식 🍽️",
   "오늘의 하객 패션 👗",
-  "웃긴 표정 챌린지 😜",
   "예쁜 꽃·장식 발견 💐",
 ];
 
