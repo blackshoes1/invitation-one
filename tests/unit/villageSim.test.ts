@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   AREA,
   BOX_H,
+  CHAIR_AREAS,
   DIRS,
   HALF_W,
   WALK_SPEED,
@@ -17,6 +18,13 @@ import {
 } from "@/lib/villageSim";
 
 const DT = 1 / 30;
+
+function overlapsChair(w: Walker): boolean {
+  return CHAIR_AREAS.some((chair) =>
+    w.x + HALF_W > chair.x0 && w.x - HALF_W < chair.x1 &&
+    w.y > chair.y0 && w.y - BOX_H < chair.y1
+  );
+}
 
 function base(over: Partial<Walker> = {}): Walker {
   return {
@@ -47,7 +55,7 @@ describe("makeRng", () => {
 });
 
 describe("spawnWalker", () => {
-  it("영역 스폰은 걷는 영역 안에서 서 있는 상태로 시작한다", () => {
+  it("즉시 표시하는 하객은 이동하기 전부터 의자와 겹치지 않는 영역 안에 서 있다", () => {
     const rng = makeRng(1);
     for (let i = 0; i < 100; i++) {
       const w = spawnWalker(`g${i}`, rng, false);
@@ -57,6 +65,7 @@ describe("spawnWalker", () => {
       expect(w.y).toBeLessThanOrEqual(AREA.y1);
       expect(w.entering).toBe(false);
       expect(w.mode).toBe("idle");
+      expect(overlapsChair(w)).toBe(false);
     }
   });
 
@@ -175,7 +184,7 @@ describe("stepWalker — 걷기", () => {
 
   it("오른쪽 끝에 닿으면 영역 안으로 되돌리고 다른 방향으로 바꾼다", () => {
     const rng = makeRng(6);
-    const w = stepWalker(base({ x: AREA.x1 - 0.1, mode: "walk", dir: "right" }), 1, rng);
+    const w = stepWalker(base({ x: AREA.x1 - 0.1, y: 380, mode: "walk", dir: "right" }), 1, rng);
     expect(w.x).toBe(AREA.x1);
     expect(w.dir).not.toBe("right");
   });
@@ -183,7 +192,7 @@ describe("stepWalker — 걷기", () => {
   it("네 모서리·가장자리에서 모두 영역 안에 머물고 막힌 방향을 피한다", () => {
     const rng = makeRng(7);
     const edges = [
-      { x: AREA.x0 + 0.1, y: 300, dir: "left" },
+      { x: AREA.x0 + 0.1, y: 380, dir: "left" },
       { x: 192, y: AREA.y0 + 0.1, dir: "up" },
       { x: 192, y: AREA.y1 - 0.1, dir: "down" },
     ] as const;
@@ -203,6 +212,35 @@ describe("stepWalker — 걷기", () => {
     expect(w1.x).toBe(w0.x);
     expect(w1.y).toBe(w0.y);
     expect(w1.mode).toBe("idle");
+  });
+
+  it("큰 시간 간격에도 좌우 의자를 통과하지 않고 처음 닿은 경계에서 방향을 바꾼다", () => {
+    for (const [dir, x] of [["left", 148], ["right", 216]] as const) {
+      const w = stepWalker(base({ mode: "walk", dir }), 10, makeRng(30));
+      expect(w.x).toBe(x);
+      expect(w.y).toBe(300);
+      expect(w.dir).not.toBe(dir);
+      expect(overlapsChair(w)).toBe(false);
+    }
+  });
+
+  it("아래 잔디에서 위로 걸으면 몸이 의자에 닿기 전에 멈춘다", () => {
+    for (const x of [96, 280]) {
+      const w = stepWalker(base({ x, y: 380, mode: "walk", dir: "up" }), 10, makeRng(31));
+      expect(w.x).toBe(x);
+      expect(w.y).toBe(362);
+      expect(w.dir).not.toBe("up");
+      expect(overlapsChair(w)).toBe(false);
+    }
+  });
+
+  it("중앙 통로와 의자 아래 잔디에서는 계속 걸을 수 있다", () => {
+    const aisle = stepWalker(base({ x: 192, y: 380, mode: "walk", dir: "up" }), 2, makeRng(32));
+    expect(aisle).toMatchObject({ x: 192, y: 284 });
+    const lawn = stepWalker(base({ x: 100, y: 380, mode: "walk", dir: "right" }), 2, makeRng(33));
+    expect(lawn).toMatchObject({ x: 196, y: 380 });
+    expect(overlapsChair(aisle)).toBe(false);
+    expect(overlapsChair(lawn)).toBe(false);
   });
 
   it("입력 객체를 바꾸지 않는다 (순수 함수)", () => {
@@ -246,6 +284,7 @@ describe("stepWalker — 걷기", () => {
         const bad =
           !Number.isFinite(b.x) ||
           !Number.isFinite(b.y) ||
+          overlapsChair(b) ||
           (!b.entering &&
             (b.x < AREA.x0 - 1e-6 || b.x > AREA.x1 + 1e-6 || b.y < AREA.y0 - 1e-6 || b.y > AREA.y1 + 1e-6));
         if (bad) violations.push(`out t=${t} ${JSON.stringify(b)}`);

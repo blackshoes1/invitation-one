@@ -3,7 +3,7 @@ import type { FrameName } from "@/lib/pixelSprite";
 /**
  * 도트 마당 이동 로직 — 렌더·DOM 과 무관한 순수 함수 모음. (바람의 나라식 탑뷰, 정원 예식장)
  * 좌표는 논리 해상도(384×457, 배경 그림 768×914 의 절반) 기준이고 (x, y) 는 캐릭터의 '발 밑 중앙'이다.
- * 캐릭터는 상·하·좌·우 한 방향씩만 걷는다(대각선 없음). 장애물·캐릭터끼리의 충돌은 없다.
+ * 캐릭터는 상·하·좌·우 한 방향씩만 걷는다(대각선 없음). 의자 구역은 피하고 캐릭터끼리는 겹칠 수 있다.
  * 신랑·신부처럼 `fixed` 인 캐릭터는 단상 위에 서서 움직이지 않는다.
  */
 
@@ -19,9 +19,15 @@ export const BOX_H = 64;
  * 위: 단상 계단(논리 y 약 241)보다 조금 아래 — 바로 아래면 앞줄 하객 머리가 신랑·신부 얼굴을 가린다
  * 아래: 키 큰 풀 띠(약 390~) 위 — 풀 속에 서면 발이 묻혀 어색하다
  * 좌: 왼쪽 아래 이름 팻말(x 약 13~70)을 덜 가리게 / 우: 오른쪽 덤불·나무(약 317~)에 묻히지 않게
- * 의자·꽃 상자 위는 지나간다(평면 그림이라 피할 수 없다)
+ * 좌우 의자 구역은 캐릭터 크기까지 고려해 따로 막는다.
  */
 export const AREA = { x0: 72, x1: 304, y0: 258, y1: 388 } as const;
+
+/** 배경 그림의 좌우 의자 진열 구역 — 논리 좌표 기준. */
+export const CHAIR_AREAS = [
+  { x0: 34, x1: 128, y0: 232, y1: 298 },
+  { x0: 236, x1: 326, y0: 232, y1: 298 },
+] as const;
 
 export const WALK_SPEED = 48; // px/s
 /** 새 하객이 걸어 들어오기 시작하는 발 위치 — 화면 아래 바깥(몸이 막 가려지는 높이) */
@@ -73,7 +79,11 @@ export function spawnWalker(id: string, rng: Rng, entering: boolean): Walker {
   if (entering) {
     return { id, x, y: ENTER_Y, dir: "up", mode: "walk", timer: 0, clock: 0, entering: true, fixed: false };
   }
-  const y = AREA.y0 + rng() * (AREA.y1 - AREA.y0);
+  const minY = CHAIR_AREAS.reduce<number>((min, chair) =>
+    x + HALF_W > chair.x0 && x - HALF_W < chair.x1
+      ? Math.max(min, chair.y1 + BOX_H)
+      : min, AREA.y0);
+  const y = minY + rng() * (AREA.y1 - minY);
   return {
     id,
     x,
@@ -126,12 +136,36 @@ export function stepWalker(w: Walker, dt: number, rng: Rng, frozen = false): Wal
     else n.y += d;
     const outX = n.x < AREA.x0 || n.x > AREA.x1;
     const outY = n.y < AREA.y0 || n.y > AREA.y1;
-    if (outX || outY) {
-      // 영역 끝에 닿으면 안쪽으로 되돌리고 막힌 방향을 뺀 다른 방향으로 계속 걷는다
-      n.x = Math.min(AREA.x1, Math.max(AREA.x0, n.x));
-      n.y = Math.min(AREA.y1, Math.max(AREA.y0, n.y));
-      n.dir = pickDirExcept(rng, n.dir);
+    let blocked = outX || outY;
+    n.x = Math.min(AREA.x1, Math.max(AREA.x0, n.x));
+    n.y = Math.min(AREA.y1, Math.max(AREA.y0, n.y));
+    for (const chair of CHAIR_AREAS) {
+      // 발 위치 경계로 확장해 몸통도 의자 위에 그려지지 않게 한다.
+      const left = chair.x0 - HALF_W;
+      const right = chair.x1 + HALF_W;
+      const top = chair.y0;
+      const bottom = chair.y1 + BOX_H;
+      if (n.y > top && n.y < bottom) {
+        if (w.x <= left && n.x > left) {
+          n.x = left;
+          blocked = true;
+        } else if (w.x >= right && n.x < right) {
+          n.x = right;
+          blocked = true;
+        }
+      }
+      if (n.x > left && n.x < right) {
+        if (w.y <= top && n.y > top) {
+          n.y = top;
+          blocked = true;
+        } else if (w.y >= bottom && n.y < bottom) {
+          n.y = bottom;
+          blocked = true;
+        }
+      }
     }
+    // 한 프레임에 의자 전체를 지나칠 만큼 이동해도 맞닿은 경계에서 방향을 바꾼다.
+    if (blocked) n.dir = pickDirExcept(rng, w.dir);
   }
 
   if (n.timer <= 0) {
