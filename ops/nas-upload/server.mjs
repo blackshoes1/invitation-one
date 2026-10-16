@@ -25,6 +25,7 @@ export async function createPhotoServer({ root, secret, origins, maxQueuedUpload
       entry.state = 'ready';
       entry.expires = now + leaseWaitMs;
       entry.lease = randomUUID();
+      entry.waiters?.forEach(notify => notify());
     }
   };
   const drain = () => {
@@ -106,6 +107,7 @@ export async function createPhotoServer({ root, secret, origins, maxQueuedUpload
       } catch (e) { if (e.code !== 'ENOENT') return busy(); }
       admit();
       let entry = reservations.get(path);
+      const joined = !entry;
       if (!entry) {
         if (reservations.size >= maxQueuedUploads + 2) return busy();
         entry = { claims, state: 'queued', expires: Date.now() + pollExpiryMs };
@@ -113,9 +115,19 @@ export async function createPhotoServer({ root, secret, origins, maxQueuedUpload
         admit();
       }
       if (entry.state === 'queued') entry.expires = Date.now() + pollExpiryMs;
-      if (entry.state === 'ready') return json(200, { state: 'ready', lease: entry.lease });
       const position = [...reservations.values()].filter(e => e.state !== 'uploading').indexOf(entry) + 1;
-      res.setHeader('Retry-After', String(Math.min(15, Math.max(2, position))));
+      // The first two waiters can receive their turn as soon as an upload ends.
+      // Only tiny control requests wait here; no original file body is in transit.
+      if (!joined && entry.state === 'queued' && position <= 2) await new Promise(resolve => {
+        const done = () => { clearTimeout(timer); res.off('close', done); entry.waiters.delete(done); resolve(); };
+        const timer = setTimeout(done, 15_000);
+        entry.waiters ??= new Set();
+        entry.waiters.add(done);
+        res.once('close', done);
+      });
+      if (res.destroyed) return;
+      if (entry.state === 'ready') return json(200, { state: 'ready', lease: entry.lease });
+      res.setHeader('Retry-After', String(Math.min(5, Math.max(1, Math.ceil(position / 3)))));
       return json(202, { state: 'waiting', position: Math.max(1, position) });
     }
     if (req.method === 'PUT') {
