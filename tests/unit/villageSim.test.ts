@@ -4,6 +4,8 @@ import {
   BOX_H,
   CHAIR_AREAS,
   DIRS,
+  FOOT_H,
+  FOOT_HALF_W,
   HALF_W,
   WALK_SPEED,
   WORLD_H,
@@ -22,8 +24,8 @@ const DT = 1 / 30;
 
 function overlapsChair(w: Walker): boolean {
   return CHAIR_AREAS.some((chair) =>
-    w.x + HALF_W > chair.x0 && w.x - HALF_W < chair.x1 &&
-    w.y > chair.y0 && w.y - BOX_H < chair.y1
+    w.x + FOOT_HALF_W > chair.x0 && w.x - FOOT_HALF_W < chair.x1 &&
+    w.y > chair.y0 && w.y - FOOT_H < chair.y1
   );
 }
 
@@ -235,14 +237,15 @@ describe("stepWalker — 걷기", () => {
     }
   });
 
-  it("오른쪽 끝에 닿으면 영역 안으로 되돌리고 다른 방향으로 바꾼다", () => {
+  it("오른쪽 끝에 닿으면 영역 안에서 걷기를 멈추고 잠시 쉰다", () => {
     const rng = makeRng(6);
     const w = stepWalker(base({ x: AREA.x1 - 0.1, y: 380, mode: "walk", dir: "right" }), 1, rng);
     expect(w.x).toBe(AREA.x1);
-    expect(w.dir).not.toBe("right");
+    expect(w.mode).toBe("idle");
+    expect(w.timer).toBeGreaterThan(0.5);
   });
 
-  it("네 모서리·가장자리에서 모두 영역 안에 머물고 막힌 방향을 피한다", () => {
+  it("네 모서리·가장자리에서 모두 영역 안에 머물고 멈춘다", () => {
     const rng = makeRng(7);
     const edges = [
       { x: AREA.x0 + 0.1, y: 380, dir: "left" },
@@ -254,7 +257,7 @@ describe("stepWalker — 걷기", () => {
       expect(w.x).toBeGreaterThanOrEqual(AREA.x0);
       expect(w.y).toBeGreaterThanOrEqual(AREA.y0);
       expect(w.y).toBeLessThanOrEqual(AREA.y1);
-      expect(w.dir).not.toBe(e.dir);
+      expect(w.mode).toBe("idle");
     }
   });
 
@@ -267,33 +270,61 @@ describe("stepWalker — 걷기", () => {
     expect(w1.mode).toBe("idle");
   });
 
-  it("큰 시간 간격에도 좌우 의자를 통과하지 않고 처음 닿은 경계에서 방향을 바꾼다", () => {
-    for (const [dir, x] of [["left", 148], ["right", 216]] as const) {
+  it("큰 시간 간격에도 좌우 의자를 통과하지 않고 발이 닿는 경계에서 멈춘다", () => {
+    for (const [dir, x] of [["left", 138], ["right", 226]] as const) {
       const w = stepWalker(base({ mode: "walk", dir }), 10, makeRng(30));
       expect(w.x).toBe(x);
       expect(w.y).toBe(300);
-      expect(w.dir).not.toBe(dir);
+      expect(w.mode).toBe("idle");
       expect(overlapsChair(w)).toBe(false);
     }
   });
 
-  it("아래 잔디에서 위로 걸으면 몸이 의자에 닿기 전에 멈춘다", () => {
+  it("아래 잔디에서 위로 걸으면 발이 의자에 닿기 전에 멈춘다", () => {
     for (const x of [96, 280]) {
       const w = stepWalker(base({ x, y: 380, mode: "walk", dir: "up" }), 10, makeRng(31));
       expect(w.x).toBe(x);
-      expect(w.y).toBe(362);
-      expect(w.dir).not.toBe("up");
+      expect(w.y).toBe(306);
+      expect(w.mode).toBe("idle");
       expect(overlapsChair(w)).toBe(false);
     }
   });
 
   it("중앙 통로와 의자 아래 잔디에서는 계속 걸을 수 있다", () => {
     const aisle = stepWalker(base({ x: 192, y: 380, mode: "walk", dir: "up" }), 2, makeRng(32));
-    expect(aisle).toMatchObject({ x: 192, y: 284 });
+    expect(aisle).toMatchObject({ x: 192, y: 380 - WALK_SPEED * 2 });
     const lawn = stepWalker(base({ x: 100, y: 380, mode: "walk", dir: "right" }), 2, makeRng(33));
-    expect(lawn).toMatchObject({ x: 196, y: 380 });
+    expect(lawn).toMatchObject({ x: 100 + WALK_SPEED * 2, y: 380 });
     expect(overlapsChair(aisle)).toBe(false);
     expect(overlapsChair(lawn)).toBe(false);
+  });
+
+  it("의자 아래 잔디는 몸 높이만큼 비우지 않고 발이 지나갈 공간을 사용한다", () => {
+    const lawn = stepWalker(base({ x: 96, y: 324, mode: "walk", dir: "right" }), 1, makeRng(34));
+    expect(lawn.x).toBe(96 + WALK_SPEED);
+    expect(lawn.y).toBe(324);
+    expect(overlapsChair(lawn)).toBe(false);
+  });
+
+  it("경계에 막히면 제자리에서 걷거나 방향을 매 프레임 바꾸지 않는다", () => {
+    const rng = makeRng(35);
+    let w = stepWalker(base({ x: AREA.x1, y: 330, mode: "walk", dir: "right" }), DT, rng);
+    for (let frame = 0; frame < 20; frame++) {
+      w = stepWalker(w, DT, rng);
+      expect(w).toMatchObject({ x: AREA.x1, y: 330, mode: "idle", dir: "right" });
+      expect(spriteFor(w).frame).toBe("right_idle");
+    }
+  });
+
+  it("쉬고 나면 바로 막히는 방향보다 충분히 걸을 공간이 있는 쪽으로 출발한다", () => {
+    let w = base({ x: AREA.x0 + 2, y: 330, dir: "left", timer: 0 });
+    w = stepWalker(w, DT, () => 0);
+    expect(w.mode).toBe("walk");
+    expect(w.dir).toBe("right");
+    expect(w.timer).toBeGreaterThan(1);
+    const next = stepWalker(w, 0.5, () => 0);
+    expect(next.x).toBeGreaterThan(w.x);
+    expect(next.dir).toBe("right");
   });
 
   it("입력 객체를 바꾸지 않는다 (순수 함수)", () => {
@@ -355,11 +386,11 @@ describe("stepWalker — 걷기", () => {
 describe("하객 사이의 간격", () => {
   it("가까운 하객 쪽으로 더 파고들지 않고, 반대쪽으로는 걸어 나갈 수 있다", () => {
     const neighbor = base({ id: "neighbor", x: 192, y: 315 });
-    const approaching = base({ id: "moving", x: 168, y: 315, mode: "walk", dir: "right" });
+    const approaching = base({ id: "moving", x: 172, y: 315, mode: "walk", dir: "right" });
     const blocked = stepWalker(approaching, DT, makeRng(12), false, [approaching, neighbor]);
     expect(blocked.x).toBe(approaching.x);
     expect(blocked.y).toBe(approaching.y);
-    expect(blocked.dir).not.toBe("right");
+    expect(blocked.mode).toBe("idle");
 
     const escaping = { ...approaching, dir: "left" as const };
     const escaped = stepWalker(escaping, DT, makeRng(12), false, [escaping, neighbor]);
@@ -393,11 +424,25 @@ describe("하객 사이의 간격", () => {
     let violations = 0;
     let spacedPairs = 0;
     let unawarePairs = 0;
+    let turns = 0;
+    let stalledWalking = 0;
+    let walkingFrames = 0;
+    const ranges = walkers.map(w => ({ x0: w.x, x1: w.x, y0: w.y, y1: w.y }));
     for (let frame = 0; frame < 60 * 30; frame++) {
       for (let i = 0; i < walkers.length; i++) {
         const prev = walkers[i];
         const next = stepWalker(prev, DT, rng, false, walkers);
         const distance = Math.hypot(next.x - prev.x, next.y - prev.y);
+        if (next.dir !== prev.dir) turns++;
+        if (next.mode === "walk") {
+          walkingFrames++;
+          if (distance === 0) stalledWalking++;
+        }
+        const range = ranges[i];
+        range.x0 = Math.min(range.x0, next.x);
+        range.x1 = Math.max(range.x1, next.x);
+        range.y0 = Math.min(range.y0, next.y);
+        range.y1 = Math.max(range.y1, next.y);
         if (distance > 0) movedIds.add(next.id);
         if (frame >= 50 * 30 && distance > 0) {
           lateMovedIds.add(next.id);
@@ -420,6 +465,33 @@ describe("하객 사이의 간격", () => {
     expect(lateMovedIds.size).toBeGreaterThanOrEqual(13);
     expect(lateDistance / walkers.length).toBeGreaterThanOrEqual(24);
     expect(spacedPairs).toBeLessThan(unawarePairs * 0.75);
+    // 이동량만 크고 좁은 자리에서 계속 빙빙 도는 회귀도 잡는다.
+    expect(turns / walkers.length).toBeLessThan(30);
+    expect(stalledWalking / walkingFrames).toBeLessThan(0.08);
+    const meanRange = ranges.reduce((sum, r) => sum + Math.hypot(r.x1 - r.x0, r.y1 - r.y0), 0) / walkers.length;
+    expect(meanRange).toBeGreaterThan(80);
+  });
+
+  it.each([7, 42, 2026])("50명으로 붐벼도 다수가 뒤늦게까지 산책하고 막힌 하객은 서서 기다린다 (seed %i)", seed => {
+    const rng = makeRng(seed);
+    const walkers: Walker[] = [];
+    for (let i = 0; i < 50; i++) walkers.push(spawnWalker(`g${i}`, rng, false, walkers));
+    const lateMoved = new Set<string>();
+    let turns = 0;
+    let chairViolations = 0;
+    for (let frame = 0; frame < 60 * 30; frame++) {
+      for (let i = 0; i < walkers.length; i++) {
+        const prev = walkers[i];
+        const next = stepWalker(prev, DT, rng, false, walkers);
+        if (frame >= 50 * 30 && (next.x !== prev.x || next.y !== prev.y)) lateMoved.add(next.id);
+        if (next.dir !== prev.dir) turns++;
+        if (overlapsChair(next)) chairViolations++;
+        walkers[i] = next;
+      }
+    }
+    expect(lateMoved.size).toBeGreaterThanOrEqual(25);
+    expect(turns / walkers.length).toBeLessThan(30);
+    expect(chairViolations).toBe(0);
   });
 });
 
