@@ -139,7 +139,10 @@ export async function createPhotoServer({ root, secret, origins, maxQueuedUpload
       if (req.headers['content-length'] && Number(req.headers['content-length']) !== claims.size) return json(400, { error: 'Size mismatch' });
       // v2 tickets reserve a slot using small GETs before sending any file bytes.
       // Old clients remain compatible during the web deployment transition.
-      if (claims.admission === 2) {
+      // A page opened before deployment can receive a v2 ticket from the new API
+      // without knowing how to poll. Keep its bounded PUT queue compatible, but
+      // never let a missing lease bypass an existing reservation for this photo.
+      if (claims.admission === 2 && (req.headers['x-upload-lease'] || reservations.has(path))) {
         admit();
         const entry = reservations.get(path);
         if (!entry || entry.state !== 'ready' || entry.lease !== req.headers['x-upload-lease']) return busy();

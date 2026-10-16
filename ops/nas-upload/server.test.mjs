@@ -195,6 +195,16 @@ test('legacy PUTs and admission clients share arrival order during a rolling dep
   assert.equal((await admit(later)).state, 'ready');
 });
 
+test('a pre-deployment browser can PUT with a fresh v2 ticket without knowing admission headers', async t => {
+  const s = await setup(t);
+  const photo = s.plan();
+  const ticket = sign({ ...photo.claims, admission: 2 }, 'upload', s.secret);
+  const response = await fetch(photo.url, { method: 'PUT', headers: { Authorization: `Bearer ${ticket}` }, body: s.bytes });
+  assert.equal(response.status, 200);
+  assert.equal(verify((await response.json()).receipt, 'receipt', s.secret).id, photo.id);
+  assert.deepEqual(await readFile(join(s.root, photo.path)), s.bytes);
+});
+
 test('50 simultaneous photos wait for two upload slots, keep metadata access available and all save intact', { timeout: 20_000 }, async t => {
   const s = await setup(t);
   const photos = Array.from({ length: 50 }, () => s.plan());
