@@ -19,6 +19,29 @@ async function settle<T>(promise: Promise<T>): Promise<T> {
   return result.value;
 }
 describe('browser NAS photo flow', () => {
+  it('waits without sending bytes and recovers a saved file after losing its PUT response', async () => {
+    const stage = vi.fn();
+    request.mockResolvedValueOnce(json({ storage: 'nas', uploadUrl: 'https://nas.invalid/photo', admissionUrl: 'https://nas.invalid/photo?admission=1', ticket: 'ticket' }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ state: 'waiting' }), { status: 202, headers: { 'Retry-After': '12' } }))
+      .mockResolvedValueOnce(json({ state: 'ready', lease: 'lease' }))
+      .mockRejectedValueOnce(new Error('saved but response lost'))
+      .mockResolvedValueOnce(json({ state: 'stored', receipt: 'receipt' }))
+      .mockResolvedValueOnce(json({ photo: { id: 'saved' } }));
+    const start = Date.now();
+    expect((await settle(uploadGuestPhoto(form(), 'session', stage))).j.photo?.id).toBe('saved');
+    expect(Date.now() - start).toBeGreaterThanOrEqual(12_000);
+    const puts = request.mock.calls.filter(c => c[1].method === 'PUT');
+    expect(puts).toHaveLength(1);
+    expect(puts[0][1].headers['X-Upload-Lease']).toBe('lease');
+    expect(request.mock.calls[1][1].body).toBeUndefined();
+    expect(stage).toHaveBeenCalledWith('waiting');
+  });
+  it('bounds admission waiting without sending any original bytes', async () => {
+    request.mockResolvedValueOnce(json({ storage: 'nas', uploadUrl: 'https://nas.invalid/photo', admissionUrl: 'https://nas.invalid/photo?admission=1', ticket: 'ticket' }))
+      .mockResolvedValue(json({ state: 'waiting' }, 202));
+    await expect(settle(uploadGuestPhoto(form(), 'session'))).rejects.toThrow('대기 시간이 길어졌어요');
+    expect(request.mock.calls.some(c => c[1].method === 'PUT')).toBe(false);
+  });
   it('sends bytes only to NAS and confirms metadata separately', async () => {
     request.mockResolvedValueOnce(json({ storage: 'nas', uploadUrl: 'https://nas.invalid/photos/snap/photo.jpg', ticket: 'ticket' }))
       .mockResolvedValueOnce(json({ receipt: 'receipt' })).mockResolvedValueOnce(json({ photo: { id: 'saved' } }));

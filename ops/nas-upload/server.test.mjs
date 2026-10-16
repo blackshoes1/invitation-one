@@ -82,7 +82,7 @@ async function setup(t, options = {}) {
     const id = randomUUID();
     const path = `snap/${id}.jpg`;
     const claims = { id, path, size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') };
-    return { id, path, url: `${base}/photos/${path}`, ticket: sign(claims, 'upload', secret, ttl) };
+    return { id, path, claims, url: `${base}/photos/${path}`, ticket: sign(claims, 'upload', secret, ttl) };
   };
   const send = (photo, signal) => fetch(photo.url, { method: 'PUT', headers: { Authorization: `Bearer ${photo.ticket}`, Origin: origin }, body: bytes, signal });
   const hold = photo => {
@@ -105,6 +105,70 @@ async function setup(t, options = {}) {
   });
   return { root, secret, server, base, bytes, plan, send, hold, arrivals };
 }
+
+test('public admission: 50 guests send ten originals each, only two bodies at a time, no bytes while waiting', { timeout: 60_000 }, async t => {
+  const s = await setup(t);
+  const photos = Array.from({ length: 50 }, () => s.plan());
+  const admit = async photo => {
+    const ticket = sign({ ...photo.claims, admission: 2 }, 'upload', s.secret, 1800);
+    const res = await fetch(`${photo.url}?admission=1`, { headers: { Authorization: `Bearer ${ticket}` } });
+    assert.ok([200, 202].includes(res.status));
+    return { ...(await res.json()), ticket };
+  };
+  const slots = await Promise.all(photos.map(admit));
+  assert.equal(slots.filter(s => s.state === 'ready').length, 2);
+  assert.equal(slots.filter(s => s.state === 'waiting').length, 48);
+  assert.deepEqual(await readdir(join(s.root, 'snap')), []);
+  let saved = 0;
+  await Promise.all(photos.map(async (first, guest) => {
+    for (let i = 0; i < 10; i++) {
+      const photo = i === 0 ? first : s.plan();
+      let slot = i === 0 ? slots[guest] : await admit(photo);
+      while (slot.state === 'waiting') {
+        await new Promise(resolve => setTimeout(resolve, 10));
+        slot = await admit(photo);
+      }
+      const res = await fetch(photo.url, { method: 'PUT', headers: { Authorization: `Bearer ${slot.ticket}`, 'X-Upload-Lease': slot.lease }, body: s.bytes });
+      assert.equal(res.status, 200);
+      const receipt = (await res.json()).receipt;
+      assert.equal(verify(receipt, 'receipt', s.secret).id, photo.id);
+      assert.deepEqual(await readFile(join(s.root, photo.path)), s.bytes);
+      saved++;
+    }
+  }));
+  assert.equal(saved, 500);
+  assert.equal((await readdir(join(s.root, 'snap'))).length, 500);
+});
+
+test('expired slots are reclaimed, old leases cannot send and saved-response recovery needs no retransmission', async t => {
+  const s = await setup(t, { leaseWaitMs: 100, pollExpiryMs: 200 });
+  let now = Date.now();
+  t.mock.method(Date, 'now', () => now);
+  const first = s.plan(); const second = s.plan(); const next = s.plan();
+  const ticket = photo => sign({ ...photo.claims, admission: 2 }, 'upload', s.secret);
+  const admission = async photo => {
+    const res = await fetch(`${photo.url}?admission=1`, { headers: { Authorization: `Bearer ${ticket(photo)}` } });
+    return { res, body: await res.json() };
+  };
+  const a = await admission(first);
+  await admission(second);
+  assert.equal((await admission(next)).res.status, 202);
+  const noLease = await fetch(next.url, { method: 'PUT', headers: { Authorization: `Bearer ${ticket(next)}` }, body: s.bytes });
+  assert.equal(noLease.status, 503);
+  now += 150;
+  const ready = await admission(next);
+  assert.equal(ready.body.state, 'ready');
+  assert.equal((await fetch(first.url, { method: 'PUT', headers: { Authorization: `Bearer ${ticket(first)}`, 'X-Upload-Lease': a.body.lease }, body: s.bytes })).status, 503);
+  const saved = await fetch(next.url, { method: 'PUT', headers: { Authorization: `Bearer ${ticket(next)}`, 'X-Upload-Lease': ready.body.lease }, body: s.bytes });
+  assert.equal(saved.status, 200);
+  await saved.arrayBuffer();
+  const recovered = await admission(next);
+  assert.equal(recovered.body.state, 'stored');
+  assert.equal(verify(recovered.body.receipt, 'receipt', s.secret).id, next.id);
+  await fetch(next.url, { method: 'DELETE', headers: { Authorization: `Bearer ${sign({ path: next.path }, 'delete', s.secret)}` } });
+  assert.equal((await admission(next)).res.status, 410);
+  assert.equal((await fetch(`${next.url}?admission=1`)).status, 401);
+});
 
 test('50 simultaneous photos wait for two upload slots, keep metadata access available and all save intact', { timeout: 20_000 }, async t => {
   const s = await setup(t);

@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   try { config = nasPhotoConfig(); }
   catch { return reply({ error: '사진 저장소 연결 설정이 필요합니다.' }, 503); }
   if (input.action === 'prepare') {
-    if (auth.payload.exp < Date.now() / 1000 + 660) return reply({ error: '업로드 권한을 갱신해주세요.', code: 'token_expired' }, 401);
+    if (auth.payload.exp < Date.now() / 1000 + 1860) return reply({ error: '업로드 권한을 갱신해주세요.', code: 'token_expired' }, 401);
     if (!Number.isSafeInteger(input.size) || input.size < 1 || input.size > MAX_SIZE || !/^[a-f0-9]{64}$/.test(input.sha256) || !['jpg','png','webp','heic'].includes(input.ext)) return reply({ error: '20MB 이하의 올바른 사진을 선택해주세요.' }, 400);
     const allowed = await Promise.all([
       rateLimitAllow(`upload:tok:${auth.payload.n}`, 30, 600),
@@ -36,11 +36,11 @@ export async function POST(req: Request) {
     if (allowed.some(v => !v)) return reply({ error: '잠시 후 다시 시도해주세요.', code: 'rate_limited' }, 429);
     const id = crypto.randomUUID();
     const path = `snap/${id}.${input.ext}`;
-    const ticket = sign({ id, path, size: input.size, sha256: input.sha256, owner: auth.payload.n,
+    const ticket = sign({ id, path, admission: 2, size: input.size, sha256: input.sha256, owner: auth.payload.n,
       name: String(input.name ?? '').trim().slice(0, 40) || null,
       message: String(input.message ?? '').trim().slice(0, 200) || null,
-    }, 'upload', config.secret);
-    return reply({ storage: 'nas', uploadUrl: `${config.base}/photos/${path}`, ticket });
+    }, 'upload', config.secret, 1800);
+    return reply({ storage: 'nas', uploadUrl: `${config.base}/photos/${path}`, admissionUrl: `${config.base}/photos/${path}?admission=1`, ticket });
   }
   if (input.action !== 'complete') return reply({ error: '잘못된 요청입니다.' }, 400);
   const receipt = verify(input.receipt, 'receipt', config.secret);

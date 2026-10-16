@@ -27,7 +27,9 @@ describe('NAS direct photo API', () => {
     const plan = await response.json();
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(plan.uploadUrl).toMatch(/^https:\/\/photos.example.invalid\/photos\/snap\//);
-    expect(verify(plan.ticket, 'upload', secret)).toMatchObject({ owner: 'owner', size: 100, name: '하객' });
+    expect(verify(plan.ticket, 'upload', secret)).toMatchObject({ owner: 'owner', size: 100, name: '하객', admission: 2 });
+    expect(plan.admissionUrl).toBe(`${plan.uploadUrl}?admission=1`);
+    expect(verify(plan.ticket, 'upload', secret)!.exp).toBeGreaterThan(Date.now() / 1000 + 1790);
     expect(mocks.from).not.toHaveBeenCalled();
     expect(mocks.storage).not.toHaveBeenCalled();
     expect(mocks.allow).toHaveBeenCalledWith('upload:tok:owner', 30, 600);

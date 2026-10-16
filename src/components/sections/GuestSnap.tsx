@@ -502,7 +502,7 @@ export default function GuestSnap({
               {uploading && (
                 <p role="status" className="px-4 pt-2 text-xs text-sage-700 text-center">
                   {uploadStage === 'waiting'
-                    ? '잠시 기다리면 자동으로 다시 시도해요. 이 화면을 열어두세요.'
+                    ? '전송 순서를 기다리거나 연결을 다시 확인하고 있어요. 화면을 열어두면 자동으로 이어져요.'
                     : uploadStage === 'confirming'
                     ? '사진을 저장했어요. 앨범에 등록하고 있어요.'
                     : '사진을 전송하고 있어요. 업로드가 몰리면 순서대로 기다려요.'}

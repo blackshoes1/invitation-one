@@ -42,6 +42,37 @@ async function retryJson<T extends object>(url: string, options: RequestInit, re
 }
 type Result = { res: Response; j: { photo?: GuestPhoto; error?: string; code?: string } };
 const parse = async (res: Response): Promise<Result> => ({ res, j: await res.json().catch(() => ({})) });
+type NasReply = { receipt?: string; state?: string; lease?: string };
+/** Keep public relay connections short while queued; only send bytes with a live slot. */
+async function admittedUpload(plan: { uploadUrl: string; admissionUrl: string; ticket: string }, file: File, mime: string, onStage?: (stage: PhotoUploadStage) => void) {
+  const deadline = Date.now() + 25 * 60_000;
+  const headers = { Authorization: `Bearer ${plan.ticket}` };
+  const request = (url: string, options: RequestInit, timeout: number) => retryJson<NasReply>(url,
+    { ...options, credentials: 'omit', redirect: 'error', cache: 'no-store' },
+    { attempts: 1, timeout, budget: Math.max(1, deadline - Date.now()) });
+  while (Date.now() < deadline) {
+    let delay = 2000;
+    try {
+      const slot = await request(plan.admissionUrl, { headers }, 20_000);
+      if (!slot.res.ok) {
+        if (slot.res.status < 500 && ![408, 425, 429].includes(slot.res.status)) return slot;
+      } else if (slot.j?.state === 'stored' && slot.j.receipt) {
+        return slot;
+      } else if (slot.j?.state === 'ready' && typeof slot.j.lease === 'string') {
+        onStage?.('sending');
+        const sent = await request(plan.uploadUrl, { method: 'PUT', headers: { ...headers, 'Content-Type': mime, 'X-Upload-Lease': slot.j.lease }, body: file }, 300_000);
+        if (sent.res.ok && sent.j?.receipt) return sent;
+        if (!sent.res.ok && sent.res.status < 500 && ![408, 425, 429].includes(sent.res.status)) return sent;
+        // Query storage again first if the response was lost; never blindly resend.
+      }
+      const seconds = Number(slot.res.headers.get('Retry-After'));
+      if (Number.isFinite(seconds) && seconds > 0) delay = Math.min(30_000, seconds * 1000);
+    } catch { /* A public relay interruption does not discard this photo's place or ID. */ }
+    onStage?.('waiting');
+    await new Promise(resolve => setTimeout(resolve, Math.min(delay * (1 + Math.random() * .2), Math.max(1, deadline - Date.now()))));
+  }
+  fail('업로드 대기 시간이 길어졌어요. 연결을 확인하고 다시 시도해주세요.', 'NAS_WAIT_TIMEOUT');
+}
 /** Only the small authorization/metadata requests reach Next.js in NAS mode. */
 export async function uploadGuestPhoto(fd: FormData, token: string, onStage?: (stage: PhotoUploadStage) => void): Promise<Result> {
   const file = fd.get('file');
@@ -54,7 +85,7 @@ export async function uploadGuestPhoto(fd: FormData, token: string, onStage?: (s
   const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), v => v.toString(16).padStart(2, '0')).join('');
   const onRetry = () => onStage?.('waiting');
   const api = <T extends object>(body: object, attempts: number) => retryJson<T>('/api/guest-photos/direct', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, token }) }, { attempts, timeout: 20_000, budget: 90_000, onRetry });
-  const { res: prepared, j: plan } = await api<Result['j'] & { storage?: string; uploadUrl?: string; ticket?: string }>({ action: 'prepare', size: bytes.length, ext: EXT_BY_MIME[mime], sha256: hash, name: fd.get('name'), message: fd.get('message') }, 3).catch(() => fail('업로드 권한을 요청하지 못했어요. 연결을 확인하고 다시 시도해주세요.', 'UPLOAD_PREPARE'));
+  const { res: prepared, j: plan } = await api<Result['j'] & { storage?: string; uploadUrl?: string; admissionUrl?: string; ticket?: string }>({ action: 'prepare', size: bytes.length, ext: EXT_BY_MIME[mime], sha256: hash, name: fd.get('name'), message: fd.get('message') }, 3).catch(() => fail('업로드 권한을 요청하지 못했어요. 연결을 확인하고 다시 시도해주세요.', 'UPLOAD_PREPARE'));
   if (!plan) fail('업로드 서버가 올바른 응답을 보내지 않았어요. 새로고침 후 다시 시도해주세요.', `PREPARE_${prepared.status}`);
   if (!prepared.ok) return { res: prepared, j: plan };
   if (plan.storage === 'supabase') {
@@ -68,8 +99,16 @@ export async function uploadGuestPhoto(fd: FormData, token: string, onStage?: (s
     onStage?.('sending');
     // Reuse the exact URL, permission and bytes even if a saved response was lost.
     // Eight minutes leaves time before the ten-minute permission expires.
-    upload = await retryJson<{ receipt?: string }>(plan.uploadUrl, { method: 'PUT', headers: { Authorization: `Bearer ${plan.ticket}`, 'Content-Type': mime }, body: file, credentials: 'omit', redirect: 'error' }, { attempts: 12, timeout: 300_000, budget: 480_000, retry429: true, onRetry });
-  } catch { fail('사진 저장소에 연결하지 못했어요. 잠시 후 다시 시도해주세요.', 'NAS_CONNECT'); }
+    if (plan.admissionUrl !== undefined) {
+      if (plan.admissionUrl !== `${plan.uploadUrl}?admission=1`) fail('사진 대기 주소가 올바르지 않아요.', 'NAS_CONFIG');
+      upload = await admittedUpload({ uploadUrl: plan.uploadUrl, admissionUrl: plan.admissionUrl, ticket: plan.ticket }, file, mime, onStage);
+    } else {
+      upload = await retryJson<{ receipt?: string }>(plan.uploadUrl, { method: 'PUT', headers: { Authorization: `Bearer ${plan.ticket}`, 'Content-Type': mime }, body: file, credentials: 'omit', redirect: 'error' }, { attempts: 12, timeout: 300_000, budget: 480_000, retry429: true, onRetry });
+    }
+  } catch (error) {
+    if (error instanceof PhotoUploadError) throw error;
+    fail('사진 저장소에 연결하지 못했어요. 잠시 후 다시 시도해주세요.', 'NAS_CONNECT');
+  }
   const uploaded = upload.res;
   if (!uploaded.ok) {
     const message = uploaded.status === 401

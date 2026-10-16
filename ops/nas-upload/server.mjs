@@ -5,15 +5,30 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { MAX_SIZE, PATH_PATTERN, sign, verify, sniff } from './protocol.mjs';
 
-export async function createPhotoServer({ root, secret, origins, maxQueuedUploads = 100, queueWaitMs = 45_000 }) {
+export async function createPhotoServer({ root, secret, origins, maxQueuedUploads = 100, queueWaitMs = 45_000, leaseWaitMs = 45_000, pollExpiryMs = 120_000 }) {
   if (!root || !secret || secret.length < 32 || !origins?.length) throw new Error('Configure NAS_PHOTO_SECRET, PHOTO_ROOT and ALLOWED_ORIGINS');
   await mkdir(join(root, 'snap'), { recursive: true });
   await mkdir(join(root, 'deleted'), { recursive: true });
   let active = 0;
   let uploads = 0;
   const waiting = [];
-  const hasUploadSlot = () => active < 8 && uploads < 2;
+  const reservations = new Map();
+  const reserved = () => [...reservations.values()].filter(e => e.state === 'ready').length;
+  const hasUploadSlot = () => active < 8 && uploads + reserved() < 2;
+  const admit = () => {
+    const now = Date.now();
+    for (const [path, entry] of reservations) {
+      if (entry.state !== 'uploading' && (entry.expires <= now || entry.claims.exp * 1000 <= now)) reservations.delete(path);
+    }
+    for (const entry of reservations.values()) {
+      if (entry.state !== 'queued' || !hasUploadSlot()) continue;
+      entry.state = 'ready';
+      entry.expires = now + leaseWaitMs;
+      entry.lease = randomUUID();
+    }
+  };
   const drain = () => {
+    admit();
     while (waiting.length && hasUploadSlot()) waiting[0].finish(true);
   };
   const acquireUpload = (req, res) => {
@@ -56,7 +71,7 @@ export async function createPhotoServer({ root, secret, origins, maxQueuedUpload
     }
     if (req.method === 'OPTIONS') {
       res.setHeader('Access-Control-Allow-Methods', 'PUT, GET, HEAD, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+      res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Upload-Lease');
       res.setHeader('Access-Control-Max-Age', '600');
       res.writeHead(204); return res.end();
     }
@@ -64,7 +79,7 @@ export async function createPhotoServer({ root, secret, origins, maxQueuedUpload
     try { url = new URL(req.url, 'http://localhost'); }
     catch { return json(400, { error: 'Invalid URL' }); }
     if (url.pathname === '/health' && req.method === 'GET') {
-      try { await access(root, 2); return json(200, { service: 'invitation-nas-photos', version: 1 }); }
+      try { await access(root, 2); return json(200, { service: 'invitation-nas-photos', version: 2 }); }
       catch { return json(503, { error: 'Photo folder unavailable' }); }
     }
     const path = url.pathname.replace(/^\/photos\//, '');
@@ -72,14 +87,49 @@ export async function createPhotoServer({ root, secret, origins, maxQueuedUpload
     const file = join(root, path);
     const tombstone = join(root, 'deleted', path.slice(5));
     const token = req.headers.authorization?.replace(/^Bearer /, '');
-    const purpose = { PUT: 'upload', HEAD: 'stat', DELETE: 'delete' }[req.method];
+    const admission = req.method === 'GET' && url.searchParams.get('admission') === '1';
+    const purpose = admission ? 'upload' : { PUT: 'upload', HEAD: 'stat', DELETE: 'delete' }[req.method];
     const claims = purpose ? verify(token, purpose, secret) : null;
-    if (req.method !== 'GET' && (!claims || claims.path !== path)) return json(401, { error: 'Invalid or expired permission' });
+    if ((req.method !== 'GET' || admission) && (!claims || claims.path !== path)) return json(401, { error: 'Invalid or expired permission' });
     if (!['GET', 'HEAD', 'PUT', 'DELETE'].includes(req.method)) return json(405, { error: 'Method not allowed' });
+    if (admission) {
+      if (!Number.isSafeInteger(claims.size) || claims.size < 1 || claims.size > MAX_SIZE || !/^[a-f0-9]{64}$/.test(claims.sha256)) return json(400, { error: 'Invalid photo size or checksum' });
+      try {
+        await stat(tombstone);
+        return json(410, { error: 'Photo deleted' });
+      } catch (e) { if (e.code !== 'ENOENT') return busy(); }
+      // A lost PUT response is recovered without retransmitting the original.
+      try {
+        const bytes = await readFile(file);
+        if (bytes.length !== claims.size || createHash('sha256').update(bytes).digest('hex') !== claims.sha256) return json(409, { error: 'Photo mismatch' });
+        return json(200, { state: 'stored', receipt: sign(claims, 'receipt', secret, 3600) });
+      } catch (e) { if (e.code !== 'ENOENT') return busy(); }
+      admit();
+      let entry = reservations.get(path);
+      if (!entry) {
+        if (reservations.size >= maxQueuedUploads + 2) return busy();
+        entry = { claims, state: 'queued', expires: Date.now() + pollExpiryMs };
+        reservations.set(path, entry);
+        admit();
+      }
+      if (entry.state === 'queued') entry.expires = Date.now() + pollExpiryMs;
+      if (entry.state === 'ready') return json(200, { state: 'ready', lease: entry.lease });
+      const position = [...reservations.values()].filter(e => e.state !== 'uploading').indexOf(entry) + 1;
+      res.setHeader('Retry-After', String(Math.min(15, Math.max(2, position))));
+      return json(202, { state: 'waiting', position: Math.max(1, position) });
+    }
     if (req.method === 'PUT') {
       if (!Number.isSafeInteger(claims.size) || claims.size < 1 || claims.size > MAX_SIZE || !/^[a-f0-9]{64}$/.test(claims.sha256)) return json(400, { error: 'Invalid photo size or checksum' });
       if (req.headers['content-length'] && Number(req.headers['content-length']) !== claims.size) return json(400, { error: 'Size mismatch' });
-      if (!await acquireUpload(req, res)) {
+      // v2 tickets reserve a slot using small GETs before sending any file bytes.
+      // Old clients remain compatible during the web deployment transition.
+      if (claims.admission === 2) {
+        admit();
+        const entry = reservations.get(path);
+        if (!entry || entry.state !== 'ready' || entry.lease !== req.headers['x-upload-lease']) return busy();
+        entry.state = 'uploading';
+        active++; uploads++;
+      } else if (!await acquireUpload(req, res)) {
         if (!res.destroyed) return busy();
         return;
       }
@@ -133,7 +183,11 @@ export async function createPhotoServer({ root, secret, origins, maxQueuedUpload
       if (!res.headersSent) json(e.code === 'ENOENT' ? 404 : 503, { error: e.code === 'ENOENT' ? 'Not found' : 'Photo storage unavailable' });
       else res.destroy();
       if (e.code !== 'ENOENT') console.error('Photo service error:', e.code || 'request failed');
-    } finally { active--; if (req.method === 'PUT') uploads--; drain(); }
+    } finally {
+      active--;
+      if (req.method === 'PUT') { uploads--; reservations.delete(path); }
+      drain();
+    }
   });
   server.requestTimeout = 300_000;
   server.headersTimeout = 15_000;
