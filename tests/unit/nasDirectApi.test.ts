@@ -30,6 +30,8 @@ describe('NAS direct photo API', () => {
     expect(verify(plan.ticket, 'upload', secret)).toMatchObject({ owner: 'owner', size: 100, name: '하객' });
     expect(mocks.from).not.toHaveBeenCalled();
     expect(mocks.storage).not.toHaveBeenCalled();
+    expect(mocks.allow).toHaveBeenCalledWith('upload:tok:owner', 30, 600);
+    expect(mocks.allow).toHaveBeenCalledWith('upload:ip:test', 3000, 600);
   });
   it('accepts original photos up to 20MB', async () => {
     expect((await req({ ...prepare, size: 20 * 1024 * 1024 })).status).toBe(200);
@@ -71,6 +73,7 @@ describe('NAS direct photo API', () => {
     select.mockReturnValue(q); eq.mockReturnValue(q);
     mocks.from.mockReturnValueOnce({ upsert }).mockReturnValueOnce(q);
     expect((await req({ action: 'complete', receipt: proof, name: 'forged' })).status).toBe(200);
+    expect(mocks.allow).toHaveBeenCalledWith('upload:complete:owner', 180, 600);
     expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ id: claims.id, name: '하객', path: `nas:${claims.path}` }), { onConflict: 'id', ignoreDuplicates: true });
     expect(mocks.storage).not.toHaveBeenCalled();
   });

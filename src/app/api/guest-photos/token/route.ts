@@ -20,7 +20,7 @@ export async function GET(req: Request) {
   const key = new URL(req.url).searchParams.get("key") ?? "";
   if (!INVITATION_KEY || key !== INVITATION_KEY)
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  if (!(await rateLimitAllow(`upload-token:${clientIp(req)}`, 30, 600)))
+  if (!(await rateLimitAllow(`upload-token:${clientIp(req)}`, 300, 600)))
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   const token = issueUploadToken();
   if (!token)

@@ -8,7 +8,7 @@ import {
   INVITATION_KEY,
   PHOTO_MISSIONS,
 } from "@/lib/wedding";
-import { uploadGuestPhoto, photoUploadErrorMessage } from "@/lib/uploadGuestPhoto";
+import { uploadGuestPhoto, photoUploadErrorMessage, type PhotoUploadStage } from "@/lib/uploadGuestPhoto";
 import FadeIn from "@/components/FadeIn";
 
 /**
@@ -54,7 +54,7 @@ export default function GuestSnap({
     j: { photo?: GuestPhoto; error?: string; code?: string };
   }> => {
     const send = async (tok: string) => {
-      return uploadGuestPhoto(fd, tok);
+      return uploadGuestPhoto(fd, tok, setUploadStage);
     };
     let tok = tokenRef.current ?? (await renewToken());
     if (!tok) return { res: null, j: { error: "업로드 권한을 받지 못했어요. 청첩장을 새로고침 해주세요 🙏" } };
@@ -68,6 +68,7 @@ export default function GuestSnap({
   const [photos, setPhotos] = useState<GuestPhoto[]>([]);
   const [name, setName] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadStage, setUploadStage] = useState<PhotoUploadStage>('sending');
   const [error, setError] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
   /** 선택한 포토 미션 (GS-9) — 업로드 시 사진에 함께 기록 */
@@ -199,15 +200,15 @@ export default function GuestSnap({
   /**
    * 실제 업로드 (선택한 원본 그대로). 고른 사진을 한 장씩 차례로 올린다.
    *
-   * 동시에 보내지 않는 이유: 업로드 API 는 요청당 한 장만 받고, 토큰당 10분 30장
-   * rate limit 이 걸려 있다. 병렬로 쏘면 예식장 공용 Wi-Fi 에서 뒷장부터 무더기로
-   * 실패하고, 어디까지 올라갔는지도 알 수 없게 된다.
+   * 여러 하객의 요청은 NAS 대기열에서 순서대로 처리하고 일시 오류는 자동 재시도한다.
+   * 한 기기는 한 장씩 보내 대기열을 독점하지 않고 완료 장수를 정확히 표시한다.
    *
    * 중간에 실패해도 이미 올라간 장은 그대로 두고, 몇 장이 올라갔는지 알려준다.
    */
   const uploadFiles = async (files: File[]) => {
     setError(null);
     setUploading(true);
+    setUploadStage('sending');
     setDone(0);
     // 이름 + 선택한 미션을 함께 기록 (미션만 있어도 태그로 남김)
     const label = [name.trim(), mission].filter(Boolean).join(" · ");
@@ -219,6 +220,7 @@ export default function GuestSnap({
     try {
       for (const [i, file] of files.entries()) {
         try {
+          setUploadStage('sending');
           const fd = new FormData();
           fd.append("file", file);
           if (label) fd.append("name", label);
@@ -494,6 +496,16 @@ export default function GuestSnap({
                   className="px-4 pt-2 text-xs text-red-600 text-center"
                 >
                   {error}
+                </p>
+              )}
+
+              {uploading && (
+                <p role="status" className="px-4 pt-2 text-xs text-sage-700 text-center">
+                  {uploadStage === 'waiting'
+                    ? '잠시 기다리면 자동으로 다시 시도해요. 이 화면을 열어두세요.'
+                    : uploadStage === 'confirming'
+                    ? '사진을 저장했어요. 앨범에 등록하고 있어요.'
+                    : '사진을 전송하고 있어요. 업로드가 몰리면 순서대로 기다려요.'}
                 </p>
               )}
 

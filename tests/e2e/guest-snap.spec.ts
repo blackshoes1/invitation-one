@@ -254,3 +254,42 @@ test("NAS 모드에서는 사진 본문을 NAS로 직접 보내고 JSON으로 �
   expect(completions).toBe(1);
   expect(legacy).toBe(0);
 });
+
+test('NAS 혼잡과 연결 오류는 같은 사진으로 자동 재시도하고 앨범 등록을 마친다', async ({ page }) => {
+  let preparations = 0;
+  let uploads = 0;
+  let completions = 0;
+  const nasUrl = 'https://nas.example.invalid/photos/snap/9a2c06ad-3f9f-49a3-9a29-1f95c5c31d83.jpg';
+  await page.route('**/api/guest-photos/token*', route => route.fulfill({ json: { token: 'stub' } }));
+  await page.route('**/api/guest-photos/direct', route => {
+    const body = route.request().postDataJSON();
+    if (body.action === 'prepare') {
+      preparations++;
+      return route.fulfill({ json: { storage: 'nas', uploadUrl: nasUrl, ticket: 'same-ticket' } });
+    }
+    completions++;
+    expect(body.receipt).toBe('same-receipt');
+    if (completions === 1) return route.fulfill({ status: 503, json: { error: 'Temporary confirmation failure' } });
+    return route.fulfill({ json: { photo: { id: 'saved-once', url: '/pic/gallery1.jpg', name: null, message: null, created_at: new Date().toISOString() } } });
+  });
+  await page.route('**/api/guest-photos', () => { throw new Error('Unexpected legacy upload'); });
+  await page.route(nasUrl, route => {
+    const headers = { 'Access-Control-Allow-Origin': new URL(page.url()).origin, 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'PUT, OPTIONS', 'Access-Control-Expose-Headers': 'Retry-After' };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    expect(route.request().headers().authorization).toBe('Bearer same-ticket');
+    expect(route.request().postDataBuffer()).toEqual(readFileSync(THREE[0]));
+    uploads++;
+    if (uploads === 1) return route.fulfill({ status: 503, headers: { ...headers, 'Retry-After': '2' }, json: { error: 'Busy' } });
+    if (uploads === 2) return route.abort('connectionreset');
+    return route.fulfill({ headers, json: { receipt: 'same-receipt' } });
+  });
+  await page.goto(HOME);
+  const modal = await pickFromAlbum(page, [THREE[0]]);
+  await modal.getByRole('button', { name: '이대로 올리기', exact: true }).click();
+  await expect(modal.getByText('잠시 기다리면 자동으로 다시 시도해요. 이 화면을 열어두세요.')).toBeVisible();
+  await expect(modal.getByRole('button', { name: '올리는 중…', exact: true })).toBeDisabled();
+  await expect(modal).toBeHidden({ timeout: 15_000 });
+  expect(preparations).toBe(1);
+  expect(uploads).toBe(3);
+  expect(completions).toBe(2);
+});

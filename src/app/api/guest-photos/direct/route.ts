@@ -30,7 +30,8 @@ export async function POST(req: Request) {
     if (!Number.isSafeInteger(input.size) || input.size < 1 || input.size > MAX_SIZE || !/^[a-f0-9]{64}$/.test(input.sha256) || !['jpg','png','webp','heic'].includes(input.ext)) return reply({ error: '20MB 이하의 올바른 사진을 선택해주세요.' }, 400);
     const allowed = await Promise.all([
       rateLimitAllow(`upload:tok:${auth.payload.n}`, 30, 600),
-      rateLimitAllow(`upload:ip:${clientIp(req)}`, 300, 600),
+      // Up to 100 guests sharing venue Wi-Fi, each using their 30-photo session quota.
+      rateLimitAllow(`upload:ip:${clientIp(req)}`, 3000, 600),
     ]);
     if (allowed.some(v => !v)) return reply({ error: '잠시 후 다시 시도해주세요.', code: 'rate_limited' }, 429);
     const id = crypto.randomUUID();
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
   if (input.action !== 'complete') return reply({ error: '잘못된 요청입니다.' }, 400);
   const receipt = verify(input.receipt, 'receipt', config.secret);
   if (!receipt || receipt.owner !== auth.payload.n || typeof receipt.path !== 'string' || !PATH_PATTERN.test(receipt.path) || typeof receipt.id !== 'string' || !receipt.path.startsWith(`snap/${receipt.id}.`)) return reply({ error: '사진 저장 확인이 필요합니다.' }, 401);
-  if (!await rateLimitAllow(`upload:complete:${auth.payload.n}`, 90, 600)) return reply({ error: '잠시 후 다시 시도해주세요.' }, 429);
+  if (!await rateLimitAllow(`upload:complete:${auth.payload.n}`, 180, 600)) return reply({ error: '잠시 후 다시 시도해주세요.' }, 429);
   try {
     const stored = await nasPhotoRequest('HEAD', receipt.path, receipt);
     if (!stored.ok) return reply({ error: 'NAS에서 사진을 확인하지 못했어요. 다시 시도해주세요.' }, 502);

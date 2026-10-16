@@ -5,19 +5,53 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { MAX_SIZE, PATH_PATTERN, sign, verify, sniff } from './protocol.mjs';
 
-export async function createPhotoServer({ root, secret, origins }) {
+export async function createPhotoServer({ root, secret, origins, maxQueuedUploads = 100, queueWaitMs = 45_000 }) {
   if (!root || !secret || secret.length < 32 || !origins?.length) throw new Error('Configure NAS_PHOTO_SECRET, PHOTO_ROOT and ALLOWED_ORIGINS');
   await mkdir(join(root, 'snap'), { recursive: true });
   await mkdir(join(root, 'deleted'), { recursive: true });
   let active = 0;
   let uploads = 0;
+  const waiting = [];
+  const hasUploadSlot = () => active < 8 && uploads < 2;
+  const drain = () => {
+    while (waiting.length && hasUploadSlot()) waiting[0].finish(true);
+  };
+  const acquireUpload = (req, res) => {
+    // Apply backpressure while queued: do not buffer dozens of 20MB photos in RAM.
+    req.pause();
+    if (!waiting.length && hasUploadSlot()) {
+      active++; uploads++;
+      return Promise.resolve(true);
+    }
+    if (waiting.length >= maxQueuedUploads) return Promise.resolve(false);
+    return new Promise(resolve => {
+      let settled = false;
+      const entry = { finish: admitted => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        res.off('close', cancelled);
+        waiting.splice(waiting.indexOf(entry), 1);
+        if (admitted) { active++; uploads++; }
+        resolve(admitted);
+      } };
+      const cancelled = () => entry.finish(false);
+      const timer = setTimeout(cancelled, queueWaitMs);
+      res.once('close', cancelled);
+      waiting.push(entry);
+    });
+  };
   const server = http.createServer(async (req, res) => {
     const json = (status, body) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body)); };
+    const busy = () => { res.setHeader('Retry-After', '2'); return json(503, { error: 'Busy, please retry' }); };
+    // A disconnected queued request may emit an error before body iteration starts.
+    req.on('error', () => {});
     res.setHeader('X-Content-Type-Options', 'nosniff');
     const origin = req.headers.origin;
     if (origin) {
       if (!origins.includes(origin)) return json(403, { error: 'Origin not allowed' });
       res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Expose-Headers', 'Retry-After');
       res.setHeader('Vary', 'Origin');
     }
     if (req.method === 'OPTIONS') {
@@ -42,10 +76,21 @@ export async function createPhotoServer({ root, secret, origins }) {
     const claims = purpose ? verify(token, purpose, secret) : null;
     if (req.method !== 'GET' && (!claims || claims.path !== path)) return json(401, { error: 'Invalid or expired permission' });
     if (!['GET', 'HEAD', 'PUT', 'DELETE'].includes(req.method)) return json(405, { error: 'Method not allowed' });
-    if (active >= 8 || (req.method === 'PUT' && uploads >= 2)) return json(503, { error: 'Busy, please retry' });
-    active++;
-    if (req.method === 'PUT') uploads++;
+    if (req.method === 'PUT') {
+      if (!Number.isSafeInteger(claims.size) || claims.size < 1 || claims.size > MAX_SIZE || !/^[a-f0-9]{64}$/.test(claims.sha256)) return json(400, { error: 'Invalid photo size or checksum' });
+      if (req.headers['content-length'] && Number(req.headers['content-length']) !== claims.size) return json(400, { error: 'Size mismatch' });
+      if (!await acquireUpload(req, res)) {
+        if (!res.destroyed) return busy();
+        return;
+      }
+    } else {
+      if (active >= 8) return busy();
+      active++;
+    }
     try {
+      // Waiting never extends a signed permission's lifetime.
+      if (res.destroyed) return;
+      if (claims && !verify(token, purpose, secret)) return json(401, { error: 'Permission expired while waiting' });
       if (req.method === 'DELETE') {
         // Tombstone blocks replay of a still-valid upload ticket after deletion.
         await writeFile(tombstone, '', { mode: 0o600 });
@@ -62,8 +107,6 @@ export async function createPhotoServer({ root, secret, origins }) {
         res.writeHead(200, { 'Content-Type': { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/heic' }[ext], 'Content-Length': bytes.length, 'Cache-Control': 'no-store' });
         return res.end(req.method === 'HEAD' ? undefined : bytes);
       }
-      if (!Number.isSafeInteger(claims.size) || claims.size < 1 || claims.size > MAX_SIZE || !/^[a-f0-9]{64}$/.test(claims.sha256)) return json(400, { error: 'Invalid photo size or checksum' });
-      if (req.headers['content-length'] && Number(req.headers['content-length']) !== claims.size) return json(400, { error: 'Size mismatch' });
       const chunks = [];
       let size = 0;
       for await (const chunk of req) {
@@ -90,7 +133,7 @@ export async function createPhotoServer({ root, secret, origins }) {
       if (!res.headersSent) json(e.code === 'ENOENT' ? 404 : 503, { error: e.code === 'ENOENT' ? 'Not found' : 'Photo storage unavailable' });
       else res.destroy();
       if (e.code !== 'ENOENT') console.error('Photo service error:', e.code || 'request failed');
-    } finally { active--; if (req.method === 'PUT') uploads--; }
+    } finally { active--; if (req.method === 'PUT') uploads--; drain(); }
   });
   server.requestTimeout = 300_000;
   server.headersTimeout = 15_000;
