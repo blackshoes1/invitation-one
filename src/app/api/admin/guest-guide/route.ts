@@ -13,7 +13,7 @@ import { GUIDE_RECIPIENT_FIELDS, guideToken, guideReviewToken, recoverGuideToken
 
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store, private" } });
 const view = (r: GuideRecipient) => ({ id: r.id, name: r.name, phoneMasked: maskPhone(r.phone), canSms: /^01\d{8,9}$/.test(r.phone?.replace(/\D/g, "") ?? ""), side: r.side,
-  confirmedAt: r.guide_confirmed_at, smsStatus: r.guide_sms_status, smsAttemptedAt: r.guide_sms_attempted_at, smsSentAt: r.guide_sms_sent_at });
+  openedAt: r.guide_opened_at, confirmedAt: r.guide_confirmed_at, smsStatus: r.guide_sms_status, smsAttemptedAt: r.guide_sms_attempted_at, smsSentAt: r.guide_sms_sent_at });
 
 export async function GET(req: Request) {
   const bad = await adminGuard(req); if (bad) return bad;

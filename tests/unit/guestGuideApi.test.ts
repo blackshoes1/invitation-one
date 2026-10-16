@@ -1,25 +1,27 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), order: vi.fn(), single: vi.fn(), guard: vi.fn(), audit: vi.fn(), rate: vi.fn(), config: vi.fn(), sms: vi.fn() }));
-vi.mock("@/lib/supabaseAdmin", () => ({ supabaseAdmin: { rpc: mocks.rpc, from: () => { const q = { select: () => q, eq: () => q, in: () => q, order: mocks.order, maybeSingle: mocks.single }; return q; } } }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), select: vi.fn(), order: vi.fn(), single: vi.fn(), guard: vi.fn(), audit: vi.fn(), rate: vi.fn(), config: vi.fn(), sms: vi.fn() }));
+vi.mock("@/lib/supabaseAdmin", () => ({ supabaseAdmin: { rpc: mocks.rpc, from: () => { const q = { select: mocks.select, eq: () => q, in: () => q, order: mocks.order, maybeSingle: mocks.single }; mocks.select.mockReturnValue(q); return q; } } }));
 vi.mock("@/lib/adminAuth", () => ({ adminGuard: mocks.guard }));
 vi.mock("@/lib/privacyAudit", async original => ({ ...await original<typeof import("@/lib/privacyAudit")>(), recordAccess: mocks.audit }));
 vi.mock("@/lib/rateLimit", () => ({ rateLimitAllow: mocks.rate, clientIp: () => "127.0.0.1" }));
 vi.mock("@/lib/sms", () => ({ sendSms: mocks.sms, smsConfigProblem: mocks.config }));
 vi.mock("@/lib/wedding", () => ({ INVITATION_KEY: "test-key", GUEST_GUIDE_START: new Date("2026-10-15T00:00:00+09:00") }));
-import { POST as adminPost } from "@/app/api/admin/guest-guide/route";
+import { GET as adminGet, POST as adminPost } from "@/app/api/admin/guest-guide/route";
 import { POST as guestPost } from "@/app/api/guest-guide/route";
 import { guideToken, guideReviewToken, type GuideRecipient } from "@/lib/guestGuideNotice";
 import { hashManageToken } from "@/lib/manageToken";
 const id = "10000000-0000-4000-8000-000000000001";
+const openedAt = "2026-10-15T00:00:00Z";
 let row: GuideRecipient;
 const req = (body: object) => new Request("http://localhost/api/guest-guide", { method: "POST", body: JSON.stringify(body) });
 beforeEach(() => {
   vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-15T09:00:00+09:00")); vi.stubEnv("APP_SIGNING_SECRET", "test-only-guide-key"); vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://example.invalid");
-  vi.clearAllMocks(); mocks.guard.mockResolvedValue(null); mocks.audit.mockResolvedValue(true); mocks.rate.mockResolvedValue(true); mocks.config.mockReturnValue(null); mocks.rpc.mockResolvedValue({ data: null, error: null }); mocks.sms.mockResolvedValue({ ok: true });
-  row = { id, name: "테스트하객", phone: "010-1111-2222", side: "groom", guide_token_hash: null, guide_issued_at: "2026-10-14T00:00:00Z", guide_confirmed_at: null, guide_sms_status: null, guide_sms_request_id: null, guide_sms_attempted_at: null, guide_sms_sent_at: null };
+  vi.clearAllMocks(); mocks.guard.mockResolvedValue(null); mocks.audit.mockResolvedValue(true); mocks.rate.mockResolvedValue(true); mocks.config.mockReturnValue(null); mocks.sms.mockResolvedValue({ ok: true });
+  row = { id, name: "테스트하객", phone: "010-1111-2222", side: "groom", guide_token_hash: null, guide_issued_at: "2026-10-14T00:00:00Z", guide_opened_at: null, guide_confirmed_at: null, guide_sms_status: null, guide_sms_request_id: null, guide_sms_attempted_at: null, guide_sms_sent_at: null };
   row.guide_token_hash = hashManageToken(guideToken(id, row.guide_issued_at!)!);
+  mocks.rpc.mockImplementation(async (name: string) => ({ data: name === "open_guest_guide_v1" ? [{ name: row.name, opened_at: row.guide_opened_at ?? openedAt, confirmed_at: row.guide_confirmed_at }] : null, error: null }));
   mocks.order.mockImplementation(async () => ({ data: [row], error: null }));
-  mocks.single.mockImplementation(async () => ({ data: { name: row.name, guide_confirmed_at: row.guide_confirmed_at }, error: null }));
+  mocks.single.mockImplementation(async () => ({ data: { name: row.name, guide_opened_at: row.guide_opened_at, guide_confirmed_at: row.guide_confirmed_at }, error: null }));
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
 const token = () => guideToken(id, row.guide_issued_at!)!;
@@ -56,10 +58,56 @@ it("reports a result-recording failure without blindly retrying the provider", a
   mocks.rpc.mockResolvedValueOnce({ error: null }).mockResolvedValueOnce({ error: { message: "unavailable" } });
   expect((await send()).status).toBe(503); expect(mocks.sms).toHaveBeenCalledOnce();
 });
-it("link preview only loads minimal information and never checks the guest in", async () => {
+it("records link opening and returns minimal information without confirming the guide", async () => {
   const res = await guestPost(req({ action: "load", token: token() }));
-  expect(await res.json()).toEqual({ name: row.name, confirmedAt: null, open: true });
-  expect(mocks.rpc).not.toHaveBeenCalled(); expect(res.headers.get("Cache-Control")).toContain("no-store");
+  expect(await res.json()).toEqual({ name: row.name, openedAt, confirmedAt: null, open: true });
+  expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("open_guest_guide_v1", { p_hash: hashManageToken(token()) });
+  expect(mocks.single).not.toHaveBeenCalled();
+  expect(res.headers.get("Cache-Control")).toContain("no-store");
+});
+it("keeps existing opening and confirmation timestamps distinct when the link is reopened", async () => {
+  row.guide_opened_at = openedAt;
+  row.guide_confirmed_at = "2026-10-15T01:00:00Z";
+  for (let i = 0; i < 2; i++) {
+    const res = await guestPost(req({ action: "load", token: token() }));
+    expect(await res.json()).toEqual({ name: row.name, openedAt, confirmedAt: row.guide_confirmed_at, open: true });
+    vi.advanceTimersByTime(60_000);
+  }
+  expect(mocks.rpc.mock.calls.map(call => call[0])).toEqual(["open_guest_guide_v1", "open_guest_guide_v1"]);
+});
+it("records link opening before the guide contents are available without confirming", async () => {
+  vi.setSystemTime(new Date("2026-10-14T23:59:59+09:00"));
+  row.guide_opened_at = "2026-10-14T14:59:59Z";
+  const res = await guestPost(req({ action: "load", token: token() }));
+  expect(await res.json()).toEqual({ name: row.name, openedAt: row.guide_opened_at, confirmedAt: null, open: false });
+  expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("open_guest_guide_v1", { p_hash: hashManageToken(token()) });
+});
+it("rejects a well-formed but invalid link without returning guest details", async () => {
+  mocks.rpc.mockResolvedValue({ data: null, error: { message: "invalid_token" } });
+  const res = await guestPost(req({ action: "load", token: token() }));
+  expect(res.status).toBe(401);
+  expect(await res.json()).toEqual({ error: "개인 안내 링크를 다시 확인해주세요." });
+  expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("open_guest_guide_v1", { p_hash: hashManageToken(token()) });
+});
+it("reports opening-record failures and succeeds when the guest reopens the link", async () => {
+  mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: "unavailable" } });
+  const res = await guestPost(req({ action: "load", token: token() }));
+  expect(res.status).toBe(503);
+  expect(await res.json()).toEqual({ error: "안내 열람을 기록하지 못했습니다. 다시 열어주세요." });
+  const retry = await guestPost(req({ action: "load", token: token() }));
+  expect(retry.status).toBe(200);
+  expect(await retry.json()).toEqual({ name: row.name, openedAt, confirmedAt: null, open: true });
+  expect(mocks.rpc.mock.calls.map(call => call[0])).toEqual(["open_guest_guide_v1", "open_guest_guide_v1"]);
+});
+it("lists opening and confirmation independently for administrators", async () => {
+  row.guide_opened_at = openedAt;
+  mocks.order.mockResolvedValue({ data: [row, { ...row, id: "10000000-0000-4000-8000-000000000002", guide_opened_at: null, guide_confirmed_at: "2026-10-15T01:00:00Z" }], error: null });
+  const res = await adminGet(new Request("http://localhost/api/admin/guest-guide"));
+  expect(res.status).toBe(200);
+  const data = await res.json();
+  expect(data.recipients[0]).toMatchObject({ id, openedAt, confirmedAt: null });
+  expect(data.recipients[1]).toMatchObject({ openedAt: null, confirmedAt: "2026-10-15T01:00:00Z" });
+  expect(mocks.select).toHaveBeenCalledWith(expect.stringContaining("guide_opened_at"));
 });
 it("blocks confirmation before October 15 without calling the writer", async () => {
   vi.setSystemTime(new Date("2026-10-14T23:59:59+09:00"));
@@ -70,6 +118,7 @@ it("stores explicit confirmation before supplying the new invitation address", a
   mocks.rpc.mockResolvedValue({ data: "2026-10-15T00:00:00Z", error: null });
   const res = await guestPost(req({ action: "confirm", token: token() })); const data = await res.json();
   expect(data.nextUrl).toBe("/?key=test-key"); expect(res.headers.get("Set-Cookie")).toContain("inv_key=test-key");
+  expect(data.confirmedAt).toBe("2026-10-15T00:00:00Z");
   expect(mocks.rpc).toHaveBeenCalledWith("confirm_guest_guide_v1", { p_hash: hashManageToken(token()) });
 });
 it("does not supply a destination after a failed confirmation", async () => {

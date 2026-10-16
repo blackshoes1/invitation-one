@@ -22,12 +22,20 @@ export async function POST(req: Request) {
   if (limits.some(allowed => !allowed)) return json({ error: "잠시 후 다시 시도해주세요." }, 429);
   if (!await recordAccess(req, `guest_guide_${body.action}`, "allowed", actor)) return json({ error: "확인 기록을 저장할 수 없습니다." }, 503);
   const hash = hashManageToken(body.token);
+  const open = Date.now() >= GUEST_GUIDE_START.getTime();
+  if (body.action === "load") {
+    const result = await supabaseAdmin.rpc("open_guest_guide_v1", { p_hash: hash });
+    if (result.error) return result.error.message === "invalid_token"
+      ? json({ error: "개인 안내 링크를 다시 확인해주세요." }, 401)
+      : json({ error: "안내 열람을 기록하지 못했습니다. 다시 열어주세요." }, 503);
+    const guest = result.data?.[0];
+    if (!guest) return json({ error: "개인 안내 링크를 다시 확인해주세요." }, 401);
+    return json({ name: guest.name, openedAt: guest.opened_at, confirmedAt: guest.confirmed_at, open });
+  }
   const { data, error } = await supabaseAdmin.from("rsvp").select("name,guide_confirmed_at")
     .eq("guide_token_hash", hash).eq("attending", true).maybeSingle();
   if (error) return json({ error: "안내를 확인하지 못했습니다." }, 503);
   if (!data) return json({ error: "개인 안내 링크를 다시 확인해주세요." }, 401);
-  const open = Date.now() >= GUEST_GUIDE_START.getTime();
-  if (body.action === "load") return json({ name: data.name, confirmedAt: data.guide_confirmed_at, open });
   if (!open) return json({ error: "10월 15일 0시부터 확인할 수 있습니다." }, 409);
   const result = await supabaseAdmin.rpc("confirm_guest_guide_v1", { p_hash: hash });
   if (result.error) return json({ error: "안내 확인을 저장하지 못했습니다. 다시 시도해주세요." }, 503);

@@ -31,7 +31,7 @@ declare
     'privacy_preview_v1', 'purge_operational_privacy_v1', 'complete_privacy_external_check_v1',
     'cleanup_privacy_security_state_v1', 'create_guest_identity_challenge_v1',
     'consume_guest_identity_code_v1', 'submit_rsvp_verified_v1',
-    'issue_guest_guide_v1', 'complete_guest_guide_sms_v1', 'confirm_guest_guide_v1', 'invalidate_guest_guide_v1',
+    'issue_guest_guide_v1', 'complete_guest_guide_sms_v1', 'open_guest_guide_v1', 'confirm_guest_guide_v1', 'invalidate_guest_guide_v1',
     -- 체크인 v1/RSVP 레거시 (v24)
     'submit_rsvp', 'submit_checkin', 'submit_rsvp_v2',
     -- P1-1 에서 Next API 뒤로 옮긴 공개 write RPC (20260828000200)
@@ -47,7 +47,7 @@ declare
   ];
   -- Next API(service_role)가 호출해야 하는 write RPC
   service_names text[] := array[
-    'issue_guest_guide_v1', 'complete_guest_guide_sms_v1', 'confirm_guest_guide_v1',
+    'issue_guest_guide_v1', 'complete_guest_guide_sms_v1', 'open_guest_guide_v1', 'confirm_guest_guide_v1',
     'verify_guest_v2', 'privacy_preview_v1', 'purge_operational_privacy_v1',
     'complete_privacy_external_check_v1', 'create_guest_identity_challenge_v1',
     'consume_guest_identity_code_v1', 'submit_rsvp_verified_v1',
@@ -57,6 +57,7 @@ declare
   ];
   -- PostgREST 오버로드 모호성이 생기면 안 되는 함수 (정확히 1개 시그니처)
   unique_names text[] := array[
+    'open_guest_guide_v1',
     'send_heart_v3',
     'send_heart_v2', 'create_delivery_v3', 'join_delivery_v2', 'accept_group_offer_v2',
     'admin_create_order_v1', 'admin_attend_member_v1', 'admin_update_attend_v1'

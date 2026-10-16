@@ -3,6 +3,7 @@ import { accounts, parkingLot, venue } from "../../src/lib/wedding";
 
 const GUIDE_TOKEN = "a".repeat(32);
 const GUIDE_URL = `/guest-guide?t=${GUIDE_TOKEN}`;
+const OPENED_AT = "2026-10-16T23:00:00Z";
 const CONFIRMED_AT = "2026-10-17T00:00:00Z";
 
 for (const width of [320, 390]) test(`guest reads the guide before confirming and stays on it at ${width}px`, async ({ page, context }) => {
@@ -13,11 +14,11 @@ for (const width of [320, 390]) test(`guest reads the guide before confirming an
     } });
   });
   await context.route("https://map.naver.com/**", route => route.fulfill({ contentType: "text/html", body: "<main>지도</main>" }));
-  let confirmed = 0;
+  let opened = 0, confirmed = 0;
   await page.route("**/api/guest-guide", async route => {
     const body = route.request().postDataJSON();
     expect(body.token).toBe(GUIDE_TOKEN);
-    if (body.action === "load") await route.fulfill({ json: { name: "테스트하객", confirmedAt: null, open: true } });
+    if (body.action === "load") { opened++; await route.fulfill({ json: { name: "테스트하객", openedAt: OPENED_AT, confirmedAt: null, open: true } }); }
     else { confirmed++; await route.fulfill({ json: { confirmedAt: CONFIRMED_AT, nextUrl: "/?key=test-guide-key" } }); }
   });
   await page.goto(GUIDE_URL);
@@ -29,6 +30,11 @@ for (const width of [320, 390]) test(`guest reads the guide before confirming an
   await expect(page.getByRole("heading", { name: parkingLot.name, exact: true })).toBeVisible();
   const confirmButton = page.getByRole("button", { name: "안내 확인했어요", exact: true });
   const button = await confirmButton.elementHandle();
+  const atmNote = page.getByText("현장 주변에는 ATM이 없습니다.", { exact: false });
+  await expect(atmNote).toBeVisible();
+  expect(await atmNote.evaluate((element, button) => !!(element.compareDocumentPosition(button!) & Node.DOCUMENT_POSITION_FOLLOWING), button)).toBe(true);
+  await expect(page.getByText(/링크를 열면 최초 열람 시각이, 버튼을 누르면 안내 확인 여부와 최초 확인 시각이 각각 저장됩니다/)).toBeVisible();
+  expect(opened).toBe(1);
   for (const account of accounts) {
     const number = page.getByText(account.number, { exact: true });
     await expect(number).toBeVisible();
@@ -46,6 +52,10 @@ for (const width of [320, 390]) test(`guest reads the guide before confirming an
   const popup = await popupPromise;
   await popup.waitForLoadState("domcontentloaded");
   await popup.close();
+  expect(confirmed).toBe(0);
+  await page.reload();
+  await expect(confirmButton).toBeEnabled();
+  expect(opened).toBe(2);
   expect(confirmed).toBe(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath("guest-guide.png"), fullPage: true });
@@ -67,7 +77,7 @@ test("before opening the guest sees the opening notice without private guide con
   let confirmed = 0;
   await page.route("**/api/guest-guide", route => {
     if (route.request().postDataJSON().action === "confirm") confirmed++;
-    return route.fulfill({ json: { name: "테스트하객", confirmedAt: null, open: false } });
+    return route.fulfill({ json: { name: "테스트하객", openedAt: OPENED_AT, confirmedAt: null, open: false } });
   });
   await page.goto(GUIDE_URL);
   await expect(page.getByRole("button", { name: "안내 확인했어요", exact: true })).toBeDisabled();
@@ -81,7 +91,7 @@ test("a returning guest can read the guide without recording confirmation again"
   let confirmed = 0;
   await page.route("**/api/guest-guide", route => {
     if (route.request().postDataJSON().action === "confirm") confirmed++;
-    return route.fulfill({ json: { name: "테스트하객", confirmedAt: CONFIRMED_AT, open: true } });
+    return route.fulfill({ json: { name: "테스트하객", openedAt: OPENED_AT, confirmedAt: CONFIRMED_AT, open: true } });
   });
   await page.goto(GUIDE_URL);
   await expect(page.getByRole("button", { name: "안내 확인 완료", exact: true })).toBeDisabled();
@@ -95,7 +105,7 @@ test("a returning guest can read the guide without recording confirmation again"
 test("a failed confirmation leaves the guide readable and can be retried", async ({ page }) => {
   let confirmed = 0;
   await page.route("**/api/guest-guide", async route => {
-    if (route.request().postDataJSON().action === "load") return route.fulfill({ json: { name: "테스트하객", confirmedAt: null, open: true } });
+    if (route.request().postDataJSON().action === "load") return route.fulfill({ json: { name: "테스트하객", openedAt: OPENED_AT, confirmedAt: null, open: true } });
     confirmed++;
     if (confirmed === 1) return route.fulfill({ status: 503, json: { error: "확인 기록을 저장하지 못했습니다." } });
     await route.fulfill({ json: { confirmedAt: CONFIRMED_AT, nextUrl: "/?key=test-guide-key" } });
@@ -113,16 +123,36 @@ test("a failed confirmation leaves the guide readable and can be retried", async
   expect(confirmed).toBe(2);
 });
 
+test("a failed opening record can be retried by reopening without confirming", async ({ page }) => {
+  let opened = 0, confirmed = 0;
+  await page.route("**/api/guest-guide", async route => {
+    if (route.request().postDataJSON().action === "confirm") confirmed++;
+    else opened++;
+    if (opened === 1) return route.fulfill({ status: 503, json: { error: "안내 열람을 기록하지 못했습니다. 다시 열어주세요." } });
+    await route.fulfill({ json: { name: "테스트하객", openedAt: OPENED_AT, confirmedAt: null, open: true } });
+  });
+  await page.goto(GUIDE_URL);
+  await expect(page.locator("main").getByRole("alert")).toHaveText("안내 열람을 기록하지 못했습니다. 다시 열어주세요.");
+  await expect(page.getByRole("button", { name: "안내 확인했어요", exact: true })).toHaveCount(0);
+  expect(confirmed).toBe(0);
+  await page.reload();
+  await expect(page.getByText("현장 주변에는 ATM이 없습니다.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: "안내 확인했어요", exact: true })).toBeEnabled();
+  expect(opened).toBe(2);
+  expect(confirmed).toBe(0);
+});
+
 for (const width of [320,390,1280]) test(`admin reviews attendees and messages before SMS submission at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 }); let sent=0;
-  const recipient = { id: "r1", name: "테스트하객", side: "groom", phoneMasked: "010-****-2222", canSms: true, confirmedAt: null, smsStatus: null, smsSentAt: null };
+  const recipient = { id: "r1", name: "테스트하객", side: "groom", phoneMasked: "010-****-2222", canSms: true, openedAt: null, confirmedAt: null, smsStatus: null, smsSentAt: null };
+  const openedRecipient = { ...recipient, id: "r2", name: "열람하객", phoneMasked: null, canSms: false, openedAt: OPENED_AT };
   await page.route("**/api/admin/**", async route => {
     const path = new URL(route.request().url()).pathname; let json: object = {};
     if (path==="/api/admin/login") json={ok:true};
     if (path==="/api/admin/groups") json={groups:[],total_members:0};
     if (path==="/api/admin/deliveries") json={deliveries:[]};
     if (path==="/api/admin/guest-guide") {
-      if (route.request().method()==="GET") json={recipients:[recipient],smsReady:true};
+      if (route.request().method()==="GET") json={recipients:[recipient,openedRecipient],smsReady:true};
       else if (route.request().postDataJSON().action==="prepare") json={recipients:[{...recipient,url:"https://example.invalid/guest-guide?t=personal-link",message:"테스트하객님, 안내를 읽으신 뒤 ‘안내 확인했어요’를 눌러주세요. https://example.invalid/guest-guide?t=personal-link",reviewToken:"review"}]};
       else { sent++; json={id:"r1",status:"accepted"}; }
     }
@@ -132,6 +162,11 @@ for (const width of [320,390,1280]) test(`admin reviews attendees and messages b
   await expect(page.getByRole("heading",{name:"캘린더",exact:true})).toBeVisible();
   if(width<1024)await page.getByRole("button",{name:"메뉴 열기"}).click();
   await page.getByRole("button",{name:"사전 안내",exact:true}).click();
+  await expect(page.locator("li").filter({ hasText: "테스트하객" })).toContainText("열람 기록 없음");
+  const openedRow = page.locator("li").filter({ hasText: "열람하객" });
+  await expect(openedRow).toContainText("링크 열람");
+  await expect(openedRow).toContainText("안내 미확인");
+  await expect(page.getByText("링크 열람 1건", { exact: false })).toBeVisible();
   await page.getByRole("button",{name:"미발송·미확인 참석자 선택"}).click();
   await page.getByRole("button",{name:"선택 1명 문구·개인 링크 확인"}).click();
   const button=page.getByRole("button",{name:"선택 1명에게 문자 발송"});

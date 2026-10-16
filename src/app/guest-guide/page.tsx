@@ -7,7 +7,7 @@ import GuestRouteDetails from "@/components/GuestRouteDetails";
 import { PRIVACY_RETENTION_LABEL } from "@/lib/privacy";
 import { bride, groom, venue, formatFullDate, formatTime } from "@/lib/wedding";
 
-type Guest = { name: string; confirmedAt: string | null; open: boolean };
+type Guest = { name: string; openedAt: string | null; confirmedAt: string | null; open: boolean };
 export default function GuestGuideNotice() {
   const [guest, setGuest] = useState<Guest | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +45,7 @@ export default function GuestGuideNotice() {
           {guest.open ? <>
             <section aria-labelledby="accounts-heading" className="space-y-4 rounded-2xl border border-sage-200 bg-white p-4">
               <h2 id="accounts-heading" className="font-serif text-lg font-semibold">축의금 계좌 안내</h2>
-              <p className="text-sm leading-7">현장 축의대는 운영하지 않습니다.<br />마음을 전하실 분은 아래 계좌로 이체해 주세요.</p>
+              <p className="text-sm leading-7">현장 축의대는 운영하지 않습니다.<br />현장 주변에는 ATM이 없습니다.<br />마음을 전하실 분은 아래 계좌로 이체해 주세요.</p>
               <AccountDetails />
             </section>
             <GuestRouteDetails />
@@ -54,7 +54,7 @@ export default function GuestGuideNotice() {
             {guest.confirmedAt ? <p role="status" className="text-sm leading-7">안내 확인을 완료했어요.<br />{new Date(guest.confirmedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}</p> : <p className="text-sm leading-7">안내를 모두 읽으셨다면 아래 버튼을 눌러주세요.</p>}
             <button type="button" onClick={confirm} disabled={busy || !guest.open || Boolean(guest.confirmedAt)} className="min-h-12 w-full rounded-full bg-sage-700 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? "확인을 저장하고 있습니다…" : guest.confirmedAt ? "안내 확인 완료" : "안내 확인했어요"}</button>
             {error && <p role="alert" className="text-sm leading-6 text-red-700">{error}</p>}
-            <p className="text-xs leading-6 text-neutral-500">버튼을 누르면 안내 확인 여부와 시각이 저장됩니다. 확인 기록은 {PRIVACY_RETENTION_LABEL}까지 보관 후 관리자 확인을 거쳐 파기합니다. <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline">개인정보 처리 안내</a></p>
+            <p className="text-xs leading-6 text-neutral-500">링크를 열면 최초 열람 시각이, 버튼을 누르면 안내 확인 여부와 최초 확인 시각이 각각 저장됩니다. 기록은 {PRIVACY_RETENTION_LABEL}까지 보관 후 관리자 확인을 거쳐 파기합니다. <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline">개인정보 처리 안내</a></p>
           </section>
           {guest.open && <Link href="/?view=photos" prefetch={false} className="flex min-h-12 items-center justify-center rounded-full border border-sage-300 px-5 py-3 text-sm font-medium text-sage-700">모바일 청첩장 보기</Link>}
         </> : error ? <p role="alert" className="text-sm leading-6 text-red-700">{error}</p> : <p role="status" className="text-sm">개인 안내를 확인하고 있습니다.</p>}

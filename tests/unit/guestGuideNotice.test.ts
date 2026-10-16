@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { guideToken, guideReviewToken, recoverGuideToken, guideNotice, type GuideRecipient } from "@/lib/guestGuideNotice";
 import { hashManageToken } from "@/lib/manageToken";
-const row: GuideRecipient = { id: "r1", name: "테스트하객", phone: "010-1111-2222", side: "groom", guide_token_hash: null, guide_issued_at: "2026-10-14T09:00:00+09:00", guide_confirmed_at: null, guide_sms_status: null, guide_sms_request_id: null, guide_sms_attempted_at: null, guide_sms_sent_at: null };
+const row: GuideRecipient = { id: "r1", name: "테스트하객", phone: "010-1111-2222", side: "groom", guide_token_hash: null, guide_issued_at: "2026-10-14T09:00:00+09:00", guide_opened_at: null, guide_confirmed_at: null, guide_sms_status: null, guide_sms_request_id: null, guide_sms_attempted_at: null, guide_sms_sent_at: null };
 beforeEach(() => vi.stubEnv("APP_SIGNING_SECRET", "test-only-guide-secret"));
 it("reuses the same personal address across timezone representations without exposing RSVP IDs", () => {
   const token = guideToken(row.id, row.guide_issued_at!)!;
@@ -20,6 +20,7 @@ it("puts essential guidance in the message and asks for confirmation after readi
   const message = guideNotice(row.name, "https://example.invalid/guest-guide?t=private-token");
   expect(message).toContain("10월 18일(일) 오전 11시");
   expect(message).toContain("축의대");
+  expect(message).toContain("현장 주변에는 ATM이 없습니다.");
   expect(message).toContain("계좌");
   expect(message).toContain("대중교통");
   expect(message).toContain("국립중앙박물관 주차장");
