@@ -170,6 +170,31 @@ test('expired slots are reclaimed, old leases cannot send and saved-response rec
   assert.equal((await fetch(`${next.url}?admission=1`)).status, 401);
 });
 
+test('legacy PUTs and admission clients share arrival order during a rolling deployment', { timeout: 10_000 }, async t => {
+  const s = await setup(t);
+  const firstArrived = s.arrivals(2);
+  const first = s.hold(s.plan()); const second = s.hold(s.plan());
+  await firstArrived;
+  const next = s.plan(); const later = s.plan();
+  const ticket = photo => sign({ ...photo.claims, admission: 2 }, 'upload', s.secret);
+  const admit = async photo => (await fetch(`${photo.url}?admission=1`, { headers: { Authorization: `Bearer ${ticket(photo)}` } })).json();
+  assert.equal((await admit(next)).state, 'waiting');
+  const oldArrived = s.arrivals(1);
+  const old = s.hold(s.plan());
+  await oldArrived;
+  assert.equal((await admit(later)).state, 'waiting');
+  first.finish(); await first.done;
+  const slot = await admit(next);
+  assert.equal(slot.state, 'ready');
+  const sent = await fetch(next.url, { method: 'PUT', headers: { Authorization: `Bearer ${ticket(next)}`, 'X-Upload-Lease': slot.lease }, body: s.bytes });
+  assert.equal(sent.status, 200); await sent.arrayBuffer();
+  old.finish();
+  // The older PUT must run before the later admission reserves the free slot.
+  assert.equal(await old.done, 200);
+  second.finish(); await second.done;
+  assert.equal((await admit(later)).state, 'ready');
+});
+
 test('50 simultaneous photos wait for two upload slots, keep metadata access available and all save intact', { timeout: 20_000 }, async t => {
   const s = await setup(t);
   const photos = Array.from({ length: 50 }, () => s.plan());

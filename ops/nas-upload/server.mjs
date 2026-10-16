@@ -11,6 +11,7 @@ export async function createPhotoServer({ root, secret, origins, maxQueuedUpload
   await mkdir(join(root, 'deleted'), { recursive: true });
   let active = 0;
   let uploads = 0;
+  let arrivalOrder = 0;
   const waiting = [];
   const reservations = new Map();
   const reserved = () => [...reservations.values()].filter(e => e.state === 'ready').length;
@@ -20,8 +21,11 @@ export async function createPhotoServer({ root, secret, origins, maxQueuedUpload
     for (const [path, entry] of reservations) {
       if (entry.state !== 'uploading' && (entry.expires <= now || entry.claims.exp * 1000 <= now)) reservations.delete(path);
     }
-    for (const entry of reservations.values()) {
-      if (entry.state !== 'queued' || !hasUploadSlot()) continue;
+    while (hasUploadSlot()) {
+      const entry = [...reservations.values()].find(e => e.state === 'queued');
+      // Preserve arrival order when old and new browser versions overlap during rollout.
+      if (waiting.length && (!entry || waiting[0].order < entry.order)) { waiting[0].finish(true); continue; }
+      if (!entry) break;
       entry.state = 'ready';
       entry.expires = now + leaseWaitMs;
       entry.lease = randomUUID();
@@ -42,7 +46,7 @@ export async function createPhotoServer({ root, secret, origins, maxQueuedUpload
     if (waiting.length >= maxQueuedUploads) return Promise.resolve(false);
     return new Promise(resolve => {
       let settled = false;
-      const entry = { finish: admitted => {
+      const entry = { order: ++arrivalOrder, finish: admitted => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
@@ -110,7 +114,7 @@ export async function createPhotoServer({ root, secret, origins, maxQueuedUpload
       const joined = !entry;
       if (!entry) {
         if (reservations.size >= maxQueuedUploads + 2) return busy();
-        entry = { claims, state: 'queued', expires: Date.now() + pollExpiryMs };
+        entry = { claims, order: ++arrivalOrder, state: 'queued', expires: Date.now() + pollExpiryMs };
         reservations.set(path, entry);
         admit();
       }

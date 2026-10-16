@@ -2,9 +2,15 @@
 
 ## 개발 완료와 실제 연결은 별개
 
-운영 청첩장은 `GUEST_PHOTO_STORAGE=nas`로 NAS 직접 업로드를 사용합니다. 2026-10-16 확인한 공개 HTTPS origin은 `https://bokbok9.tail8b977f.ts.net`이며 Tailscale Funnel을 통해 NAS의 `127.0.0.1:18080`으로 연결됩니다. 아래 10443 포트 설정은 다른 공개 경로를 설치할 때의 예시입니다. NAS가 꺼지거나 연결이 실패하면 오류를 표시하며 Supabase에 대신 저장하지 않습니다.
+운영 청첩장은 `GUEST_PHOTO_STORAGE=nas`로 NAS 직접 업로드를 사용합니다. 2026-10-16 새 공개 경로는 `https://bokbok9.synology.me:1018/photos/snap/…`입니다. 기존 HTTPS 연결에 사진 전용 프록시를 추가해 Tailscale Funnel의 중계 구간을 거치지 않습니다. 이전 `https://bokbok9.tail8b977f.ts.net` 사진 주소도 유지합니다. NAS가 꺼지거나 연결이 실패하면 오류를 표시하며 Supabase에 대신 저장하지 않습니다.
 
-사용자가 확인한 NAS 주소는 `https://bokbok9.synology.me:1018/`입니다. 1018 포트에서 어떤 서비스가 실행 중인지는 확인되지 않았습니다. **이 주소가 DSM 관리 화면이면 업로드 주소로 사용하지 말고 그대로 유지하세요.** 아래는 별도 HTTPS 포트 10443을 사용하는 설치 예시입니다. 실제 사용 가능 여부와 공유기 연결은 NAS에서 확인해야 합니다.
+`https://bokbok9.synology.me:1018/`의 루트는 DSM 관리 화면입니다. `/photos/snap/`과 `/invitation-photos-health`만 사진 서비스의 `127.0.0.1:18080`으로 연결했습니다. 기존 DSM 경로와 포트 전달 설정은 유지합니다. 아래 10443 포트 설정은 다른 환경에 별도 주소를 설치할 때의 예시입니다.
+
+운영 프록시 원본은 `ops/nas-upload/dsm.invitation-photos.conf`이며 NAS의 `/usr/local/etc/nginx/conf.d/dsm.invitation-photos.conf`에 설치합니다. `proxy-test.conf`로 사진 프록시만 독립적인 Nginx 환경에서 문법 검증할 수 있습니다. DSM의 기존 Nginx가 이 파일을 include하며, 적용 시 graceful reload 후 공개 상태 응답과 DSM 접속을 확인합니다. DSM 업데이트 후에도 이 파일과 경로가 유지되는지 확인하세요.
+
+`ops/nas-upload/public-origins.json`은 기존 운영 origin을 새 공개 origin으로 매핑합니다. 다른 NAS 설정은 바꾸지 않습니다. `NAS_PHOTO_PUBLIC_BASE_URL`을 명시하면 매핑보다 우선하므로 이전 Funnel origin으로 롤백할 수 있습니다. 웹 배포 시 새 주소와 기존 주소 모두 CSP·이미지 허용 목록에 포함됩니다. 기존 DB의 사진 URL은 변경하지 않습니다.
+
+공개 경로 검사는 `curl --fail https://bokbok9.synology.me:1018/invitation-photos-health`로 수행합니다. 인증서를 무시하는 옵션을 사용하지 않습니다. `/photos/snap/`의 PUT·HEAD·DELETE에는 기존과 같은 서명 권한이 필요하고, HTTPS 이외의 사진 경로는 차단합니다.
 
 ## 데이터 흐름
 

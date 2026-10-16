@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import publicOrigins from './ops/nas-upload/public-origins.json';
 
 // Supabase Storage 공개 버킷(하객 스냅 등) 이미지를 next/image 로 최적화하기 위한 허용 목록
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -12,7 +13,11 @@ const supabaseOrigin = supabaseUrl ? new URL(supabaseUrl).origin : "https://*.su
  *            네이버/티맵(링크만 — 리소스 로드 없음), YouTube 임베드, Pretendard(jsdelivr), next/font(self)
  */
 const nasBase = process.env.NAS_PHOTO_BASE_URL;
-const nasOrigin = nasBase ? new URL(nasBase).origin : "";
+const legacyNasOrigin = nasBase ? new URL(nasBase).origin : "";
+const mappedNasOrigin = (publicOrigins as Record<string, string>)[legacyNasOrigin];
+const nasOrigin = process.env.NAS_PHOTO_PUBLIC_BASE_URL || mappedNasOrigin || legacyNasOrigin;
+const nasOrigins = [...new Set([legacyNasOrigin, nasOrigin].filter(Boolean))];
+const nasSources = nasOrigins.join(' ');
 
 const CSP = [
   "default-src 'self'",
@@ -23,9 +28,9 @@ const CSP = [
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://dapi.kakao.com https://t1.kakaocdn.net https://*.daumcdn.net https://*.kakao.com",
   "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
   "font-src 'self' data: https://cdn.jsdelivr.net",
-  `img-src 'self' data: blob: ${supabaseOrigin} ${nasOrigin} https://*.daumcdn.net https://*.kakaocdn.net https://*.kakao.com https://i.ytimg.com https://*.ytimg.com`,
+  `img-src 'self' data: blob: ${supabaseOrigin} ${nasSources} https://*.daumcdn.net https://*.kakaocdn.net https://*.kakao.com https://i.ytimg.com https://*.ytimg.com`,
   `media-src 'self' blob: ${supabaseOrigin}`,
-  `connect-src 'self' ${nasOrigin} ${supabaseOrigin} ${supabaseOrigin.replace(/^https:/, "wss:")} https://dapi.kakao.com https://*.daumcdn.net https://*.kakao.com https://*.kakaocdn.net`,
+  `connect-src 'self' ${nasSources} ${supabaseOrigin} ${supabaseOrigin.replace(/^https:/, "wss:")} https://dapi.kakao.com https://*.daumcdn.net https://*.kakao.com https://*.kakaocdn.net`,
   "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://youtu.be https://*.kakao.com https://map.kakao.com https://map.naver.com https://tmap.life",
   "form-action 'self' https://*.kakao.com",
   "worker-src 'self' blob:",
@@ -75,7 +80,7 @@ const nextConfig: NextConfig = {
     deviceSizes: [360, 420, 640, 750, 828, 1080, 1200],
     remotePatterns: [
       ...(supabaseUrl ? [new URL(`${supabaseUrl.replace(/\/+$/, "")}/storage/v1/object/public/**`)] : []),
-      ...(nasOrigin ? [new URL(`${nasOrigin}/photos/snap/**`)] : []),
+      ...nasOrigins.map(origin => new URL(`${origin}/photos/snap/**`)),
     ],
   },
   async headers() {
