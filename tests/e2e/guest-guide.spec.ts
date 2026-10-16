@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 import { accounts, bride, formatFullDate, formatTime, groom, GUEST_GUIDE_START, parkingLot, venue } from "../../src/lib/wedding";
 
 const KEY = process.env.NEXT_PUBLIC_INVITATION_KEY ?? "ci-dummy-key";
@@ -85,6 +86,27 @@ test.describe("하객 안내 공개 이후", () => {
     await expect(page.getByRole("link", { name: /예식장 문의/ })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "네이버 도보 길찾기" })).toHaveAttribute("href", parkingLot.walkNav.naverWeb);
     await expect(page.getByRole("link", { name: "카카오맵 길찾기" })).toHaveAttribute("href", parkingLot.walkNav.kakaoWeb);
+  });
+
+  test("모든 안내 메뉴와 사진 청첩장에서 예식장 전화번호와 전화 연결을 표시하지 않는다", async ({ page }) => {
+    for (const view of ["", "accounts", "route", "guest-snap", "photos"]) {
+      await page.goto(`${HOME}&view=${view}`);
+      const visibleText = await page.locator("body").innerText();
+      expect(visibleText.replace(/[- .]/g, "")).not.toContain("027925661");
+      const venueCalls = await page.locator('a[href^="tel:"]').evaluateAll(links =>
+        links.filter(link => link.getAttribute("href")?.replace(/\D/g, "") === "027925661").length
+      );
+      expect(venueCalls).toBe(0);
+    }
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "연락처 저장", exact: true }).click();
+    const download = await downloadPromise;
+    const downloadPath = await download.path();
+    expect(downloadPath).not.toBeNull();
+    const vcard = await readFile(downloadPath!, "utf8");
+    expect(vcard).toContain("BEGIN:VCARD");
+    expect(vcard.replace(/[- .]/g, "")).not.toContain("027925661");
+    if (groom.phone) expect(vcard).toContain(groom.phone);
   });
 
   test("큰 글씨를 전환하면 날짜와 카드 설명도 확대되고 선택이 유지된다", async ({ page }) => {

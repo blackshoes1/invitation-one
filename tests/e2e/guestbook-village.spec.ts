@@ -27,7 +27,7 @@ async function openEmptyGuestbook(page: Page, url = HOME) {
   return { section, canvas };
 }
 
-async function openGuideVillage(page: Page) {
+async function openGuideVillage(page: Page, url = GUIDE) {
   const adminRequests: string[] = [];
   page.on("request", request => {
     if (new URL(request.url()).pathname === "/api/admin/celebrations") adminRequests.push(request.url());
@@ -36,7 +36,7 @@ async function openGuideVillage(page: Page) {
   const [background, sprites] = await Promise.all([
     page.waitForResponse(response => new URL(response.url()).pathname === "/pic/village-bg.webp"),
     page.waitForResponse(response => new URL(response.url()).pathname === "/pic/village-sprites.webp"),
-    page.goto(GUIDE),
+    page.goto(url),
   ]);
   expect(background.status()).toBe(200);
   expect(sprites.status()).toBe(200);
@@ -102,7 +102,7 @@ test.describe("첫 안내의 도트 방명록", () => {
   test.skip(!GUIDE_ACTIVE, "하객 안내 공개 이후 동작 검증");
 
   for (const width of [320, 390]) {
-    test(`${width}px 큰 글씨에서 안내 맨 아래에 마을만 보인다`, async ({ page }) => {
+    test(`${width}px 큰 글씨에서 안내 맨 아래의 마을 밑에 축하 작성 버튼이 보인다`, async ({ page }) => {
       await page.setViewportSize({ width, height: 844 });
       const { section } = await openGuideVillage(page);
       await expect(page.getByRole("button", { name: "작은 글씨로 보기" })).toHaveAttribute("aria-pressed", "true");
@@ -114,6 +114,45 @@ test.describe("첫 안내의 도트 방명록", () => {
       expect(villageBounds).not.toBeNull();
       expect(linkBounds).not.toBeNull();
       expect(villageBounds!.y).toBeGreaterThanOrEqual(linkBounds!.y + linkBounds!.height);
+      const writeLink = page.getByRole("link", { name: "축하메시지 남기러 가기", exact: true });
+      await expect(writeLink).toBeVisible();
+      const writeBounds = await writeLink.boundingBox();
+      expect(writeBounds).not.toBeNull();
+      expect(writeBounds!.y).toBeGreaterThanOrEqual(villageBounds!.y + villageBounds!.height);
+      expect(writeBounds!.height).toBeGreaterThanOrEqual(48);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    });
+  }
+
+  for (const entry of [
+    { name: "QR 링크", path: GUIDE, key: KEY, via: "qr" },
+    { name: "주소 직접 입력", path: "/", key: null, via: null },
+    { name: "잘못된 접근 키", path: "/?key=wrong-key&via=qr", key: null, via: "qr" },
+  ]) {
+    test(`${entry.name}에서 축하 작성 버튼으로 폼에 바로 도착하고 메시지를 남긴다`, async ({ page }) => {
+      await page.setViewportSize({ width: 320, height: 844 });
+      await openGuideVillage(page, entry.path);
+      let submissions = 0;
+      await page.route("**/api/celebrations", route => {
+        submissions++;
+        expect(route.request().postDataJSON()).toMatchObject({
+          name: "축하 하객", message: "두 분의 결혼을 축하해요!", visibility: "anon",
+        });
+        return route.fulfill({ json: { ok: true } });
+      });
+      await page.getByRole("link", { name: "축하메시지 남기러 가기", exact: true }).click();
+      await expect(page).toHaveURL(/view=photos#celebration-form$/);
+      const url = new URL(page.url());
+      expect(url.searchParams.get("key")).toBe(entry.key);
+      expect(url.searchParams.get("via")).toBe(entry.via);
+      const form = page.getByRole("form", { name: "축하 한마디 남기기" });
+      await expect(form.getByRole("textbox", { name: "이름", exact: true })).toBeInViewport();
+      await expect(form.getByRole("textbox", { name: "축하 한마디", exact: true })).toBeInViewport();
+      await form.getByRole("textbox", { name: "이름", exact: true }).fill("축하 하객");
+      await form.getByRole("textbox", { name: "축하 한마디", exact: true }).fill("두 분의 결혼을 축하해요!");
+      await form.getByRole("button", { name: "축하 남기기", exact: true }).click();
+      await expect(form.getByRole("status")).toContainText("축하 한마디를 남겼어요");
+      expect(submissions).toBe(1);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     });
   }

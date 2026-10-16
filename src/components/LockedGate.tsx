@@ -97,12 +97,6 @@ export default function LockedGate() {
             </p>
             <p className="font-serif text-base text-sage-700">{venue.name}</p>
             <p className="text-xs text-neutral-500">{venue.address}</p>
-            <a
-              href={`tel:${venue.tel}`}
-              className="inline-block text-xs text-wedding-gold underline underline-offset-2"
-            >
-              {venue.tel}
-            </a>
           </div>
           <div className="border-t border-wedding-gold/10 pt-3">
             <p className="text-[11px] text-neutral-500 leading-relaxed">

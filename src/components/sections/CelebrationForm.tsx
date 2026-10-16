@@ -48,8 +48,8 @@ export default function CelebrationForm({ onSent }: { onSent: () => void }) {
   };
 
   return (
-    <form aria-label="축하 한마디 남기기" onSubmit={submit}
-      className="rounded-2xl border border-wedding-gold/25 bg-white p-4 text-left space-y-3">
+    <form id="celebration-form" aria-label="축하 한마디 남기기" onSubmit={submit}
+      className="scroll-mt-20 rounded-2xl border border-wedding-gold/25 bg-white p-4 text-left space-y-3">
       <div>
         <h3 className="font-serif text-lg text-sage-700">축하 한마디 남기기</h3>
         <p className="mt-1 text-xs text-neutral-500">두 사람에게 따뜻한 한마디를 전해주세요.</p>

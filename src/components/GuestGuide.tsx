@@ -60,6 +60,13 @@ export default function GuestGuide({
           </Link>
           <div className="mt-8">
             <Guestbook villageOnly />
+            <Link
+              href={{ pathname: "/", query: { ...query, view: "photos" }, hash: "celebration-form" }}
+              prefetch={false}
+              className="mt-3 flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#faf9f6] px-4 py-3 text-base font-medium text-[#354b31] transition-colors hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+            >
+              축하메시지 남기러 가기 <ArrowRight size={20} aria-hidden="true" className="shrink-0" />
+            </Link>
           </div>
         </div>
       </div>
