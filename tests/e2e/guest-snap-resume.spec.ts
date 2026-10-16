@@ -30,6 +30,7 @@ async function backend(context: BrowserContext) {
   let lost = false;
   let refreshes = 0;
   let resumes = 0;
+  const sessions = new Set<string>();
   const server = https.createServer({ cert: certificate, key: privateKey }, async (req, res) => {
     const headers = { 'Access-Control-Allow-Origin': req.headers.origin ?? '', 'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Upload-Lease', 'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS', 'Access-Control-Expose-Headers': 'Retry-After' };
     const reply = (body: object, status = 200, extra = {}) => { res.writeHead(status, { ...headers, ...extra, 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
@@ -60,6 +61,7 @@ async function backend(context: BrowserContext) {
   await context.route('**/api/guest-photos/token*', route => route.fulfill({ json: { token: `session-${++refreshes}` } }));
   await context.route('**/api/guest-photos/direct', route => {
     const body = route.request().postDataJSON();
+    sessions.add(body.token);
     if (body.action === 'prepare') {
       const id = randomUUID();
       const uploadUrl = `${nasOrigin}/photos/snap/${id}.jpg`;
@@ -77,7 +79,7 @@ async function backend(context: BrowserContext) {
     photo.confirms++;
     return route.fulfill({ json: { photo: { id: photo.id, url: '/pic/gallery1.jpg', name: null, message: null, created_at: new Date().toISOString() } } });
   });
-  return { photos, release: () => { released = true; }, resumes: () => resumes, refreshes: () => refreshes };
+  return { photos, release: () => { released = true; }, resumes: () => resumes, sessions: () => sessions.size };
 }
 async function selectAndStart(page: Page) {
   const chooser = page.waitForEvent('filechooser');
@@ -138,7 +140,8 @@ test('a page discarded by the phone restores original bytes, completed IDs and p
   await page.reload();
   await assertFinished(page, api);
   expect(api.resumes()).toBeGreaterThan(0);
-  expect(api.refreshes()).toBeGreaterThanOrEqual(2);
+  // Configured servers embed a fresh token in HTML; demo servers fetch it instead.
+  expect(api.sessions()).toBeGreaterThanOrEqual(2);
 });
 
 test('two open pages share one upload owner and do not create a second batch', async ({ page, context }) => {
