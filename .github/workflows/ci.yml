@@ -36,6 +36,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: node --test scripts/deploy/production-guard.test.mjs
       - run: npm run lint
       - run: npx tsc --noEmit
       - run: npm test
