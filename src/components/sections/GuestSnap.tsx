@@ -5,10 +5,9 @@ import Image from "next/image";
 import { Camera, Image as ImageIcon, X } from "lucide-react";
 import { supabase, isSupabaseConfigured, type GuestPhoto } from "@/lib/supabase";
 import {
-  INVITATION_KEY,
   PHOTO_MISSIONS,
 } from "@/lib/wedding";
-import { uploadGuestPhoto, photoUploadErrorMessage, type PhotoUploadStage } from "@/lib/uploadGuestPhoto";
+import { useGuestPhotoQueue } from "@/lib/useGuestPhotoQueue";
 import FadeIn from "@/components/FadeIn";
 
 /**
@@ -30,61 +29,48 @@ export default function GuestSnap({
   /** 서버(page.tsx)가 렌더 시 발급한 단기 업로드 토큰 — 만료되면 /api/guest-photos/token 으로 갱신 */
   uploadToken?: string | null;
 }) {
-  const tokenRef = useRef<string | null>(uploadToken);
-  /** 토큰 재발급 (만료·무효 시 1회). 실패하면 null */
-  const renewToken = async (): Promise<string | null> => {
-    try {
-      const r = await fetch(
-        `/api/guest-photos/token?key=${encodeURIComponent(INVITATION_KEY)}`,
-        { cache: "no-store" }
-      );
-      if (!r.ok) return null;
-      const j = (await r.json()) as { token?: string };
-      tokenRef.current = j.token ?? null;
-      return tokenRef.current;
-    } catch {
-      return null;
-    }
-  };
-  /** 업로드 POST — 토큰 만료/무효(401)면 재발급 후 1회 재시도 */
-  const postUpload = async (
-    fd: FormData
-  ): Promise<{
-    res: Response | null;
-    j: { photo?: GuestPhoto; error?: string; code?: string };
-  }> => {
-    const send = async (tok: string) => {
-      return uploadGuestPhoto(fd, tok, setUploadStage);
-    };
-    let tok = tokenRef.current ?? (await renewToken());
-    if (!tok) return { res: null, j: { error: "업로드 권한을 받지 못했어요. 청첩장을 새로고침 해주세요 🙏" } };
-    let out = await send(tok);
-    if (out.res.status === 401 && out.j.code === "token_expired") {
-      tok = await renewToken();
-      if (tok) out = await send(tok);
-    }
-    return out;
-  };
   const [photos, setPhotos] = useState<GuestPhoto[]>([]);
   const [name, setName] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [uploadStage, setUploadStage] = useState<PhotoUploadStage>('sending');
-  const [error, setError] = useState<string | null>(null);
+
+
+  const [localError, setError] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
   /** 선택한 포토 미션 (GS-9) — 업로드 시 사진에 함께 기록 */
   const [mission, setMission] = useState<string | null>(null);
   /** 완료한 미션 (기기 로컬 기억 — 재방문해도 체크 유지) */
   const [doneMissions, setDoneMissions] = useState<string[]>([]);
   /** 원본 확인 단계 (GS-7) — 사진 고른 뒤 원본 미리보기. 앨범 다중 선택이라 배열 */
-  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [preview, setPreview] = useState<string | null>(null);
-  /** 여러 장 올리는 중 진행 표시 (몇 장까지 끝났는지) */
-  const [done, setDone] = useState(0);
+
   /** 카메라로 바로 찍기 (capture) · 앨범에서 고르기 (capture 없음) */
   const cameraRef = useRef<HTMLInputElement>(null);
   const albumRef = useRef<HTMLInputElement>(null);
 
 
+  function markMissionDone(m: string) {
+    setDoneMissions((prev) => {
+      if (prev.includes(m)) return prev;
+      const next = [...prev, m];
+      try {
+        localStorage.setItem("snap-missions-done", JSON.stringify(next));
+      } catch {
+        /* 무시 */
+      }
+      return next;
+    });
+  }
+
+  const queue = useGuestPhotoQueue(uploadToken,
+    photo => setPhotos(previous => [photo, ...previous.filter(item => item.id !== photo.id)]),
+    completedMission => { markMissionDone(completedMission); setMission(current => current === completedMission ? null : current); });
+  const pendingFiles = queue.state ? queue.files : selectedFiles;
+  const uploading = ['restoring', 'saving', 'running'].includes(queue.status);
+  const pendingCount = queue.state ? queue.state.jobs.filter(job => !job.photo).length : selectedFiles.length;
+  const uploadStage = queue.stage;
+  const done = queue.state?.jobs.filter(job => job.photo).length ?? 0;
+  const total = queue.state?.jobs.length ?? pendingCount;
+  const error = localError ?? queue.error;
   // 완료 미션 로컬 복원
   useEffect(() => {
     try {
@@ -99,13 +85,13 @@ export default function GuestSnap({
   }, []);
 
   // 모달(라이트박스·원본 확인) 열림: ESC 로 닫기 + 배경 스크롤 잠금
-  const modalOpen = lightbox !== null || pendingFiles.length > 0;
+  const modalOpen = lightbox !== null || pendingCount > 0;
   useEffect(() => {
     if (!modalOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       setLightbox(null);
-      if (!uploading) setPendingFiles([]);
+      if (!uploading && !queue.state) setSelectedFiles([]);
     };
     window.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
@@ -114,12 +100,12 @@ export default function GuestSnap({
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [modalOpen, uploading]);
+  }, [modalOpen, uploading, queue.state]);
 
   const load = () => {
     if (!isSupabaseConfigured || !supabase) return;
     supabase.rpc("get_guest_photos").then(({ data }) => {
-      if (Array.isArray(data)) setPhotos(data as GuestPhoto[]);
+      if (Array.isArray(data)) setPhotos(previous => [...previous, ...(data as GuestPhoto[]).filter(photo => !previous.some(item => item.id === photo.id))]);
     });
   };
 
@@ -153,30 +139,17 @@ export default function GuestSnap({
     if (mission !== m) cameraRef.current?.click();
   };
 
-  const markMissionDone = (m: string) => {
-    setDoneMissions((prev) => {
-      if (prev.includes(m)) return prev;
-      const next = [...prev, m];
-      try {
-        localStorage.setItem("snap-missions-done", JSON.stringify(next));
-      } catch {
-        /* 무시 */
-      }
-      return next;
-    });
-  };
-
   /** 사진을 고르면 곧바로 업로드하지 않고 원본 확인 단계로 (GS-7) */
   const beginUpload = (files: File[]) => {
     setError(null);
-    setDone(0);
+
     if (files.length > MAX_BATCH) {
       // 말없이 잘라내면 몇 장이 사라진 줄 모른다 — 앞의 MAX_BATCH 장만 진행한다고 알린다
       setError(
         `한 번에 ${MAX_BATCH}장까지 올릴 수 있어요. 먼저 고른 ${MAX_BATCH}장만 준비했어요 🙏`
       );
     }
-    setPendingFiles(files.slice(0, MAX_BATCH));
+    setSelectedFiles(files.slice(0, MAX_BATCH));
   };
 
   /** 카메라·앨범 두 input 이 공유하는 처리 — 값을 비워 같은 사진을 다시 골라도 동작하게 한다 */
@@ -197,71 +170,17 @@ export default function GuestSnap({
     return () => { if (url) URL.revokeObjectURL(url); };
   }, [firstFile]);
 
-  /**
-   * 실제 업로드 (선택한 원본 그대로). 고른 사진을 한 장씩 차례로 올린다.
-   *
-   * 여러 하객의 요청은 NAS 대기열에서 순서대로 처리하고 일시 오류는 자동 재시도한다.
-   * 한 기기는 한 장씩 보내 대기열을 독점하지 않고 완료 장수를 정확히 표시한다.
-   *
-   * 중간에 실패해도 이미 올라간 장은 그대로 두고, 몇 장이 올라갔는지 알려준다.
-   */
+  /** Save the whole selection before any network transfer; resume the existing batch on retry. */
   const uploadFiles = async (files: File[]) => {
     setError(null);
-    setUploading(true);
-    setUploadStage('sending');
-    setDone(0);
-    // 이름 + 선택한 미션을 함께 기록 (미션만 있어도 태그로 남김)
-    const label = [name.trim(), mission].filter(Boolean).join(" · ");
-    let ok = 0;
-    let failure: string | null = null;
-    // 실패한 것만 남겨 둔다 — 다시 누르면 이미 올라간 사진이 중복 업로드되지 않도록
-    const remaining: File[] = [];
-
+    if (queue.state) { queue.resume(); return; }
     try {
-      for (const [i, file] of files.entries()) {
-        try {
-          setUploadStage('sending');
-          const fd = new FormData();
-          fd.append("file", file);
-          if (label) fd.append("name", label);
-
-          const { res, j } = await postUpload(fd);
-          if (!res || !res.ok || !j.photo) {
-            failure = j.error ?? "업로드에 실패했어요. 잠시 후 다시 시도해주세요 🙏";
-            // 한도에 걸렸다면 남은 장도 똑같이 막힌다 — 더 시도해봐야 기다림만 길어진다
-            if (j.code === "rate_limited") {
-              remaining.push(...files.slice(i));
-              break;
-            }
-            remaining.push(file);
-            continue;
-          }
-          setPhotos((prev) => [j.photo as GuestPhoto, ...prev]);
-          ok += 1;
-          setDone(ok);
-        } catch (error) {
-          failure = photoUploadErrorMessage(error);
-          remaining.push(file);
-        }
-      }
-
-      if (ok > 0 && mission) markMissionDone(mission);
-      setPendingFiles(remaining);
-      if (remaining.length === 0) {
-        // 전부 성공 — 모달이 닫히고 미션 선택도 비워진다
-        setMission(null);
-        return;
-      }
-      setError(
-        ok === 0
-          ? failure ?? "업로드에 실패했어요. 잠시 후 다시 시도해주세요 🙏"
-          : `${files.length}장 중 ${ok}장을 올렸어요. 남은 ${remaining.length}장은 다시 시도해주세요 🙏`
-      );
-    } finally {
-      setUploading(false);
+      await queue.start(files, [name.trim(), mission].filter(Boolean).join(" · "), mission);
+      setSelectedFiles([]);
+    } catch {
+      setError("사진을 기기에 임시 저장하지 못했어요. 저장 공간을 확인한 뒤 다시 시도해주세요.");
     }
   };
-
   return (
     <section
       id="guest-snap"
@@ -300,7 +219,7 @@ export default function GuestSnap({
                   key={m}
                   type="button"
                   onClick={() => pickMission(m)}
-                  disabled={uploading}
+                  disabled={uploading || !!queue.state}
                   className={`min-h-11 text-xs px-2.5 py-1.5 rounded-full border transition-colors disabled:opacity-60 ${
                     active
                       ? "bg-sage-700 text-white border-sage-700"
@@ -336,7 +255,7 @@ export default function GuestSnap({
             <button
               type="button"
               onClick={() => cameraRef.current?.click()}
-              disabled={uploading}
+              disabled={uploading || !!queue.state}
               className="flex items-center justify-center gap-1.5 py-3.5 bg-sage-700 text-white text-sm font-medium tracking-wide disabled:opacity-60"
             >
               <Camera size={16} />
@@ -345,7 +264,7 @@ export default function GuestSnap({
             <button
               type="button"
               onClick={() => albumRef.current?.click()}
-              disabled={uploading}
+              disabled={uploading || !!queue.state}
               className="flex items-center justify-center gap-1.5 py-3.5 bg-white text-sage-700 border border-sage-700 text-sm font-medium tracking-wide disabled:opacity-60"
             >
               <ImageIcon size={16} />
@@ -371,7 +290,7 @@ export default function GuestSnap({
             onChange={onPickFile}
           />
           {/* 모달이 열려 있으면 모달 안에서 같은 안내를 보여주므로 여기선 생략 (중복 낭독 방지) */}
-          {error && pendingFiles.length === 0 && (
+          {error && pendingCount === 0 && (
             <p role="status" className="text-xs text-red-600">
               {error}
             </p>
@@ -440,7 +359,7 @@ export default function GuestSnap({
       )}
 
       {/* 원본 확인 (GS-7) */}
-      {pendingFiles.length > 0 && (
+      {pendingCount > 0 && (
         <div
           role="dialog"
           aria-modal="true"
@@ -451,16 +370,16 @@ export default function GuestSnap({
               <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100">
                 <p className="text-sm font-medium text-sage-700">
                   원본으로 올리기
-                  {pendingFiles.length > 1 && (
+                  {pendingCount > 1 && (
                     <span className="ml-1.5 text-xs font-normal text-neutral-500">
-                      {pendingFiles.length}장
+                      {pendingCount}장
                     </span>
                   )}
                 </p>
                 <button
                   type="button"
                   aria-label="닫기"
-                  onClick={() => !uploading && setPendingFiles([])}
+                  onClick={() => !uploading && !queue.state && setSelectedFiles([])} disabled={uploading || !!queue.state}
                   className="text-neutral-500"
                 >
                   <X size={18} />
@@ -482,14 +401,19 @@ export default function GuestSnap({
               </div>
 
               {/* 여러 장 중 첫 장만 미리보기로 표시 */}
-              {pendingFiles.length > 1 && (
+              {pendingCount > 1 && (
                 <p className="px-4 pt-2 text-xs text-neutral-500 text-center">
-                  첫 장 미리보기예요 · 선택한 {pendingFiles.length}장을 원본으로 저장해요
+                  첫 장 미리보기예요 · 선택한 {pendingCount}장을 원본으로 저장해요
                 </p>
               )}
 
               {/* 장수 상한·부분 실패 안내는 모달 안에서 보여야 한다 —
                   섹션 쪽에만 두면 검은 오버레이에 가려 하객이 볼 수 없다 */}
+              {queue.state && (
+                <p className="px-4 pt-2 text-xs text-sage-700 text-center">
+                  {total}장 중 {done}장 등록 완료 · 남은 {pendingCount}장
+                </p>
+              )}
               {error && (
                 <p
                   role="status"
@@ -501,39 +425,52 @@ export default function GuestSnap({
 
               {uploading && (
                 <p role="status" className="px-4 pt-2 text-xs text-sage-700 text-center">
-                  {uploadStage === 'waiting'
+                  {queue.status === 'saving' ? '이 기기에 사진을 임시 저장하고 있어요.' : uploadStage === 'waiting'
                     ? '전송 순서를 기다리거나 연결을 다시 확인하고 있어요. 화면을 열어두면 자동으로 이어져요.'
                     : uploadStage === 'confirming'
                     ? '사진을 저장했어요. 앨범에 등록하고 있어요.'
                     : '사진을 전송하고 있어요. 업로드가 몰리면 순서대로 기다려요.'}
                 </p>
               )}
+              {queue.state && !uploading && !error && (
+                <p role="status" className="px-4 pt-2 text-xs text-sage-700 text-center">
+                  {queue.status === 'other' ? '다른 청첩장 화면에서 이어 올리고 있어요.' : '사진을 임시 저장했어요. 연결이 돌아오면 남은 사진부터 이어 올려요.'}
+                </p>
+              )}
 
               <p className="px-4 py-3 text-xs text-neutral-500 text-center">
                 한 장당 최대 20MB · 압축과 프레임 없이 원본으로 저장해요.
                 사진에 포함된 위치정보 등 메타데이터도 유지돼요.
+                <br />
+                사진은 이 기기에 임시 보관해요. 화면이 꺼지거나 다른 앱에 다녀와도 돌아오면 이어 올려요.
               </p>
 
               <div className="px-4 pb-4 pt-1">
                 <button
                   type="button"
                   onClick={() => uploadFiles(pendingFiles)}
-                  disabled={uploading || !preview}
+                  disabled={uploading || queue.status === 'other' || !preview}
                   className="w-full flex items-center justify-center gap-2 py-3 bg-sage-700 text-white text-sm font-medium disabled:opacity-60"
                 >
                   <Camera size={16} />
                   {uploading
-                    ? pendingFiles.length > 1
-                      ? `올리는 중… ${done}/${pendingFiles.length}`
+                    ? total > 1
+                      ? `올리는 중… ${done}/${total}`
                       : "올리는 중…"
-                    : pendingFiles.length > 1
-                    ? `${pendingFiles.length}장 이대로 올리기`
+                    : queue.state ? `남은 ${pendingCount}장 이어올리기` : pendingCount > 1
+                    ? `${pendingCount}장 이대로 올리기`
                     : "이대로 올리기"}
                 </button>
+                {queue.state && !uploading && queue.status !== 'other' && (
+                  <button type="button" className="mt-3 w-full text-xs text-neutral-500 underline"
+                    onClick={() => { void queue.discard().then(() => { setSelectedFiles([]); setError(null); }).catch(e => setError(e instanceof Error ? e.message : '잠시 후 다시 시도해주세요.')); }}>
+                    남은 사진의 임시 보관 지우기
+                  </button>
+                )}
                 {/* 여러 장은 시간이 걸린다 — 진행 상황을 스크린리더에도 알린다 */}
                 <p className="sr-only" role="status">
-                  {uploading && pendingFiles.length > 1
-                    ? `${pendingFiles.length}장 중 ${done}장 올렸어요`
+                  {uploading && total > 1
+                    ? `${total}장 중 ${done}장 올렸어요`
                     : ""}
                 </p>
               </div>

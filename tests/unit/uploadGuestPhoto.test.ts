@@ -19,6 +19,36 @@ async function settle<T>(promise: Promise<T>): Promise<T> {
   return result.value;
 }
 describe('browser NAS photo flow', () => {
+  it('commits the recovery permission before sending bytes and stops when local storage fails', async () => {
+    request.mockResolvedValueOnce(json({ storage: 'nas', uploadUrl: 'https://nas.invalid/photo', admissionUrl: 'https://nas.invalid/photo?admission=1', ticket: 'ticket', resumeCredential: 'recovery' }));
+    const saveCheckpoint = vi.fn().mockRejectedValue(new Error('device storage full'));
+    await expect(uploadGuestPhoto(form(), 'session', undefined, { saveCheckpoint })).rejects.toThrow('device storage full');
+    expect(saveCheckpoint).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+  it('recovers an old checkpoint with a new token and confirms the stored photo without a PUT', async () => {
+    const checkpoint = { storage: 'nas' as const, uploadUrl: 'https://nas.invalid/photo', admissionUrl: 'https://nas.invalid/photo?admission=1', ticket: 'expired-ticket', resumeCredential: 'recovery' };
+    const saveCheckpoint = vi.fn().mockResolvedValue(undefined);
+    request.mockResolvedValueOnce(json({ ...checkpoint, ticket: 'renewed-ticket' }))
+      .mockResolvedValueOnce(json({ state: 'stored', receipt: 'fresh-receipt' }))
+      .mockResolvedValueOnce(json({ photo: { id: 'same-photo' } }));
+    expect((await uploadGuestPhoto(form(), 'fresh-session', undefined, { checkpoint, saveCheckpoint })).j.photo?.id).toBe('same-photo');
+    expect(JSON.parse(request.mock.calls[0][1].body)).toEqual({ action: 'resume', resumeCredential: 'recovery', token: 'fresh-session' });
+    expect(request.mock.calls.some(call => call[1].method === 'PUT')).toBe(false);
+    expect(saveCheckpoint).toHaveBeenLastCalledWith(expect.objectContaining({ receipt: 'fresh-receipt' }));
+    expect(JSON.parse(request.mock.calls[2][1].body)).toMatchObject({ action: 'complete', resumeCredential: 'recovery' });
+  });
+  it('aborts queue waits immediately when the page pauses', async () => {
+    const controller = new AbortController();
+    request.mockResolvedValueOnce(json({ storage: 'nas', uploadUrl: 'https://nas.invalid/photo', admissionUrl: 'https://nas.invalid/photo?admission=1', ticket: 'ticket', resumeCredential: 'recovery' }))
+      .mockResolvedValue(new Response(JSON.stringify({ state: 'waiting' }), { status: 202, headers: { 'Retry-After': '15' } }));
+    const promise = uploadGuestPhoto(form(), 'session', undefined, { saveCheckpoint: vi.fn().mockResolvedValue(undefined), signal: controller.signal });
+    const outcome = promise.catch(e => e);
+    await vi.advanceTimersByTimeAsync(1);
+    controller.abort();
+    expect((await outcome).name).toBe('AbortError');
+    expect(request.mock.calls.some(call => call[1].method === 'PUT')).toBe(false);
+  });
   it('waits without sending bytes and recovers a saved file after losing its PUT response', async () => {
     const stage = vi.fn();
     request.mockResolvedValueOnce(json({ storage: 'nas', uploadUrl: 'https://nas.invalid/photo', admissionUrl: 'https://nas.invalid/photo?admission=1', ticket: 'ticket' }))
@@ -40,6 +70,18 @@ describe('browser NAS photo flow', () => {
     request.mockResolvedValueOnce(json({ storage: 'nas', uploadUrl: 'https://nas.invalid/photo', admissionUrl: 'https://nas.invalid/photo?admission=1', ticket: 'ticket' }))
       .mockResolvedValue(json({ state: 'waiting' }, 202));
     await expect(settle(uploadGuestPhoto(form(), 'session'))).rejects.toThrow('대기 시간이 길어졌어요');
+    expect(request.mock.calls.some(c => c[1].method === 'PUT')).toBe(false);
+  });
+  it('rechecks storage after a timed out request instead of treating it as a page pause', async () => {
+    request.mockResolvedValueOnce(json({ storage: 'nas', uploadUrl: 'https://nas.invalid/photo', admissionUrl: 'https://nas.invalid/photo?admission=1', ticket: 'ticket', resumeCredential: 'recovery' }))
+      .mockImplementationOnce((_url, options) => new Promise((_resolve, reject) => {
+        options.signal.addEventListener('abort', () => reject(new DOMException('Timed out', 'AbortError')), { once: true });
+      }))
+      .mockResolvedValueOnce(json({ state: 'stored', receipt: 'receipt' }))
+      .mockResolvedValueOnce(json({ photo: { id: 'saved' } }));
+    const controller = new AbortController();
+    expect((await settle(uploadGuestPhoto(form(), 'session', undefined, { signal: controller.signal, saveCheckpoint: vi.fn().mockResolvedValue(undefined) }))).j.photo?.id).toBe('saved');
+    expect(controller.signal.aborted).toBe(false);
     expect(request.mock.calls.some(c => c[1].method === 'PUT')).toBe(false);
   });
   it('sends bytes only to NAS and confirms metadata separately', async () => {

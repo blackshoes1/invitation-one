@@ -38,6 +38,63 @@ describe('NAS direct photo API', () => {
   it('accepts original photos up to 20MB', async () => {
     expect((await req({ ...prepare, size: 20 * 1024 * 1024 })).status).toBe(200);
   });
+  it('renews the same photo after the page session changes without accepting replacement metadata', async () => {
+    const plan = await (await req(prepare)).json();
+    const original = verify(plan.ticket, 'upload', secret)!;
+    mocks.auth.mockReturnValue({ ok: true, payload: { n: 'new-page', exp: Date.now() / 1000 + 7200 } });
+    const response = await req({ action: 'resume', resumeCredential: plan.resumeCredential, name: 'forged', path: 'forged' });
+    expect(response.status).toBe(200);
+    const renewed = await response.json();
+    expect(renewed.uploadUrl).toBe(plan.uploadUrl);
+    expect(renewed.resumeCredential).toBe(plan.resumeCredential);
+    expect(verify(renewed.ticket, 'upload', secret)).toMatchObject({ id: original.id, path: original.path, owner: 'owner', name: '하객', sha256: original.sha256 });
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+  it('rejects expired, forged and upload-purpose credentials as recovery permissions', async () => {
+    const plan = await (await req(prepare)).json();
+    const claims = verify(plan.ticket, 'upload', secret)!;
+    for (const resumeCredential of ['forged', plan.ticket, sign(claims, 'resume', secret, -1)]) {
+      const response = await req({ action: 'resume', resumeCredential });
+      expect(response.status).toBe(401);
+      expect((await response.json()).code).toBe('resume_invalid');
+    }
+  });
+  it('keeps the same photo identity after both the original ticket and page session have expired', async () => {
+    const time = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(time);
+    try {
+      const plan = await (await req(prepare)).json();
+      const original = verify(plan.ticket, 'upload', secret)!;
+      clock.mockReturnValue(time + 3 * 3600_000);
+      expect(verify(plan.ticket, 'upload', secret)).toBeNull();
+      mocks.auth.mockReturnValue({ ok: true, payload: { n: 'new-page', exp: Date.now() / 1000 + 7200 } });
+      const response = await req({ action: 'resume', resumeCredential: plan.resumeCredential });
+      expect(response.status).toBe(200);
+      expect(verify((await response.json()).ticket, 'upload', secret)).toMatchObject({ id: original.id, path: original.path, owner: original.owner });
+    } finally { clock.mockRestore(); }
+  });
+  it('does not use another photo capability to complete someone else\'s receipt', async () => {
+    const first = await (await req(prepare)).json();
+    const second = await (await req(prepare)).json();
+    const proof = sign(verify(first.ticket, 'upload', secret)!, 'receipt', secret);
+    mocks.auth.mockReturnValue({ ok: true, payload: { n: 'new-page', exp: Date.now() / 1000 + 7200 } });
+    expect((await req({ action: 'complete', receipt: proof, resumeCredential: second.resumeCredential })).status).toBe(401);
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+  it('registers an already saved photo with its original ID after a fresh page token', async () => {
+    const plan = await (await req(prepare)).json();
+    const claims = verify(plan.ticket, 'upload', secret)!;
+    mocks.auth.mockReturnValue({ ok: true, payload: { n: 'new-page', exp: Date.now() / 1000 + 7200 } });
+    mocks.fetch.mockResolvedValue(new Response(null, { status: 200 }));
+    const upsert = vi.fn().mockResolvedValue({ error: null });
+    const q = { select: vi.fn(), eq: vi.fn(), single: vi.fn().mockResolvedValue({ data: { id: claims.id }, error: null }) };
+    q.select.mockReturnValue(q); q.eq.mockReturnValue(q);
+    mocks.from.mockReturnValueOnce({ upsert }).mockReturnValueOnce(q);
+    const response = await req({ action: 'complete', receipt: sign(claims, 'receipt', secret), resumeCredential: plan.resumeCredential });
+    expect(response.status).toBe(200);
+    expect((await response.json()).photo.id).toBe(claims.id);
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ id: claims.id, name: '하객' }), { onConflict: 'id', ignoreDuplicates: true });
+  });
   it('rejects missing permission, oversized files and rate limits', async () => {
     mocks.auth.mockReturnValueOnce({ ok: false, reason: 'expired' });
     expect((await req(prepare)).status).toBe(401);

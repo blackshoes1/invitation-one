@@ -25,6 +25,24 @@ export async function POST(req: Request) {
   let config;
   try { config = nasPhotoConfig(); }
   catch { return reply({ error: '사진 저장소 연결 설정이 필요합니다.' }, 503); }
+  const planFor = (claims: Record<string, unknown>, resumeCredential?: string) => ({
+    storage: 'nas', uploadUrl: `${config.base}/photos/${claims.path}`,
+    admissionUrl: `${config.base}/photos/${claims.path}?admission=1`,
+    ticket: sign({ ...claims, admission: 2 }, 'upload', config.secret, 1800),
+    resumeCredential: resumeCredential ?? sign(claims, 'resume', config.secret, 7 * 86400),
+  });
+  // This capability belongs to one exact photo, independently of a page's two-hour session.
+  const recovery = verify(input.resumeCredential, 'resume', config.secret);
+  const validRecovery = recovery && typeof recovery.id === 'string' && typeof recovery.path === 'string'
+    && PATH_PATTERN.test(recovery.path) && recovery.path.startsWith(`snap/${recovery.id}.`)
+    && Number.isSafeInteger(recovery.size) && Number(recovery.size) > 0 && Number(recovery.size) <= MAX_SIZE
+    && typeof recovery.sha256 === 'string' && /^[a-f0-9]{64}$/.test(recovery.sha256) && typeof recovery.owner === 'string';
+  if (input.action === 'resume') {
+    if (!validRecovery) return reply({ error: '사진 이어올리기 권한이 만료됐거나 올바르지 않아요.', code: 'resume_invalid' }, 401);
+    if (auth.payload.exp < Date.now() / 1000 + 1860) return reply({ error: '업로드 권한을 갱신해주세요.', code: 'token_expired' }, 401);
+    if (!await rateLimitAllow(`upload:resume:${auth.payload.n}`, 180, 600)) return reply({ error: '잠시 후 다시 시도해주세요.', code: 'rate_limited' }, 429);
+    return reply(planFor(recovery, input.resumeCredential));
+  }
   if (input.action === 'prepare') {
     if (auth.payload.exp < Date.now() / 1000 + 1860) return reply({ error: '업로드 권한을 갱신해주세요.', code: 'token_expired' }, 401);
     if (!Number.isSafeInteger(input.size) || input.size < 1 || input.size > MAX_SIZE || !/^[a-f0-9]{64}$/.test(input.sha256) || !['jpg','png','webp','heic'].includes(input.ext)) return reply({ error: '20MB 이하의 올바른 사진을 선택해주세요.' }, 400);
@@ -36,15 +54,16 @@ export async function POST(req: Request) {
     if (allowed.some(v => !v)) return reply({ error: '잠시 후 다시 시도해주세요.', code: 'rate_limited' }, 429);
     const id = crypto.randomUUID();
     const path = `snap/${id}.${input.ext}`;
-    const ticket = sign({ id, path, admission: 2, size: input.size, sha256: input.sha256, owner: auth.payload.n,
+    const claims = { id, path, size: input.size, sha256: input.sha256, owner: auth.payload.n,
       name: String(input.name ?? '').trim().slice(0, 40) || null,
       message: String(input.message ?? '').trim().slice(0, 200) || null,
-    }, 'upload', config.secret, 1800);
-    return reply({ storage: 'nas', uploadUrl: `${config.base}/photos/${path}`, admissionUrl: `${config.base}/photos/${path}?admission=1`, ticket });
+    };
+    return reply(planFor(claims));
   }
   if (input.action !== 'complete') return reply({ error: '잘못된 요청입니다.' }, 400);
   const receipt = verify(input.receipt, 'receipt', config.secret);
-  if (!receipt || receipt.owner !== auth.payload.n || typeof receipt.path !== 'string' || !PATH_PATTERN.test(receipt.path) || typeof receipt.id !== 'string' || !receipt.path.startsWith(`snap/${receipt.id}.`)) return reply({ error: '사진 저장 확인이 필요합니다.' }, 401);
+  const recoveredOwner = validRecovery && receipt && ['id', 'path', 'owner', 'size', 'sha256'].every(key => recovery[key] === receipt[key]);
+  if (!receipt || (receipt.owner !== auth.payload.n && !recoveredOwner) || typeof receipt.path !== 'string' || !PATH_PATTERN.test(receipt.path) || typeof receipt.id !== 'string' || !receipt.path.startsWith(`snap/${receipt.id}.`)) return reply({ error: '사진 저장 확인이 필요합니다.' }, 401);
   if (!await rateLimitAllow(`upload:complete:${auth.payload.n}`, 180, 600)) return reply({ error: '잠시 후 다시 시도해주세요.' }, 429);
   try {
     const stored = await nasPhotoRequest('HEAD', receipt.path, receipt);

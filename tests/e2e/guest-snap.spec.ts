@@ -91,13 +91,24 @@ type StubOpts = { failAt?: number[]; rateLimitAt?: number };
 
 async function stubUploads(page: import("@playwright/test").Page, opts: StubOpts = {}) {
   const seen: number[] = [];
+  let prepared = 0;
+  const stored = new Set<string>();
+  const plan = (id: string) => ({ storage: 'nas', uploadUrl: `https://nas.example.invalid/photos/snap/${id}.jpg`, admissionUrl: `https://nas.example.invalid/photos/snap/${id}.jpg?admission=1`, ticket: id, resumeCredential: id });
   await page.route("**/api/guest-photos/token*", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", json: { token: "stub" } })
   );
-  await page.route("**/api/guest-photos/direct", (route) =>
-    route.fulfill({ status: 200, json: { storage: "supabase" } })
-  );
-  await page.route("**/api/guest-photos", (route) => {
+  await page.route('https://nas.example.invalid/photos/snap/**', route => {
+    const id = new URL(route.request().url()).pathname.split('/').pop()!.slice(0, -4);
+    const headers = { 'Access-Control-Allow-Origin': new URL(page.url()).origin, 'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Upload-Lease', 'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS' };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    if (route.request().method() === 'GET') return route.fulfill({ headers, json: stored.has(id) ? { state: 'stored', receipt: id } : { state: 'ready', lease: 'lease' } });
+    stored.add(id);
+    return route.fulfill({ headers, json: { receipt: id } });
+  });
+  await page.route("**/api/guest-photos/direct", (route) => {
+    const body = route.request().postDataJSON();
+    if (body.action === 'prepare') return route.fulfill({ json: plan(`p${++prepared}`) });
+    if (body.action === 'resume') return route.fulfill({ json: plan(body.resumeCredential) });
     const n = seen.length + 1;
     seen.push(n);
     if (opts.rateLimitAt === n)
@@ -108,7 +119,7 @@ async function stubUploads(page: import("@playwright/test").Page, opts: StubOpts
       });
     if (opts.failAt?.includes(n))
       return route.fulfill({
-        status: 500,
+        status: 400,
         contentType: "application/json",
         json: { error: "일부러 실패" },
       });
@@ -117,7 +128,7 @@ async function stubUploads(page: import("@playwright/test").Page, opts: StubOpts
       contentType: "application/json",
       json: {
         photo: {
-          id: `p${n}`,
+          id: body.receipt,
           url: "/pic/gallery1.jpg",
           name: null,
           message: null,
@@ -176,7 +187,7 @@ test("일부만 실패하면 성공한 사진은 다시 올리지 않는다", as
   await expect(modal).toBeVisible();
 
   const before = stub.count();
-  await modal.getByRole("button", { name: "이대로 올리기", exact: true }).click();
+  await modal.getByRole("button", { name: "남은 1장 이어올리기", exact: true }).click();
   await expect(modal).toBeHidden({ timeout: 15_000 });
   // 재시도는 남은 1장만 — 이미 올라간 2장이 또 올라가면 방명록에 중복으로 쌓인다
   expect(stub.count() - before).toBe(1);
@@ -230,16 +241,17 @@ test("NAS 모드에서는 사진 본문을 NAS로 직접 보내고 JSON으로 �
       expect(body.size).toBeGreaterThan(0);
       expect(body.sha256).toMatch(/^[a-f0-9]{64}$/);
       expect(body.file).toBeUndefined();
-      return route.fulfill({ json: { storage: 'nas', uploadUrl: nasUrl, ticket: 'test-ticket' } });
+      return route.fulfill({ json: { storage: 'nas', uploadUrl: nasUrl, admissionUrl: `${nasUrl}?admission=1`, ticket: 'test-ticket', resumeCredential: 'test-recovery' } });
     }
     expect(body.action).toBe('complete');
     expect(body.receipt).toBe('test-receipt');
     completions++;
     return route.fulfill({ json: { photo: { id: 'nas-photo', url: '/pic/gallery1.jpg', name: null, message: null, created_at: new Date().toISOString() } } });
   });
-  await page.route(nasUrl, route => {
-    const headers = { 'Access-Control-Allow-Origin': new URL(page.url()).origin, 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'PUT, OPTIONS' };
+  await page.route(`${nasUrl}*`, route => {
+    const headers = { 'Access-Control-Allow-Origin': new URL(page.url()).origin, 'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Upload-Lease', 'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS' };
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    if (route.request().method() === 'GET') return route.fulfill({ headers, json: { state: 'ready', lease: 'test-lease' } });
     expect(route.request().method()).toBe('PUT');
     expect(route.request().headers().authorization).toBe('Bearer test-ticket');
     expect(route.request().postDataBuffer()).toEqual(readFileSync(THREE[0]));
@@ -266,7 +278,7 @@ test('NAS 혼잡과 연결 오류는 같은 사진으로 자동 재시도하고 
     const body = route.request().postDataJSON();
     if (body.action === 'prepare') {
       preparations++;
-      return route.fulfill({ json: { storage: 'nas', uploadUrl: nasUrl, admissionUrl: `${nasUrl}?admission=1`, ticket: 'same-ticket' } });
+      return route.fulfill({ json: { storage: 'nas', uploadUrl: nasUrl, admissionUrl: `${nasUrl}?admission=1`, ticket: 'same-ticket', resumeCredential: 'same-recovery' } });
     }
     completions++;
     expect(body.receipt).toBe('same-receipt');
