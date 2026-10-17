@@ -130,7 +130,7 @@ export async function DELETE(
   return NextResponse.json({ ok: true });
 }
 
-/** 명단 연락처 수정 (개인 초대 링크용). 빈 값이면 삭제 */
+/** 명단과 연결된 참석자 연락처를 함께 수정. 빈 값이면 삭제 */
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -149,12 +149,15 @@ export async function PATCH(
   if (norm && !isValidPhone(norm))
     return NextResponse.json({ error: "연락처 형식을 확인해주세요 (010-0000-0000)." }, { status: 400 });
   const { data, error } = await supabaseAdmin!
-    .from("group_members")
-    .update({ phone: norm })
-    .eq("id", member_id)
-    .eq("group_id", id)
+    .rpc("admin_update_member_phone_v1", {
+      p_group: id,
+      p_member: member_id,
+      p_phone: norm,
+    })
     .select("id, group_id, name, phone, invited_at, created_at")
     .maybeSingle();
+  if (error?.code === "23505")
+    return NextResponse.json({ error: "같은 이름·연락처로 등록된 참석자가 있어요. 기존 참석자 연락처를 확인해주세요." }, { status: 409 });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "not found" }, { status: 404 });
   return NextResponse.json({ member: data });

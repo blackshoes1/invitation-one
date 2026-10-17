@@ -37,7 +37,7 @@ declare
     -- P1-1 에서 Next API 뒤로 옮긴 공개 write RPC (20260828000200)
     'send_heart_v2', 'create_delivery_v3', 'join_delivery_v2', 'accept_group_offer_v2',
     -- 관리자 전용 (20260907000100, 20261007000200) — 하객 경로에서 절대 호출되지 않는다
-    'admin_create_order_v1', 'admin_attend_member_v1', 'admin_update_attend_v1'
+    'admin_create_order_v1', 'admin_attend_member_v1', 'admin_update_attend_v1', 'admin_update_member_phone_v1'
   ];
   -- anon 이 실행할 수 있어야 하는 공개 read RPC
   allow_names text[] := array[
@@ -53,14 +53,14 @@ declare
     'consume_guest_identity_code_v1', 'submit_rsvp_verified_v1',
     'send_heart_v3',
     'send_heart_v2', 'create_delivery_v3', 'join_delivery_v2', 'accept_group_offer_v2',
-    'admin_create_order_v1', 'admin_attend_member_v1', 'admin_update_attend_v1'
+    'admin_create_order_v1', 'admin_attend_member_v1', 'admin_update_attend_v1', 'admin_update_member_phone_v1'
   ];
   -- PostgREST 오버로드 모호성이 생기면 안 되는 함수 (정확히 1개 시그니처)
   unique_names text[] := array[
     'open_guest_guide_v1',
     'send_heart_v3',
     'send_heart_v2', 'create_delivery_v3', 'join_delivery_v2', 'accept_group_offer_v2',
-    'admin_create_order_v1', 'admin_attend_member_v1', 'admin_update_attend_v1'
+    'admin_create_order_v1', 'admin_attend_member_v1', 'admin_update_attend_v1', 'admin_update_member_phone_v1'
   ];
   n text;
 begin

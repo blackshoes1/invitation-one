@@ -1050,7 +1050,7 @@ export default function GroupsTab({
                           마음
                         </span>
                       )}
-                      {(!mem.rsvp_id || mem.rsvp?.attending) && (
+                      {(!mem.rsvp_id || mem.rsvp) && (
                         <button
                           onClick={() => setAttendFor(attendFor === mem.id ? null : mem.id)}
                           aria-expanded={attendFor === mem.id}
@@ -1059,11 +1059,11 @@ export default function GroupsTab({
                           }`}
                           title={
                             mem.rsvp_id
-                              ? "참석자의 측·동반 인원·동반자 이름 수정"
-                              : "이 사람을 참석자(RSVP)로 등록 — 현장운영 탭에 나타나요"
+                              ? mem.rsvp?.attending ? "참석자의 측·동반 인원·동반자 이름 수정" : "참석으로 변경 — 사전 안내 명단에 반영돼요"
+                              : "참석자로 등록 — 사전 안내·현장운영 탭에 나타나요"
                           }
                         >
-                          {mem.rsvp_id ? "인원 수정" : "참석 등록"}
+                          {mem.rsvp_id ? mem.rsvp?.attending ? "인원 수정" : "참석으로 변경" : "참석 등록"}
                         </button>
                       )}
                       <button
@@ -1093,13 +1093,13 @@ export default function GroupsTab({
                         삭제
                       </button>
                       </div>
-                      {attendFor === mem.id && (!mem.rsvp_id || mem.rsvp?.attending) && (
+                      {attendFor === mem.id && (!mem.rsvp_id || mem.rsvp) && (
                         <AttendForm
                           key={`${mem.id}-${mem.rsvp_id ?? "new"}`}
                           api={api}
                           setError={setError}
                           endpoint={`/api/admin/groups/${g.id}/members/${mem.id}/attend`}
-                          mode={mem.rsvp_id ? "update" : "create"}
+                          mode={mem.rsvp?.attending ? "update" : "create"}
                           member={mem}
                           defaultPhone={draft ?? mem.phone ?? ""}
                           onDone={(result) => void onAttended(g.id, result)}

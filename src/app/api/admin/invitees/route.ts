@@ -96,7 +96,7 @@ export async function POST(req: Request) {
   return NextResponse.json({ member: data });
 }
 
-/** 연락처 수정 (빈 값이면 삭제) */
+/** 명단과 연결된 참석자 연락처를 함께 수정 (빈 값이면 삭제) */
 export async function PATCH(req: Request) {
   const bad = await adminGuard(req);
   if (bad) return bad;
@@ -116,14 +116,17 @@ export async function PATCH(req: Request) {
       { status: 400 }
     );
 
-  // group_id is null 조건을 함께 걸어 그룹 명단을 이 라우트로 건드리지 못하게
+  // p_group null 은 개별 초대만 수정한다 — 그룹 명단은 건드리지 못하게
   const { data, error } = await supabaseAdmin!
-    .from("group_members")
-    .update({ phone: norm })
-    .eq("id", member_id)
-    .is("group_id", null)
+    .rpc("admin_update_member_phone_v1", {
+      p_group: null,
+      p_member: member_id,
+      p_phone: norm,
+    })
     .select(COLS)
     .maybeSingle();
+  if (error?.code === "23505")
+    return NextResponse.json({ error: "같은 이름·연락처로 등록된 참석자가 있어요. 기존 참석자 연락처를 확인해주세요." }, { status: 409 });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "not found" }, { status: 404 });
   return NextResponse.json({ member: data });

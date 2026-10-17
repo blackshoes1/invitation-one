@@ -17,7 +17,7 @@ import {
  * DB 함수가 `group_id is not distinct from p_group` 으로 가르므로 서로의 명단을 건드릴 수 없다.
  *
  *  - create : 이름은 명단에서 DB 가 읽는다(클라이언트 값 무시). 새 참석 RSVP 를 만들고 연결 (created),
- *             같은 이름·연락처의 RSVP 가 이미 있으면 덮어쓰지 않고 연결만 (linked)
+ *             같은 이름·연락처의 RSVP 는 연결하고, 불참이면 참석으로 전환 (linked)
  *  - update : 측·동반 인원·동반자 이름만 수정. 연락처는 받지 않는다 (RSVP 식별 키)
  */
 export type AttendMode = "create" | "update";

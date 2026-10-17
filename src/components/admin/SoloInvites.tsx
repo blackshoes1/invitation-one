@@ -362,15 +362,15 @@ export default function SoloInvites({ api, setError, setNotice, groups, onGroupe
                     {formatRsvpBadge(m.rsvp)}
                   </span>
                 )}
-                {(!m.rsvp_id || m.rsvp?.attending) && (
+                {(!m.rsvp_id || m.rsvp) && (
                   <button type="button" disabled={busy}
                     aria-expanded={attendFor === m.id}
                     onClick={() => setAttendFor(attendFor === m.id ? null : m.id)}
                     title={m.rsvp_id
-                      ? "참석자의 측·동반 인원·동반자 이름 수정"
-                      : "이 사람을 참석자(RSVP)로 등록 — 현장운영 탭에 나타나요"}
+                      ? m.rsvp?.attending ? "참석자의 측·동반 인원·동반자 이름 수정" : "참석으로 변경 — 사전 안내 명단에 반영돼요"
+                      : "참석자로 등록 — 사전 안내·현장운영 탭에 나타나요"}
                     className="text-xs text-sage-700 whitespace-nowrap disabled:opacity-40">
-                    {m.rsvp_id ? "인원 수정" : "참석 등록"}
+                    {m.rsvp_id ? m.rsvp?.attending ? "인원 수정" : "참석으로 변경" : "참석 등록"}
                   </button>
                 )}
                 <button type="button" disabled={busy || Boolean(m.applied)}
@@ -393,13 +393,13 @@ export default function SoloInvites({ api, setError, setNotice, groups, onGroupe
                 <button onClick={() => remove(m)} disabled={busy} className="text-xs text-red-600 disabled:opacity-50">
                   삭제
                 </button>
-                {attendFor === m.id && (!m.rsvp_id || m.rsvp?.attending) && (
+                {attendFor === m.id && (!m.rsvp_id || m.rsvp) && (
                   <AttendForm
                     key={`${m.id}-${m.rsvp_id ?? "new"}`}
                     api={api}
                     setError={setError}
                     endpoint={`/api/admin/invitees/${m.id}/attend`}
-                    mode={m.rsvp_id ? "update" : "create"}
+                    mode={m.rsvp?.attending ? "update" : "create"}
                     member={m}
                     defaultPhone={phoneValues[m.id] ?? m.phone ?? ""}
                     onDone={(result) => void onAttended(result)}
