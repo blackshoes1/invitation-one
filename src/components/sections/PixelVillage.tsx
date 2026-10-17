@@ -132,7 +132,7 @@ function tagRect(
   t: TextMetrics,
   text: string,
   cx: number,
-  footY: number,
+  headY: number,
   tagX?: number,
   align: "left" | "right" | "center" = "center"
 ): Rect {
@@ -143,7 +143,7 @@ function tagRect(
   const anchor = tagX ?? cx;
   const left = align === "right" ? anchor * t.s - w : align === "left" ? anchor * t.s : anchor * t.s - w / 2;
   const x = Math.round(Math.min(WORLD_W * t.s - w - 2, Math.max(2, left)));
-  const y = Math.round(Math.min(WORLD_H * t.s - h - 2, (footY + 2) * t.s));
+  const y = Math.round(Math.max(2, (headY - 2) * t.s - h));
   return { x, y, w, h };
 }
 
@@ -296,6 +296,7 @@ export default function PixelVillage({
   const rowsRef = useRef<Map<string, number>>(new Map());
   const infoRef = useRef<Map<string, Info>>(new Map());
   const mineRef = useRef<string | null>(null);
+  const latestIdRef = useRef<string | null>(null);
   const bubbleRef = useRef<Bubble | null>(null);
   const rngRef = useRef<Rng | null>(null);
   const drawRef = useRef<() => void>(() => {});
@@ -348,8 +349,10 @@ export default function PixelVillage({
         if (!info || w.y > WORLD_H) continue; // 아직 화면 아래 바깥에서 올라오는 중이면 이름표도 숨긴다
         const text = clipName(info.name);
         const color = info.tagColor ?? (w.id === mineRef.current ? "#a8864e" : "#3b2d22");
-        const rect = tagRect(ctx, t, text, w.x, w.y, info.tagX, info.tagAlign);
-        const priority = info.npc ? 1e9 : w.id === mineRef.current ? 1e8 : w.y;
+        const headY = w.y - SPRITE_HEAD_H * (w.fixed ? 1 : GUEST_SCALE);
+        const rect = tagRect(ctx, t, text, w.x, headY, info.tagX, info.tagAlign);
+        // 가장 최근에 축하한 하객은 이름표가 겹쳐도 우선 보여 누락된 것처럼 보이지 않게 한다.
+        const priority = info.npc ? 1e9 : w.id === mineRef.current ? 1e8 : w.id === latestIdRef.current ? 1e7 : w.y;
         boxes.push({ id: w.id, ...rect, priority });
         meta.set(w.id, { text, color, rect });
       }
@@ -529,6 +532,7 @@ export default function PixelVillage({
     }
     walkersRef.current = next;
     mineRef.current = highlightId ?? null;
+    latestIdRef.current = items[0]?.id ?? null;
     if (items.length > 0) seededRef.current = true;
     drawRef.current();
   }, [items, highlightId]);

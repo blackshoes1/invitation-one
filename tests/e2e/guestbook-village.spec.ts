@@ -75,6 +75,60 @@ for (const width of [320, 390]) {
   });
 }
 
+for (const resumeEvent of ["focus", "visibilitychange"] as const) {
+  test(`${resumeEvent} 복귀 시 새 축하 하객을 기다리지 않고 마을에 반영한다`, async ({ page }) => {
+    test.skip(process.env.E2E_DB !== "1", "Needs configured client; all requests mocked.");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.addInitScript(() => {
+      const names: string[] = [];
+      (window as typeof window & { villageDrawnNames?: string[] }).villageDrawnNames = names;
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, x, y, maxWidth) {
+        if (this.canvas.getAttribute("aria-label")?.includes("도트 마을") && !names.includes(text)) names.push(text);
+        if (maxWidth === undefined) fillText.call(this, text, x, y);
+        else fillText.call(this, text, x, y, maxWidth);
+      };
+    });
+    const first = {
+      id: "first-heart", kind: "마음배송", name: "먼저 온 하객", message: "행복하세요", stamp: "💌",
+      area: null, created_at: "2026-10-15T10:00:00Z", rating: null, reply: null,
+    };
+    const latest = { ...first, id: "new-heart", name: "새 축하 하객", message: "결혼 축하해요", created_at: "2026-10-16T10:00:00Z" };
+    let rows = [first];
+    let requests = 0;
+    let releaseRefresh = () => {};
+    const pendingRefresh = new Promise<void>(resolve => { releaseRefresh = resolve; });
+    await page.route("**/rest/v1/rpc/get_celebrations", async route => {
+      requests++;
+      if (requests > 1) await pendingRefresh;
+      await route.fulfill({ json: rows });
+    });
+    await page.route("**/api/admin/celebrations", route => route.fulfill({ status: 401, json: {} }));
+    await page.goto(HOME);
+    const canvas = page.getByRole("img", { name: /^축하해 주신 1명의 도트 마을/ });
+    await canvas.scrollIntoViewIfNeeded();
+    await expect(canvas).toBeVisible();
+    expect(requests).toBe(1);
+    rows = [first, latest];
+    await page.evaluate(eventName => {
+      if (eventName === "focus") window.dispatchEvent(new Event("focus"));
+      else document.dispatchEvent(new Event("visibilitychange"));
+    }, resumeEvent);
+    await expect.poll(() => requests).toBe(2);
+    // 탭 복귀 때 두 이벤트가 연달아 와도 진행 중인 조회를 중복하지 않는다.
+    await page.evaluate(() => {
+      window.dispatchEvent(new Event("focus"));
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    releaseRefresh();
+    await expect(page.getByRole("img", { name: /^축하해 주신 2명의 도트 마을/ })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => (window as typeof window & { villageDrawnNames?: string[] }).villageDrawnNames))
+      .toContain(latest.name);
+    expect(requests).toBe(2);
+  });
+}
+
 test("동작 줄이기에서도 신랑을 두 번 누르면 사진 갤러리로 이동한다", async ({ browser, baseURL }) => {
   const context = await browser.newContext({ reducedMotion: "reduce", viewport: { width: 390, height: 844 } });
   const page = await context.newPage();

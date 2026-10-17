@@ -85,11 +85,26 @@ export default function Guestbook({
       return;
     }
     let alive = true;
+    let fetching = false;
     const seen = new Set<string>();
     let first = true;
 
     const fetchNow = async () => {
-      const { data, error } = await supabase!.rpc("get_celebrations");
+      if (fetching) return;
+      fetching = true;
+      let result;
+      try {
+        result = await supabase!.rpc("get_celebrations");
+      } catch {
+        if (alive) {
+          setLoaded(true);
+          setLoadFailed(true);
+        }
+        return;
+      } finally {
+        fetching = false;
+      }
+      const { data, error } = result;
       if (!alive) return;
       if (error || !Array.isArray(data)) {
         // RPC 실패 시에도 로딩 표시는 해제 — "불러오는 중…" 영구 표시 방지.
@@ -121,12 +136,17 @@ export default function Guestbook({
 
     fetchNow();
     // 백그라운드 탭에서는 폴링 스킵 (배터리/요청 절약)
-    const timer = setInterval(() => {
+    const refreshVisible = () => {
       if (!document.hidden) fetchNow();
-    }, 25000);
+    };
+    const timer = setInterval(refreshVisible, 25000);
+    document.addEventListener("visibilitychange", refreshVisible);
+    window.addEventListener("focus", refreshVisible);
     return () => {
       alive = false;
       clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshVisible);
+      window.removeEventListener("focus", refreshVisible);
     };
   }, [refresh]);
 
