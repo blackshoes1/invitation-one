@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import { Camera, Image as ImageIcon, X } from "lucide-react";
 import { supabase, isSupabaseConfigured, type GuestPhoto } from "@/lib/supabase";
 import {
@@ -9,6 +8,7 @@ import {
 } from "@/lib/wedding";
 import { useGuestPhotoQueue } from "@/lib/useGuestPhotoQueue";
 import FadeIn from "@/components/FadeIn";
+import GuestPhotoImage from "@/components/GuestPhotoImage";
 
 /**
  * 앨범에서 한 번에 고를 수 있는 최대 장수.
@@ -314,9 +314,9 @@ export default function GuestSnap({
                   className="relative aspect-square overflow-hidden bg-sage-50"
                 >
                   {/* 3열 그리드 썸네일 — next/image 로 축소본 서빙 (원본 2000px 그대로 받지 않도록) */}
-                  <Image
+                  <GuestPhotoImage
+                    key={p.url}
                     src={p.url}
-                    unoptimized={p.url.includes("/photos/snap/")}
                     alt={p.name ? `${p.name}님의 스냅` : "하객 스냅"}
                     fill
                     sizes="(max-width: 448px) 33vw, 150px"
@@ -346,9 +346,9 @@ export default function GuestSnap({
             <X size={24} />
           </button>
           {/* 원본은 폰 카메라 해상도 그대로 — 화면 폭에 맞춘 변환본을 받는다 */}
-          <Image
+          <GuestPhotoImage
+            key={lightbox}
             src={lightbox}
-            unoptimized={lightbox.includes("/photos/snap/")}
             alt="하객 스냅"
             fill
             sizes="100vw"

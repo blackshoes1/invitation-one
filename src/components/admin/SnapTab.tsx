@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import GuestPhotoImage from "@/components/GuestPhotoImage";
 import type { GuestPhotoAdmin } from "@/lib/supabase";
 import type { TabCtx } from "@/app/admin/shared";
 
@@ -157,12 +158,14 @@ export default function SnapTab({ api, setError, setNotice: _setNotice }: TabCtx
             key={p.id}
             className="bg-white border border-wedding-gold/15 overflow-hidden"
           >
-            <a href={p.url} target="_blank" rel="noopener noreferrer">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+            <a href={p.url} target="_blank" rel="noopener noreferrer" className="relative block aspect-square">
+              <GuestPhotoImage
+                key={p.url}
                 src={p.url}
                 alt={p.name ?? "하객 스냅"}
-                className={`w-full aspect-square object-cover ${
+                fill
+                sizes="(max-width: 448px) 50vw, 220px"
+                className={`object-cover ${
                   p.approved ? "" : "opacity-40"
                 }`}
               />

@@ -87,7 +87,7 @@ test("앨범에서 고른 사진도 원본 확인 단계로 이어진다", async
  *
  * 실제 Supabase 없이 검증하려고 업로드·토큰 API 를 가로챈다.
  */
-type StubOpts = { failAt?: number[]; rateLimitAt?: number };
+type StubOpts = { failAt?: number[]; rateLimitAt?: number; photoUrl?: string };
 
 async function stubUploads(page: import("@playwright/test").Page, opts: StubOpts = {}) {
   const seen: number[] = [];
@@ -101,7 +101,10 @@ async function stubUploads(page: import("@playwright/test").Page, opts: StubOpts
     const id = new URL(route.request().url()).pathname.split('/').pop()!.slice(0, -4);
     const headers = { 'Access-Control-Allow-Origin': new URL(page.url()).origin, 'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Upload-Lease', 'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS' };
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
-    if (route.request().method() === 'GET') return route.fulfill({ headers, json: stored.has(id) ? { state: 'stored', receipt: id } : { state: 'ready', lease: 'lease' } });
+    if (route.request().method() === 'GET') {
+      if (new URL(route.request().url()).searchParams.has('admission')) return route.fulfill({ headers, json: stored.has(id) ? { state: 'stored', receipt: id } : { state: 'ready', lease: 'lease' } });
+      return route.fulfill({ headers, contentType: 'image/jpeg', body: readFileSync(THREE[0]) });
+    }
     stored.add(id);
     return route.fulfill({ headers, json: { receipt: id } });
   });
@@ -129,7 +132,7 @@ async function stubUploads(page: import("@playwright/test").Page, opts: StubOpts
       json: {
         photo: {
           id: body.receipt,
-          url: "/pic/gallery1.jpg",
+          url: opts.photoUrl ?? "/pic/gallery1.jpg",
           name: null,
           message: null,
           created_at: new Date().toISOString(),
@@ -231,7 +234,14 @@ test("NAS 모드에서는 사진 본문을 NAS로 직접 보내고 JSON으로 �
   let uploads = 0;
   let completions = 0;
   let legacy = 0;
+  let imageRequests = 0;
   const nasUrl = 'https://nas.example.invalid/photos/snap/9a2c06ad-3f9f-49a3-9a29-1f95c5c31d83.jpg';
+  await page.route('**/_next/image?**', route => {
+    if (new URL(route.request().url()).searchParams.get('url') !== nasUrl) return route.continue();
+    imageRequests++;
+    if (imageRequests === 1) return route.fulfill({ status: 503, headers: { 'Cache-Control': 'no-store' }, body: 'Busy, please retry' });
+    return route.fulfill({ contentType: 'image/jpeg', body: readFileSync(THREE[0]) });
+  });
   await page.route('**/api/guest-photos/token*', route => route.fulfill({ json: { token: 'stub' } }));
   await page.route('**/api/guest-photos', route => { legacy++; return route.fulfill({ status: 500 }); });
   await page.route('**/api/guest-photos/direct', async route => {
@@ -246,12 +256,15 @@ test("NAS 모드에서는 사진 본문을 NAS로 직접 보내고 JSON으로 �
     expect(body.action).toBe('complete');
     expect(body.receipt).toBe('test-receipt');
     completions++;
-    return route.fulfill({ json: { photo: { id: 'nas-photo', url: '/pic/gallery1.jpg', name: null, message: null, created_at: new Date().toISOString() } } });
+    return route.fulfill({ json: { photo: { id: 'nas-photo', url: nasUrl, name: null, message: null, created_at: new Date().toISOString() } } });
   });
   await page.route(`${nasUrl}*`, route => {
     const headers = { 'Access-Control-Allow-Origin': new URL(page.url()).origin, 'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Upload-Lease', 'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS' };
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
-    if (route.request().method() === 'GET') return route.fulfill({ headers, json: { state: 'ready', lease: 'test-lease' } });
+    if (route.request().method() === 'GET') {
+      if (new URL(route.request().url()).searchParams.has('admission')) return route.fulfill({ headers, json: { state: 'ready', lease: 'test-lease' } });
+      return route.fulfill({ headers, contentType: 'image/jpeg', body: readFileSync(THREE[0]) });
+    }
     expect(route.request().method()).toBe('PUT');
     expect(route.request().headers().authorization).toBe('Bearer test-ticket');
     expect(route.request().postDataBuffer()).toEqual(readFileSync(THREE[0]));
@@ -265,6 +278,36 @@ test("NAS 모드에서는 사진 본문을 NAS로 직접 보내고 JSON으로 �
   expect(uploads).toBe(1);
   expect(completions).toBe(1);
   expect(legacy).toBe(0);
+
+  const thumbnail = page.locator('#guest-snap').getByRole('img', { name: '하객 스냅', exact: true });
+  await expect(thumbnail).toHaveAttribute('src', /^\/_next\/image\?/);
+  await expect.poll(() => thumbnail.evaluate(image => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0)).toBe(true);
+  expect(imageRequests).toBe(2);
+
+  await thumbnail.click();
+  const lightbox = page.getByRole('dialog', { name: '사진 크게 보기' });
+  const enlarged = lightbox.getByRole('img', { name: '하객 스냅', exact: true });
+  await expect(enlarged).toHaveAttribute('src', /^\/_next\/image\?/);
+  await expect.poll(() => enlarged.evaluate(image => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0)).toBe(true);
+});
+
+test('스냅 사진을 계속 불러올 수 없으면 두 번만 재시도하고 안내한다', async ({ page }) => {
+  const nasUrl = 'https://nas.example.invalid/photos/snap/unavailable.jpg';
+  await stubUploads(page, { photoUrl: nasUrl });
+  let imageRequests = 0;
+  await page.route('**/_next/image?**', route => {
+    if (new URL(route.request().url()).searchParams.get('url') !== nasUrl) return route.continue();
+    imageRequests++;
+    return route.fulfill({ status: 503, headers: { 'Cache-Control': 'no-store' }, body: 'Photo storage unavailable' });
+  });
+  await page.goto(HOME);
+  const modal = await pickFromAlbum(page, [THREE[0]]);
+  await modal.getByRole('button', { name: '이대로 올리기', exact: true }).click();
+  await expect(modal).toBeHidden({ timeout: 15_000 });
+
+  await expect(page.locator('#guest-snap').getByText('사진을 불러오지 못했어요', { exact: false })).toBeVisible();
+  expect(imageRequests).toBe(3);
+  await expect(page.locator('#guest-snap').getByRole('img', { name: '하객 스냅', exact: true })).toHaveCount(0);
 });
 
 test('NAS 혼잡과 연결 오류는 같은 사진으로 자동 재시도하고 앨범 등록을 마친다', async ({ page }) => {
