@@ -280,14 +280,14 @@ test("NAS 모드에서는 사진 본문을 NAS로 직접 보내고 JSON으로 �
   expect(legacy).toBe(0);
 
   const thumbnail = page.locator('#guest-snap').getByRole('img', { name: '하객 스냅', exact: true });
-  await expect(thumbnail).toHaveAttribute('src', /^\/_next\/image\?/);
+  await expect.poll(() => thumbnail.evaluate(image => new URL((image as HTMLImageElement).src).pathname)).toBe('/_next/image');
   await expect.poll(() => thumbnail.evaluate(image => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0)).toBe(true);
   expect(imageRequests).toBe(2);
 
   await thumbnail.click();
   const lightbox = page.getByRole('dialog', { name: '사진 크게 보기' });
   const enlarged = lightbox.getByRole('img', { name: '하객 스냅', exact: true });
-  await expect(enlarged).toHaveAttribute('src', /^\/_next\/image\?/);
+  await expect.poll(() => enlarged.evaluate(image => new URL((image as HTMLImageElement).src).pathname)).toBe('/_next/image');
   await expect.poll(() => enlarged.evaluate(image => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0)).toBe(true);
 });
 
