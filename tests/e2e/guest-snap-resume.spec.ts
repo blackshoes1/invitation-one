@@ -137,9 +137,14 @@ test('a page discarded by the phone restores original bytes, completed IDs and p
   await page.goto(HOME); await page.getByLabel("이름 (필수)", { exact: true }).fill("테스트 하객"); await selectAndStart(page);
   await expect.poll(() => [...api.photos.values()].filter(photo => photo.bytes).length).toBe(2);
   await expect(page.getByText('3장 중 1장 등록 완료 · 남은 2장')).toBeVisible();
+  // Simulate an upload begun before the name-memory setting was introduced.
+  await page.evaluate(() => localStorage.removeItem('snap-uploader-name'));
   api.release();
   await page.reload();
   await assertFinished(page, api);
+  await expect(page.getByLabel('이름 (필수)', { exact: true })).toHaveValue('테스트 하객');
+  await page.reload();
+  await expect(page.getByLabel('이름 (필수)', { exact: true })).toHaveValue('테스트 하객');
   expect(api.resumes()).toBeGreaterThan(0);
   // Configured servers embed a fresh token in HTML; demo servers fetch it instead.
   expect(api.sessions()).toBeGreaterThanOrEqual(2);

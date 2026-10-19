@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, Image as ImageIcon, X } from "lucide-react";
 import { supabase, isSupabaseConfigured, type GuestPhoto } from "@/lib/supabase";
 import {
@@ -17,6 +17,7 @@ import GuestPhotoImage from "@/components/GuestPhotoImage";
  * 여러 번 나눠 올릴 여유도 남는다.
  */
 const MAX_BATCH = 10;
+const NAME_STORAGE_KEY = "snap-uploader-name";
 
 /**
  * 하객 스냅 — 하객이 찍은 사진을 청첩장에서 올리고 함께 보는 갤러리 (Epic A).
@@ -31,7 +32,22 @@ export default function GuestSnap({
 }) {
   const [photos, setPhotos] = useState<GuestPhoto[]>([]);
   const [name, setName] = useState("");
-
+  const rememberName = useCallback((value: string) => {
+    setName(value);
+    try {
+      const saved = value.trim().slice(0, 40);
+      if (saved) localStorage.setItem(NAME_STORAGE_KEY, saved);
+      else localStorage.removeItem(NAME_STORAGE_KEY);
+    } catch { /* Remembering a name must not prevent an upload when storage is blocked. */ }
+  }, []);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(NAME_STORAGE_KEY)?.trim().slice(0, 40);
+      // Read browser-only storage after hydration so server and initial client markup agree.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (saved) setName(current => current || saved);
+    } catch { /* Manual name entry still works when browser storage is unavailable. */ }
+  }, []);
 
   const [localError, setError] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -73,6 +89,12 @@ export default function GuestSnap({
   const queue = useGuestPhotoQueue(uploadToken,
     photo => setPhotos(previous => [photo, ...previous.filter(item => item.id !== photo.id)]),
     completedMission => { markMissionDone(completedMission); setMission(current => current === completedMission ? null : current); });
+  const queuedName = queue.state?.batch.authorName;
+  useEffect(() => {
+    // Recover the name from uploads started before browser name memory was added.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (queuedName?.trim()) rememberName(queuedName.trim().slice(0, 40));
+  }, [queuedName, rememberName]);
   const pendingFiles = queue.state ? queue.files : selectedFiles;
   const uploading = ['restoring', 'saving', 'running'].includes(queue.status);
   const pendingCount = queue.state ? queue.state.jobs.filter(job => !job.photo).length : selectedFiles.length;
@@ -267,11 +289,11 @@ export default function GuestSnap({
             aria-describedby="guest-snap-name-help"
             disabled={uploading || !!queue.state}
             value={queue.state?.batch.authorName ?? name}
-            onChange={(e) => { setName(e.target.value); if (localError === '사진을 올리려면 이름을 입력해주세요.') setError(null); }}
+            onChange={(e) => { rememberName(e.target.value); if (localError === '사진을 올리려면 이름을 입력해주세요.') setError(null); }}
             placeholder="이름을 입력해주세요"
             className="w-full p-2.5 text-base border border-wedding-gold/20 bg-white rounded-none focus:outline-none focus:border-sage-600 text-center"
           />
-          <p id="guest-snap-name-help" className="text-xs text-neutral-500">누가 올린 사진인지 알 수 있도록 이름을 꼭 남겨주세요.</p>
+          <p id="guest-snap-name-help" className="text-xs text-neutral-500">누가 올린 사진인지 알 수 있도록 이름을 꼭 남겨주세요.<br />이 브라우저에서 다음에도 자동으로 입력돼요.</p>
           {/* 찍기와 앨범을 각각의 버튼으로 — capture 속성이 붙은 input 하나로는
               휴대폰이 카메라를 바로 열어버려 앨범에서 고를 방법이 없다. */}
           <div className="grid grid-cols-2 gap-2">
@@ -449,7 +471,7 @@ export default function GuestSnap({
                 <div className="px-4 pt-3">
                   <label htmlFor="guest-snap-resume-name" className="block text-sm text-sage-700">이름 (필수)</label>
                   <input id="guest-snap-resume-name" ref={resumeNameRef} required maxLength={40} autoComplete="name"
-                    value={name} onChange={e => { setName(e.target.value); setError(null); }} placeholder="이름을 입력해주세요"
+                    value={name} onChange={e => { rememberName(e.target.value); setError(null); }} placeholder="이름을 입력해주세요"
                     className="mt-2 w-full border border-sage-300 p-2 text-base text-center" />
                 </div>
               )}

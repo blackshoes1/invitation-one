@@ -11,6 +11,40 @@ import { test, expect } from "@playwright/test";
 const KEY = process.env.NEXT_PUBLIC_INVITATION_KEY ?? "ci-dummy-key";
 const HOME = `/?key=${encodeURIComponent(KEY)}&view=photos`;
 
+test('입력한 이름은 재방문과 새 탭에서 복원되고 이름을 지우면 기억도 지운다', async ({ page, context }) => {
+  await page.goto(HOME);
+  const name = page.getByLabel('이름 (필수)', { exact: true });
+  await name.fill('  김하객  ');
+  await page.reload();
+  await expect(name).toHaveValue('김하객');
+  await name.fill('이하객');
+  const other = await context.newPage(); await other.goto(HOME);
+  await expect(other.getByLabel('이름 (필수)', { exact: true })).toHaveValue('이하객');
+  await name.fill(''); await page.reload();
+  await expect(name).toHaveValue('');
+  await page.getByRole('button', { name: '앨범에서 고르기' }).click();
+  await expect(page.getByText('사진을 올리려면 이름을 입력해주세요.', { exact: true })).toBeVisible();
+});
+
+test('이름 기억이 차단돼도 이름을 입력해 사진을 올릴 수 있다', async ({ page }) => {
+  await page.addInitScript(() => {
+    for (const method of ['getItem', 'setItem', 'removeItem'] as const) {
+      const original = Storage.prototype[method];
+      Object.defineProperty(Storage.prototype, method, { configurable: true, value: function (...args: string[]) {
+        if (args[0] === 'snap-uploader-name') throw new DOMException('Storage blocked', 'SecurityError');
+        return Reflect.apply(original, this, args);
+      } });
+    }
+  });
+  const stub = await stubUploads(page);
+  await page.goto(HOME);
+  await page.getByLabel('이름 (필수)', { exact: true }).fill('김하객');
+  const modal = await pickFromAlbum(page, [THREE[0]]);
+  await modal.getByRole('button', { name: '이대로 올리기', exact: true }).click();
+  await expect(modal).toBeHidden(); expect(stub.count()).toBe(1);
+  await page.reload(); await expect(page.getByLabel('이름 (필수)', { exact: true })).toHaveValue('');
+});
+
 test('이름이 비었거나 공백뿐이면 사진 선택과 미션 촬영을 막는다', async ({ page }) => {
   await page.goto(HOME);
   const name = page.getByLabel('이름 (필수)', { exact: true });
