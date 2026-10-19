@@ -5,9 +5,9 @@ import { uploadGuestPhoto, uploadAborted, PhotoUploadError, photoUploadErrorMess
 import { INVITATION_KEY } from './wedding';
 import type { GuestPhoto } from './supabase';
 
-type Status = 'restoring' | 'ready' | 'saving' | 'running' | 'paused' | 'other' | 'failed';
+type Status = 'restoring' | 'ready' | 'saving' | 'running' | 'paused' | 'other' | 'failed' | 'needs-name';
 type View = { status: Status; state: UploadBatch | null; files: File[]; stage: PhotoUploadStage; error: string | null };
-type Actions = { start: (files: File[], label: string, mission: string | null) => Promise<void>; resume: () => void; discard: () => Promise<void> };
+type Actions = { start: (files: File[], label: string, mission: string | null) => Promise<void>; resume: (name?: string) => Promise<void>; discard: () => Promise<void> };
 const initial: View = { status: 'restoring', state: null, files: [], stage: 'sending', error: null };
 
 export function useGuestPhotoQueue(uploadToken: string | null, onPhoto: (photo: GuestPhoto) => void, onMission: (mission: string) => void) {
@@ -67,6 +67,13 @@ export function useGuestPhotoQueue(uploadToken: string | null, onPhoto: (photo: 
         }
         for (const job of state.jobs) if (job.photo) callbacks.current.onPhoto(job.photo);
         if (state.batch.mission && state.jobs.some(job => job.photo)) callbacks.current.onMission(state.batch.mission);
+        // Older batches combined the author and mission in label, and allowed an empty author.
+        const suffix = state.batch.mission ? ` · ${state.batch.mission}` : '';
+        const authorName = state.batch.authorName ?? (state.batch.label === state.batch.mission ? '' : suffix && state.batch.label.endsWith(suffix) ? state.batch.label.slice(0, -suffix.length) : state.batch.label);
+        if (!authorName.trim() && state.jobs.some(job => !job.photo && !job.checkpoint)) {
+          await publish(state, 'needs-name', '이름을 입력한 뒤 남은 사진을 이어 올려주세요.');
+          return;
+        }
         if (!active()) { await publish(state, 'paused'); return; }
         if (state.batch.failed && !force) { await publish(state, 'failed', state.jobs.find(job => job.error)?.error ?? '남은 사진을 다시 시도해주세요.'); return; }
         if (!await store.claim(owner)) {
@@ -84,7 +91,8 @@ export function useGuestPhotoQueue(uploadToken: string | null, onPhoto: (photo: 
           if (job.photo) continue;
           try {
             const file = await store.file(job);
-            const fd = new FormData(); fd.set('file', file); fd.set('name', state.batch.label);
+            const fd = new FormData(); fd.set('file', file); fd.set('name', authorName.trim());
+            if (state.batch.mission) fd.set('message', state.batch.mission);
             const context: UploadContext = { checkpoint: job.checkpoint, signal: abort.signal,
               beforeRequest: async () => { check(); await store.renew(owner); check(); },
               saveCheckpoint: async checkpoint => { job.checkpoint = checkpoint; await store.update(owner, job); },
@@ -164,7 +172,19 @@ export function useGuestPhotoQueue(uploadToken: string | null, onPhoto: (photo: 
           throw error;
         }
       },
-      resume: () => kick(true),
+      async resume(name) {
+        if (name !== undefined) {
+          const author = name.trim().slice(0, 40);
+          if (!author) { display({ error: '사진을 올리려면 이름을 입력해주세요.' }); return; }
+          const owner = crypto.randomUUID();
+          try {
+            if (!await store.claim(owner)) throw new Error('다른 청첩장 화면에서 이어 올리고 있어요.');
+            await store.setName(owner, author);
+          } catch (error) { display({ error: error instanceof Error ? error.message : '잠시 후 다시 시도해주세요.' }); return; }
+          finally { await store.release(owner).catch(() => {}); }
+        }
+        kick(true);
+      },
       async discard() {
         pause(); await task;
         const state = await store.read();
@@ -194,7 +214,7 @@ export function useGuestPhotoQueue(uploadToken: string | null, onPhoto: (photo: 
   }, []);
   return { ...view,
     start: (files: File[], label: string, mission: string | null) => actions.current?.start(files, label, mission) ?? Promise.reject(new Error('잠시 후 다시 시도해주세요.')),
-    resume: () => actions.current?.resume(),
+    resume: (name?: string) => actions.current?.resume(name),
     discard: () => actions.current?.discard() ?? Promise.resolve(),
   };
 }

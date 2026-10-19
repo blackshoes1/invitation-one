@@ -20,6 +20,8 @@ export async function POST(req: Request) {
   if (!isAdminConfigured || !supabaseAdmin) return reply({ error: '서버 설정이 필요합니다.' }, 503);
   const auth = verifyToken(input.token, UPLOAD_TOKEN_PURPOSE);
   if (!auth.ok) return reply({ error: '청첩장을 새로고침 해주세요.', code: auth.reason === 'expired' ? 'token_expired' : 'token_invalid' }, auth.reason === 'no_key' ? 503 : 401);
+  const name = typeof input.name === 'string' ? input.name.trim().slice(0, 40) : '';
+  if (input.action === 'prepare' && !name) return reply({ error: '사진을 올리려면 이름을 입력해주세요.', code: 'name_required' }, 400);
   // Legacy behavior is explicitly selected before any file bytes leave the browser.
   if (process.env.GUEST_PHOTO_STORAGE !== 'nas') return reply({ storage: 'supabase' });
   let config;
@@ -55,7 +57,7 @@ export async function POST(req: Request) {
     const id = crypto.randomUUID();
     const path = `snap/${id}.${input.ext}`;
     const claims = { id, path, size: input.size, sha256: input.sha256, owner: auth.payload.n,
-      name: String(input.name ?? '').trim().slice(0, 40) || null,
+      name,
       message: String(input.message ?? '').trim().slice(0, 200) || null,
     };
     return reply(planFor(claims));

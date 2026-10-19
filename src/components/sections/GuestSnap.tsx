@@ -46,6 +46,15 @@ export default function GuestSnap({
   /** 카메라로 바로 찍기 (capture) · 앨범에서 고르기 (capture 없음) */
   const cameraRef = useRef<HTMLInputElement>(null);
   const albumRef = useRef<HTMLInputElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const resumeNameRef = useRef<HTMLInputElement>(null);
+
+  const requireName = () => {
+    if (name.trim()) return true;
+    setError("사진을 올리려면 이름을 입력해주세요.");
+    (resumeNameRef.current ?? nameRef.current)?.focus();
+    return false;
+  };
 
 
   function markMissionDone(m: string) {
@@ -135,6 +144,7 @@ export default function GuestSnap({
    * 올려도 같은 미션으로 기록됩니다.
    */
   const pickMission = (m: string) => {
+    if (!requireName()) return;
     setMission((cur) => (cur === m ? null : m));
     if (mission !== m) cameraRef.current?.click();
   };
@@ -173,9 +183,14 @@ export default function GuestSnap({
   /** Save the whole selection before any network transfer; resume the existing batch on retry. */
   const uploadFiles = async (files: File[]) => {
     setError(null);
-    if (queue.state) { queue.resume(); return; }
+    if (queue.state) {
+      if (queue.status === 'needs-name' && !requireName()) return;
+      await queue.resume(queue.status === 'needs-name' ? name.trim() : undefined);
+      return;
+    }
+    if (!requireName()) return;
     try {
-      await queue.start(files, [name.trim(), mission].filter(Boolean).join(" · "), mission);
+      await queue.start(files, name.trim(), mission);
       setSelectedFiles([]);
     } catch {
       setError("사진을 기기에 임시 저장하지 못했어요. 저장 공간을 확인한 뒤 다시 시도해주세요.");
@@ -242,19 +257,27 @@ export default function GuestSnap({
         </FadeIn>
 
         <FadeIn className="space-y-3">
+          <label htmlFor="guest-snap-name" className="block text-sm text-sage-700">이름 (필수)</label>
           <input
-            aria-label="이름 (선택)"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="이름 (선택)"
+            id="guest-snap-name"
+            ref={nameRef}
+            required
+            maxLength={40}
+            autoComplete="name"
+            aria-describedby="guest-snap-name-help"
+            disabled={uploading || !!queue.state}
+            value={queue.state?.batch.authorName ?? name}
+            onChange={(e) => { setName(e.target.value); if (localError === '사진을 올리려면 이름을 입력해주세요.') setError(null); }}
+            placeholder="이름을 입력해주세요"
             className="w-full p-2.5 text-base border border-wedding-gold/20 bg-white rounded-none focus:outline-none focus:border-sage-600 text-center"
           />
+          <p id="guest-snap-name-help" className="text-xs text-neutral-500">누가 올린 사진인지 알 수 있도록 이름을 꼭 남겨주세요.</p>
           {/* 찍기와 앨범을 각각의 버튼으로 — capture 속성이 붙은 input 하나로는
               휴대폰이 카메라를 바로 열어버려 앨범에서 고를 방법이 없다. */}
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={() => cameraRef.current?.click()}
+              onClick={() => { if (requireName()) cameraRef.current?.click(); }}
               disabled={uploading || !!queue.state}
               className="flex items-center justify-center gap-1.5 py-3.5 bg-sage-700 text-white text-sm font-medium tracking-wide disabled:opacity-60"
             >
@@ -263,7 +286,7 @@ export default function GuestSnap({
             </button>
             <button
               type="button"
-              onClick={() => albumRef.current?.click()}
+              onClick={() => { if (requireName()) albumRef.current?.click(); }}
               disabled={uploading || !!queue.state}
               className="flex items-center justify-center gap-1.5 py-3.5 bg-white text-sage-700 border border-sage-700 text-sm font-medium tracking-wide disabled:opacity-60"
             >
@@ -421,6 +444,14 @@ export default function GuestSnap({
                 >
                   {error}
                 </p>
+              )}
+              {(queue.status === 'needs-name' || (!queue.state && !name.trim())) && (
+                <div className="px-4 pt-3">
+                  <label htmlFor="guest-snap-resume-name" className="block text-sm text-sage-700">이름 (필수)</label>
+                  <input id="guest-snap-resume-name" ref={resumeNameRef} required maxLength={40} autoComplete="name"
+                    value={name} onChange={e => { setName(e.target.value); setError(null); }} placeholder="이름을 입력해주세요"
+                    className="mt-2 w-full border border-sage-300 p-2 text-base text-center" />
+                </div>
               )}
 
               {uploading && (

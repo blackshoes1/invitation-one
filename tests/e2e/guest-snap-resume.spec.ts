@@ -63,6 +63,7 @@ async function backend(context: BrowserContext) {
     const body = route.request().postDataJSON();
     sessions.add(body.token);
     if (body.action === 'prepare') {
+      expect(body.name.trim()).not.toBe('');
       const id = randomUUID();
       const uploadUrl = `${nasOrigin}/photos/snap/${id}.jpg`;
       const photo: Photo = { id, sha256: body.sha256, puts: 0, confirms: 0, plan: { storage: 'nas', uploadUrl, admissionUrl: `${uploadUrl}?admission=1`, ticket: id, resumeCredential: id } };
@@ -120,7 +121,7 @@ async function assertFinished(page: Page, api: Awaited<ReturnType<typeof backend
 
 test('app switching resumes only unfinished photos, including a saved photo whose receipt was lost', async ({ page, context }) => {
   const api = await backend(context);
-  await page.goto(HOME); await selectAndStart(page);
+  await page.goto(HOME); await page.getByLabel("이름 (필수)", { exact: true }).fill("테스트 하객"); await selectAndStart(page);
   await expect.poll(() => [...api.photos.values()].filter(photo => photo.bytes).length).toBe(2);
   await expect(page.getByText('3장 중 1장 등록 완료 · 남은 2장')).toBeVisible();
   await visibility(page, 'hidden');
@@ -133,7 +134,7 @@ test('app switching resumes only unfinished photos, including a saved photo whos
 
 test('a page discarded by the phone restores original bytes, completed IDs and pending permissions after reload', async ({ page, context }) => {
   const api = await backend(context);
-  await page.goto(HOME); await selectAndStart(page);
+  await page.goto(HOME); await page.getByLabel("이름 (필수)", { exact: true }).fill("테스트 하객"); await selectAndStart(page);
   await expect.poll(() => [...api.photos.values()].filter(photo => photo.bytes).length).toBe(2);
   await expect(page.getByText('3장 중 1장 등록 완료 · 남은 2장')).toBeVisible();
   api.release();
@@ -147,7 +148,7 @@ test('a page discarded by the phone restores original bytes, completed IDs and p
 test('two open pages share one upload owner and do not create a second batch', async ({ page, context }) => {
   await context.addInitScript(() => Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' }));
   const api = await backend(context);
-  await page.goto(HOME); await selectAndStart(page);
+  await page.goto(HOME); await page.getByLabel("이름 (필수)", { exact: true }).fill("테스트 하객"); await selectAndStart(page);
   await expect.poll(() => [...api.photos.values()].filter(photo => photo.bytes).length).toBe(2);
   const other = await context.newPage();
   await other.goto(HOME);
@@ -160,7 +161,7 @@ test('two open pages share one upload owner and do not create a second batch', a
 
 test('losing connectivity pauses the saved batch and reconnecting resumes without duplicate bodies', async ({ page, context }) => {
   const api = await backend(context);
-  await page.goto(HOME); await selectAndStart(page);
+  await page.goto(HOME); await page.getByLabel("이름 (필수)", { exact: true }).fill("테스트 하객"); await selectAndStart(page);
   await expect.poll(() => [...api.photos.values()].filter(photo => photo.bytes).length).toBe(2);
   await context.setOffline(true);
   await expect(page.getByText('사진을 임시 저장했어요. 연결이 돌아오면 남은 사진부터 이어 올려요.')).toBeVisible();
@@ -171,8 +172,42 @@ test('losing connectivity pauses the saved batch and reconnecting resumes withou
 
 test('no file leaves the phone when temporary storage is unavailable', async ({ page, context }) => {
   const api = await backend(context);
-  await page.addInitScript(() => { indexedDB.open = () => { throw new DOMException('Storage unavailable', 'QuotaExceededError'); }; });
-  await page.goto(HOME); await selectAndStart(page);
+  // Some WebKit versions return a fresh factory wrapper for window.indexedDB;
+  // patch its prototype so this storage-error fixture applies to every open call.
+  await page.addInitScript(() => { IDBFactory.prototype.open = () => { throw new DOMException('Storage unavailable', 'QuotaExceededError'); }; });
+  await page.goto(HOME);
+  expect(await page.evaluate(() => { try { indexedDB.open('fixture-check'); return false; } catch { return true; } })).toBe(true);
+  await page.getByLabel("이름 (필수)", { exact: true }).fill("테스트 하객"); await selectAndStart(page);
   await expect(page.getByRole('dialog').getByText('사진을 기기에 임시 저장하지 못했어요. 저장 공간을 확인한 뒤 다시 시도해주세요.')).toBeVisible();
   expect(api.photos.size).toBe(0);
+});
+
+test('an older unnamed batch asks for a name without losing its saved originals', async ({ page, context }) => {
+  const api = await backend(context); api.release();
+  await page.goto(HOME);
+  await expect(page.getByRole('button', { name: '앨범에서 고르기' })).toBeEnabled();
+  await page.evaluate(async originals => {
+    const open = indexedDB.open('invitation-guest-uploads');
+    await new Promise<void>((resolve, reject) => {
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const db = open.result; const tx = db.transaction(['batch', 'jobs', 'files'], 'readwrite');
+        const mission = '신랑·신부와 셀카 🤳';
+        tx.objectStore('batch').put({ key: 'active', id: crypto.randomUUID(), createdAt: Date.now(), label: mission, mission });
+        originals.forEach((bytes, order) => {
+          const id = crypto.randomUUID();
+          tx.objectStore('jobs').put({ id, order, filename: `old-${order}.jpg`, type: 'image/jpeg', lastModified: Date.now() });
+          tx.objectStore('files').put({ id, bytes: new Uint8Array(bytes).buffer });
+        });
+        tx.oncomplete = () => { db.close(); resolve(); }; tx.onabort = () => reject(tx.error);
+      };
+    });
+  }, files.map(file => [...readFileSync(file)]));
+  await page.reload();
+  const dialog = page.getByRole('dialog', { name: '사진 원본 확인' });
+  await expect(dialog.getByText('이름을 입력한 뒤 남은 사진을 이어 올려주세요.', { exact: true })).toBeVisible();
+  expect(await counts(page)).toEqual({ batch: 1, jobs: 3, files: 3 }); expect(api.photos.size).toBe(0);
+  await dialog.getByLabel('이름 (필수)', { exact: true }).fill('김하객');
+  await dialog.getByRole('button', { name: '남은 3장 이어올리기' }).click();
+  await assertFinished(page, api);
 });

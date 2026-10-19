@@ -22,6 +22,24 @@ async function receipt() {
   return sign(verify(plan.ticket, 'upload', secret)!, 'receipt', secret);
 }
 describe('NAS direct photo API', () => {
+  it.each([undefined, null, '', ' \t\n　', 123, { name: '하객' }])('requires a real nonblank name before issuing any upload permission (%j)', async name => {
+    const response = await req({ ...prepare, name });
+    expect(response.status).toBe(400);
+    expect((await response.json()).code).toBe('name_required');
+    expect(mocks.allow).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.fetch).not.toHaveBeenCalled();
+  });
+  it('keeps the trimmed name separate from the optional mission', async () => {
+    const plan = await (await req({ ...prepare, name: '  김하객  ', message: '신랑·신부와 셀카 🤳' })).json();
+    expect(verify(plan.ticket, 'upload', secret)).toMatchObject({ name: '김하객', message: '신랑·신부와 셀카 🤳' });
+  });
+  it('requires a name even when the client would use legacy storage', async () => {
+    vi.stubEnv('GUEST_PHOTO_STORAGE', 'supabase');
+    const response = await req({ ...prepare, name: '' });
+    expect(response.status).toBe(400);
+    expect((await response.json()).code).toBe('name_required');
+  });
   it('issues scoped tickets without uploading bytes or inserting metadata', async () => {
     const response = await req(prepare);
     const plan = await response.json();

@@ -11,8 +11,44 @@ import { test, expect } from "@playwright/test";
 const KEY = process.env.NEXT_PUBLIC_INVITATION_KEY ?? "ci-dummy-key";
 const HOME = `/?key=${encodeURIComponent(KEY)}&view=photos`;
 
-test("찍기와 앨범 고르기 두 경로가 모두 있다", async ({ page }) => {
+test('이름이 비었거나 공백뿐이면 사진 선택과 미션 촬영을 막는다', async ({ page }) => {
   await page.goto(HOME);
+  const name = page.getByLabel('이름 (필수)', { exact: true });
+  await expect(name).toHaveAttribute('required', '');
+  let choosers = 0; let uploads = 0;
+  page.on('filechooser', () => { choosers++; });
+  page.on('request', request => { if (request.url().endsWith('/api/guest-photos/direct')) uploads++; });
+  for (const value of ['', '　   ']) {
+    await name.fill(value);
+    await page.getByRole('button', { name: '앨범에서 고르기' }).click();
+    await expect(page.getByText('사진을 올리려면 이름을 입력해주세요.', { exact: true })).toBeVisible();
+    await expect(name).toBeFocused();
+    await page.getByRole('button', { name: '지금 찍기', exact: true }).click();
+    await page.getByRole('button', { name: '신랑·신부와 셀카 🤳', exact: true }).click();
+  }
+  expect(choosers).toBe(0); expect(uploads).toBe(0);
+});
+
+test('이름과 미션을 구분해 전송하고 복수 사진에 같은 이름을 사용한다', async ({ page }) => {
+  await stubUploads(page);
+  const prepared: Array<{ name: string; message: string }> = [];
+  page.on('request', request => {
+    if (request.url().endsWith('/api/guest-photos/direct') && request.postDataJSON().action === 'prepare') prepared.push(request.postDataJSON());
+  });
+  await page.goto(HOME);
+  await page.getByLabel('이름 (필수)', { exact: true }).fill('  김하객  ');
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: '신랑·신부와 셀카 🤳', exact: true }).click();
+  await (await chooser).setFiles([]);
+  const modal = await pickFromAlbum(page, THREE);
+  await modal.getByRole('button', { name: '3장 이대로 올리기' }).click();
+  await expect(modal).toBeHidden();
+  expect(prepared).toHaveLength(3);
+  for (const photo of prepared) expect(photo).toMatchObject({ name: '김하객', message: '신랑·신부와 셀카 🤳' });
+});
+
+test("찍기와 앨범 고르기 두 경로가 모두 있다", async ({ page }) => {
+  await page.goto(HOME); await page.getByLabel("이름 (필수)", { exact: true }).fill("테스트 하객");
   await expect(page.getByRole("button", { name: "지금 찍기" })).toBeVisible();
   await expect(
     page.getByRole("button", { name: "앨범에서 고르기" })
@@ -30,7 +66,7 @@ test("삭제된 포토 미션은 표시하거나 완료 개수에 포함하지 �
   await page.addInitScript((missions) => {
     localStorage.setItem("snap-missions-done", JSON.stringify(missions));
   }, [...remaining, ...removed]);
-  await page.goto(HOME);
+  await page.goto(HOME); await page.getByLabel("이름 (필수)", { exact: true }).fill("테스트 하객");
 
   await expect(page.getByText("📸 포토 미션 · 4/4 완료", { exact: true })).toBeVisible();
   for (const mission of remaining) {
@@ -44,7 +80,7 @@ test("삭제된 포토 미션은 표시하거나 완료 개수에 포함하지 �
 test("앨범 버튼이 여는 input 에는 capture 가 없다 (사진 보관함이 열려야 한다)", async ({
   page,
 }) => {
-  await page.goto(HOME);
+  await page.goto(HOME); await page.getByLabel("이름 (필수)", { exact: true }).fill("테스트 하객");
 
   const chooser = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "앨범에서 고르기" }).click();
@@ -55,7 +91,7 @@ test("앨범 버튼이 여는 input 에는 capture 가 없다 (사진 보관함�
 });
 
 test("촬영 버튼이 여는 input 은 카메라를 바로 연다", async ({ page }) => {
-  await page.goto(HOME);
+  await page.goto(HOME); await page.getByLabel("이름 (필수)", { exact: true }).fill("테스트 하객");
 
   const chooser = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "지금 찍기" }).click();
@@ -65,7 +101,7 @@ test("촬영 버튼이 여는 input 은 카메라를 바로 연다", async ({ pa
 });
 
 test("앨범에서 고른 사진도 원본 확인 단계로 이어진다", async ({ page }) => {
-  await page.goto(HOME);
+  await page.goto(HOME); await page.getByLabel("이름 (필수)", { exact: true }).fill("테스트 하객");
 
   const chooser = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "앨범에서 고르기" }).click();
@@ -162,7 +198,7 @@ async function pickFromAlbum(page: import("@playwright/test").Page, files: strin
 
 test("앨범에서 여러 장을 고르면 장수가 표시되고 장별로 업로드된다", async ({ page }) => {
   const stub = await stubUploads(page);
-  await page.goto(HOME);
+  await page.goto(HOME); await page.getByLabel("이름 (필수)", { exact: true }).fill("테스트 하객");
 
   const modal = await pickFromAlbum(page, THREE);
   await expect(modal.getByText("3장", { exact: false }).first()).toBeVisible();
@@ -175,7 +211,7 @@ test("앨범에서 여러 장을 고르면 장수가 표시되고 장별로 업�
 
 test("일부만 실패하면 성공한 사진은 다시 올리지 않는다", async ({ page }) => {
   const stub = await stubUploads(page, { failAt: [2] });
-  await page.goto(HOME);
+  await page.goto(HOME); await page.getByLabel("이름 (필수)", { exact: true }).fill("테스트 하객");
 
   const modal = await pickFromAlbum(page, THREE);
   await modal.getByRole("button", { name: "3장 이대로 올리기" }).click();
@@ -198,7 +234,7 @@ test("일부만 실패하면 성공한 사진은 다시 올리지 않는다", as
 
 test("업로드 한도에 걸리면 남은 사진을 더 시도하지 않는다", async ({ page }) => {
   const stub = await stubUploads(page, { rateLimitAt: 2 });
-  await page.goto(HOME);
+  await page.goto(HOME); await page.getByLabel("이름 (필수)", { exact: true }).fill("테스트 하객");
 
   const modal = await pickFromAlbum(page, THREE);
   await modal.getByRole("button", { name: "3장 이대로 올리기" }).click();
@@ -214,7 +250,7 @@ test("한 번에 올릴 수 있는 장수를 넘기면 잘라내되 그 사실�
   page,
 }) => {
   await stubUploads(page);
-  await page.goto(HOME);
+  await page.goto(HOME); await page.getByLabel("이름 (필수)", { exact: true }).fill("테스트 하객");
 
   // 상한(10장)보다 많이 고른 상황
   const many = Array.from(
@@ -271,7 +307,7 @@ test("NAS 모드에서는 사진 본문을 NAS로 직접 보내고 JSON으로 �
     uploads++;
     return route.fulfill({ headers, json: { receipt: 'test-receipt' } });
   });
-  await page.goto(HOME);
+  await page.goto(HOME); await page.getByLabel("이름 (필수)", { exact: true }).fill("테스트 하객");
   const modal = await pickFromAlbum(page, [THREE[0]]);
   await modal.getByRole('button', { name: '이대로 올리기', exact: true }).click();
   await expect(modal).toBeHidden({ timeout: 15_000 });
@@ -300,7 +336,7 @@ test('스냅 사진을 계속 불러올 수 없으면 두 번만 재시도하고
     imageRequests++;
     return route.fulfill({ status: 503, headers: { 'Cache-Control': 'no-store' }, body: 'Photo storage unavailable' });
   });
-  await page.goto(HOME);
+  await page.goto(HOME); await page.getByLabel("이름 (필수)", { exact: true }).fill("테스트 하객");
   const modal = await pickFromAlbum(page, [THREE[0]]);
   await modal.getByRole('button', { name: '이대로 올리기', exact: true }).click();
   await expect(modal).toBeHidden({ timeout: 15_000 });
@@ -347,7 +383,7 @@ test('NAS 혼잡과 연결 오류는 같은 사진으로 자동 재시도하고 
     if (uploads === 2) return route.abort('connectionreset');
     return route.fulfill({ headers, json: { receipt: 'same-receipt' } });
   });
-  await page.goto(HOME);
+  await page.goto(HOME); await page.getByLabel("이름 (필수)", { exact: true }).fill("테스트 하객");
   const modal = await pickFromAlbum(page, [THREE[0]]);
   await modal.getByRole('button', { name: '이대로 올리기', exact: true }).click();
   await expect(modal.getByText('전송 순서를 기다리거나 연결을 다시 확인하고 있어요. 화면을 열어두면 자동으로 이어져요.')).toBeVisible();

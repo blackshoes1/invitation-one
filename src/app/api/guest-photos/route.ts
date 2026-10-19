@@ -32,7 +32,8 @@ export async function POST(req: Request) {
   const form = await req.formData();
   const file = form.get("file");
   const token = form.get("token");
-  const name = String(form.get("name") ?? "").trim().slice(0, 40) || null;
+  const rawName = form.get("name");
+  const name = typeof rawName === "string" ? rawName.trim().slice(0, 40) : "";
   const message = String(form.get("message") ?? "").trim().slice(0, 200) || null;
 
   // 1) 업로드 토큰 검증 (fail-closed: 서명 키 없으면 503)
@@ -51,6 +52,8 @@ export async function POST(req: Request) {
       { status: 401 }
     );
   }
+
+  if (!name) return NextResponse.json({ error: "사진을 올리려면 이름을 입력해주세요.", code: "name_required" }, { status: 400 });
 
   // 2) Rate limit (DB 기반 — 인스턴스 재시작/다중 인스턴스에도 유지)
   const ip = clientIp(req);

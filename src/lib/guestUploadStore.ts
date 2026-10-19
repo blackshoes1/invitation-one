@@ -5,7 +5,7 @@ export const GUEST_UPLOAD_DB = 'invitation-guest-uploads';
 const RETENTION = 7 * 86400_000;
 // A discarded page cannot reliably release a lease; takeover must remain quick.
 const LEASE = 12_000;
-type Batch = { key: 'active'; id: string; createdAt: number; label: string; mission: string | null; owner?: string; leaseUntil?: number; failed?: boolean; preparing?: boolean };
+type Batch = { key: 'active'; id: string; createdAt: number; label: string; authorName?: string; mission: string | null; owner?: string; leaseUntil?: number; failed?: boolean; preparing?: boolean };
 export type UploadJob = { id: string; order: number; filename: string; type: string; lastModified: number; checkpoint?: UploadCheckpoint; photo?: GuestPhoto; error?: string };
 export type UploadBatch = { batch: Batch; jobs: UploadJob[] };
 type Controls<T> = { done: (value: T) => void; fail: (error: unknown) => void };
@@ -86,7 +86,7 @@ export const guestUploadStore = {
       const request = tx.objectStore('batch').get('active');
       request.onsuccess = () => {
         if (request.result) return fail(new Error('이전에 올리던 사진부터 마쳐주세요.'));
-        tx.objectStore('batch').add({ key: 'active', id: owner, owner, leaseUntil: Date.now() + LEASE, preparing: true, createdAt: Date.now(), label, mission } satisfies Batch);
+        tx.objectStore('batch').add({ key: 'active', id: owner, owner, leaseUntil: Date.now() + LEASE, preparing: true, createdAt: Date.now(), label, authorName: label, mission } satisfies Batch);
         files.forEach((file, order) => {
           const id = crypto.randomUUID();
           tx.objectStore('jobs').add({ id, order, filename: file.name, type: file.type, lastModified: file.lastModified } satisfies UploadJob);
@@ -171,6 +171,11 @@ export const guestUploadStore = {
   failed(owner: string, failed: boolean): Promise<void> {
     return transaction(['batch'], 'readwrite', (tx, controls) => owned(tx, owner, controls, batch => {
       tx.objectStore('batch').put({ ...batch, failed }); controls.done(undefined);
+    }));
+  },
+  setName(owner: string, name: string): Promise<void> {
+    return transaction(['batch'], 'readwrite', (tx, controls) => owned(tx, owner, controls, batch => {
+      tx.objectStore('batch').put({ ...batch, authorName: name }); controls.done(undefined);
     }));
   },
   clear(owner: string): Promise<void> {
